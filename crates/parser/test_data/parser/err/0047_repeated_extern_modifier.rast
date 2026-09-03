@@ -1,15 +1,4 @@
 SOURCE_FILE
-  ERROR
-    ABI
-      EXTERN_KW "extern"
-      WHITESPACE " "
-      STRING "\"C\""
-  WHITESPACE " "
-  ERROR
-    ABI
-      EXTERN_KW "extern"
-      WHITESPACE " "
-      STRING "\"C\""
-  WHITESPACE "\n"
+  EOF "" [!EXTERN_KW("extern"), WHITESPACE(" "), !STRING("\"C\""), WHITESPACE(" "), !EXTERN_KW("extern"), WHITESPACE(" "), !STRING("\"C\""), NEWLINE("\n")] []
 error 10: expected fn, trait or impl
 error 21: expected fn, trait or impl

@@ -1,4 +1,5 @@
 use std::cmp::Reverse;
+use syntax::token_span;
 
 use either::Either;
 use hir::{Module, Type, db::HirDatabase};
@@ -192,7 +193,7 @@ pub(super) fn find_importable_node<'db>(
                         ActiveParameter::at_arg(
                             &ctx.sema,
                             list,
-                            expr.syntax().text_range().start(),
+                            token_span(expr.syntax()).start(),
                         ).map(|ap| ap.ty)
                     },
                     ast::LetStmt(stmt) => {

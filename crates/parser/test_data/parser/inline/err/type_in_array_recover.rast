@@ -1,15 +1,13 @@
 SOURCE_FILE
   CONST
-    CONST_KW "const"
-    WHITESPACE " "
-    UNDERSCORE "_"
-    COLON ":"
-    WHITESPACE " "
+    CONST_KW "const" [] [WHITESPACE(" ")]
+    UNDERSCORE "_" [] []
+    COLON ":" [] [WHITESPACE(" ")]
     SLICE_TYPE
-      L_BRACK "["
+      L_BRACK "[" [] []
       REF_TYPE
-        AMP "&"
-      R_BRACK "]"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+        AMP "&" [] []
+      R_BRACK "]" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 11: expected type

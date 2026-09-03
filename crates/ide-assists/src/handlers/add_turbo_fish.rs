@@ -2,7 +2,7 @@ use either::Either;
 use ide_db::defs::{Definition, NameRefClass};
 use syntax::{
     AstNode,
-    ast::{self, HasArgList, HasGenericArgs, syntax_factory::SyntaxFactory},
+    ast::{self, HasArgList, HasGenericArgs, edit::AstNodeEdit, syntax_factory::SyntaxFactory},
     syntax_editor::Position,
 };
 
@@ -106,9 +106,25 @@ pub(crate) fn add_turbo_fish(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
                     let placeholder_ty = make.ty_placeholder();
 
                     if let Some(pat) = let_stmt.pat() {
+                        let last = pat.syntax().last_token();
+                        let trailing: String = last
+                            .iter()
+                            .flat_map(|token| token.trailing_trivia())
+                            .map(|piece| piece.text().to_owned())
+                            .collect();
+                        if let Some(last) = last.filter(|_| !trailing.is_empty()) {
+                            let leading: String = last
+                                .leading_trivia()
+                                .map(|piece| piece.text().to_owned())
+                                .collect();
+                            let trimmed =
+                                make.token_with_trivia(last.kind(), last.text(), &leading, "");
+                            editor.replace_discard_trivia(last, trimmed);
+                        }
+
+                        let placeholder_ty = placeholder_ty.with_trailing_trivia(&trailing, make);
                         let elements = vec![
-                            make.token(syntax::SyntaxKind::COLON).into(),
-                            make.whitespace(" ").into(),
+                            make.token_with_trivia(syntax::SyntaxKind::COLON, ":", "", " ").into(),
                             placeholder_ty.syntax().clone().into(),
                         ];
                         editor.insert_all(Position::after(pat.syntax()), elements);

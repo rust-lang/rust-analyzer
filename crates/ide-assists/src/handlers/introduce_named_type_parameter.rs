@@ -1,6 +1,7 @@
 use ide_db::syntax_helpers::suggest_name;
 use itertools::Itertools;
 use syntax::ast::{self, AstNode, HasGenericParams, HasName};
+use syntax::token_span;
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -24,7 +25,7 @@ pub(crate) fn introduce_named_type_parameter(
     let fn_ = param.syntax().ancestors().nth(2).and_then(ast::Fn::cast)?;
     let type_bound_list = impl_trait_type.type_bound_list()?;
 
-    let target = fn_.syntax().text_range();
+    let target = token_span(fn_.syntax());
     acc.add(
         AssistId::refactor_rewrite("introduce_named_type_parameter"),
         "Replace impl trait with type parameter",
@@ -65,7 +66,10 @@ pub(crate) fn introduce_named_type_parameter(
 }
 
 fn non_default_bounds(bounds: &ast::TypeBoundList) -> bool {
-    bounds.bounds().collect_array().is_none_or(|[bound]| bound.syntax().text() != "Sized")
+    bounds
+        .bounds()
+        .collect_array()
+        .is_none_or(|[bound]| syntax::token_text(bound.syntax()) != "Sized")
 }
 
 #[cfg(test)]

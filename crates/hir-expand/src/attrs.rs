@@ -424,10 +424,10 @@ impl AttrId {
     ) -> TextRange {
         let (_, derive_attr) = self.find_attr_range(db, krate, owner);
         let ast::Meta::TokenTreeMeta(derive_attr) = derive_attr else {
-            return derive_attr.syntax().text_range();
+            return syntax::token_span(derive_attr.syntax());
         };
         let Some(tt) = derive_attr.token_tree() else {
-            return derive_attr.syntax().text_range();
+            return syntax::token_span(derive_attr.syntax());
         };
         // Fake the span map, as we don't really need spans here, just the offsets of the node in the file.
         let span_map = RealSpanMap::absolute(span::EditionedFileId::current_edition(
@@ -436,17 +436,17 @@ impl AttrId {
         let tt = syntax_bridge::syntax_node_to_token_tree(
             tt.syntax(),
             SpanMap::RealSpanMap(&span_map),
-            span_map.span_for_range(tt.syntax().text_range()),
+            span_map.span_for_range(syntax::token_span(tt.syntax())),
             DocCommentDesugarMode::ProcMacro,
         );
         let Some((_, _, derive_tts)) =
             parse_path_comma_token_tree(db, &tt).nth(derive_index as usize)
         else {
-            return derive_attr.syntax().text_range();
+            return syntax::token_span(derive_attr.syntax());
         };
         let (Some(first_span), Some(last_span)) = (derive_tts.first_span(), derive_tts.last_span())
         else {
-            return derive_attr.syntax().text_range();
+            return syntax::token_span(derive_attr.syntax());
         };
         let start = first_span.range.start();
         let end = last_span.range.end();

@@ -1,65 +1,55 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
   MACRO_RULES
-    MACRO_RULES_KW "macro_rules"
-    BANG "!"
-    WHITESPACE " "
+    MACRO_RULES_KW "macro_rules" [] []
+    BANG "!" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
-    WHITESPACE " "
+      IDENT "foo" [] [WHITESPACE(" ")]
     TOKEN_TREE
-      L_CURLY "{"
-      R_CURLY "}"
-  WHITESPACE "\n"
+      L_CURLY "{" [] []
+      R_CURLY "}" [] [NEWLINE("\n")]
   MACRO_CALL
     PATH
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "foo"
-      COLON2 "::"
+            IDENT "foo" [] []
+      COLON2 "::" [] []
       PATH_SEGMENT
         NAME_REF
-          IDENT "bar"
-    BANG "!"
+          IDENT "bar" [] []
+    BANG "!" [] []
     TOKEN_TREE
-      L_PAREN "("
-      R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      L_PAREN "(" [] []
+      R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   MACRO_CALL
     PATH
       PATH
         PATH_SEGMENT
           NAME_REF
-            SUPER_KW "super"
-      COLON2 "::"
+            SUPER_KW "super" [] []
+      COLON2 "::" [] []
       PATH_SEGMENT
         NAME_REF
-          IDENT "baz"
-    BANG "!"
-    WHITESPACE " "
+          IDENT "baz" [] []
+    BANG "!" [] [WHITESPACE(" ")]
     TOKEN_TREE
-      L_CURLY "{"
-      R_CURLY "}"
-  WHITESPACE "\n"
+      L_CURLY "{" [] []
+      R_CURLY "}" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      IDENT "S" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

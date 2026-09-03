@@ -1,44 +1,34 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             RECORD_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "S"
-              WHITESPACE " "
+                    IDENT "S" [WHITESPACE("    ")] [WHITESPACE(" ")]
               RECORD_EXPR_FIELD_LIST
-                L_CURLY "{"
-                WHITESPACE " "
-                DOT2 ".."
-                WHITESPACE " "
-                R_CURLY "}"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                L_CURLY "{" [] [WHITESPACE(" ")]
+                DOT2 ".." [] [WHITESPACE(" ")]
+                R_CURLY "}" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             RECORD_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "S"
-              WHITESPACE " "
+                    IDENT "S" [] [WHITESPACE(" ")]
               RECORD_EXPR_FIELD_LIST
-                L_CURLY "{"
-                R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                L_CURLY "{" [] []
+                R_CURLY "}" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

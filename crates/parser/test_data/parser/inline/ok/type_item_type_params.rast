@@ -1,20 +1,17 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "Result"
+      IDENT "Result" [] []
     GENERIC_PARAM_LIST
-      L_ANGLE "<"
+      L_ANGLE "<" [] []
       TYPE_PARAM
         NAME
-          IDENT "T"
-      R_ANGLE ">"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+          IDENT "T" [] []
+      R_ANGLE ">" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     TUPLE_TYPE
-      L_PAREN "("
-      R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      L_PAREN "(" [] []
+      R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

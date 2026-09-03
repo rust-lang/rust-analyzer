@@ -2,7 +2,7 @@ use either::Either;
 use itertools::Itertools;
 use syntax::{
     AstToken, TextRange,
-    ast::{self, CommentPlacement, Whitespace, edit::IndentLevel},
+    ast::{self, CommentPlacement, edit::IndentLevel},
 };
 
 use crate::{
@@ -30,8 +30,12 @@ pub(crate) fn desugar_doc_comment(acc: &mut Assists, ctx: &AssistContext<'_, '_>
     let placement = comment.kind().doc?;
 
     // Only allow comments which are alone on their line
-    if let Some(prev) = comment.syntax().prev_token() {
-        Whitespace::cast(prev).filter(|w| w.text().contains('\n'))?;
+    let mut prev = comment.syntax().prev_token();
+    while prev.as_ref().is_some_and(|it| it.kind() == syntax::SyntaxKind::WHITESPACE) {
+        prev = prev.and_then(|it| it.prev_token());
+    }
+    if let Some(prev) = prev {
+        (prev.kind() == syntax::SyntaxKind::NEWLINE).then_some(())?;
     }
 
     let indentation = IndentLevel::from_token(comment.syntax()).to_string();

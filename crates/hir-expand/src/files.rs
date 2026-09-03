@@ -4,7 +4,9 @@ use std::borrow::Borrow;
 use base_db::SourceDatabase;
 use either::Either;
 use span::{AstIdNode, ErasedFileAstId, FileAstId, FileId, SyntaxContext};
-use syntax::{AstNode, AstPtr, SyntaxNode, SyntaxNodePtr, SyntaxToken, TextRange, TextSize};
+use syntax::{
+    AstNode, AstPtr, SyntaxNode, SyntaxNodePtr, SyntaxToken, TextRange, TextSize, token_span,
+};
 
 use crate::{
     EditionedFileId, HirFileId, MacroCallId, MacroKind, map_node_range_up,
@@ -311,12 +313,12 @@ impl<SN: Borrow<SyntaxNode>> InFile<SN> {
     /// For attributes and derives, this will point back to the attribute only.
     /// For the entire item use `InFile::original_file_range_full`.
     pub fn original_file_range_rooted(self, db: &dyn SourceDatabase) -> FileRange {
-        self.borrow().map(SyntaxNode::text_range).original_node_file_range_rooted(db)
+        self.borrow().map(token_span).original_node_file_range_rooted(db)
     }
 
     /// Falls back to the macro call range if the node cannot be mapped up fully.
     pub fn original_file_range_with_macro_call_input(self, db: &dyn SourceDatabase) -> FileRange {
-        self.borrow().map(SyntaxNode::text_range).original_node_file_range_with_macro_call_input(db)
+        self.borrow().map(token_span).original_node_file_range_with_macro_call_input(db)
     }
 
     pub fn original_syntax_node_rooted(
@@ -361,7 +363,7 @@ impl InFile<&SyntaxNode> {
         self,
         db: &dyn SourceDatabase,
     ) -> Option<(FileRange, SyntaxContext)> {
-        self.borrow().map(SyntaxNode::text_range).original_node_file_range_opt(db)
+        self.borrow().map(token_span).original_node_file_range_opt(db)
     }
 }
 

@@ -1,111 +1,83 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "main"
+      IDENT "main" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           BOX_PAT
-            BOX_KW "box"
-            WHITESPACE " "
+            BOX_KW "box" [] [WHITESPACE(" ")]
             IDENT_PAT
               NAME
-                IDENT "i"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+                IDENT "i" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
-            L_PAREN "("
-            R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            L_PAREN "(" [] []
+            R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           BOX_PAT
-            BOX_KW "box"
-            WHITESPACE " "
+            BOX_KW "box" [] [WHITESPACE(" ")]
             RECORD_PAT
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "Outer"
-              WHITESPACE " "
+                    IDENT "Outer" [] [WHITESPACE(" ")]
               RECORD_PAT_FIELD_LIST
-                L_CURLY "{"
-                WHITESPACE " "
+                L_CURLY "{" [] [WHITESPACE(" ")]
                 RECORD_PAT_FIELD
                   BOX_PAT
-                    BOX_KW "box"
-                    WHITESPACE " "
+                    BOX_KW "box" [] [WHITESPACE(" ")]
                     IDENT_PAT
                       NAME
-                        IDENT "i"
-                COMMA ","
-                WHITESPACE " "
+                        IDENT "i" [] []
+                COMMA "," [] [WHITESPACE(" ")]
                 RECORD_PAT_FIELD
                   NAME_REF
-                    IDENT "j"
-                  COLON ":"
-                  WHITESPACE " "
+                    IDENT "j" [] []
+                  COLON ":" [] [WHITESPACE(" ")]
                   BOX_PAT
-                    BOX_KW "box"
-                    WHITESPACE " "
+                    BOX_KW "box" [] [WHITESPACE(" ")]
                     TUPLE_STRUCT_PAT
                       PATH
                         PATH_SEGMENT
                           NAME_REF
-                            IDENT "Inner"
-                      L_PAREN "("
+                            IDENT "Inner" [] []
+                      L_PAREN "(" [] []
                       BOX_PAT
-                        BOX_KW "box"
-                        WHITESPACE " "
+                        BOX_KW "box" [] [WHITESPACE(" ")]
                         REF_PAT
-                          AMP "&"
+                          AMP "&" [] []
                           IDENT_PAT
                             NAME
-                              IDENT "x"
-                      R_PAREN ")"
-                WHITESPACE " "
-                R_CURLY "}"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+                              IDENT "x" [] []
+                      R_PAREN ")" [] [WHITESPACE(" ")]
+                R_CURLY "}" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
-            L_PAREN "("
-            R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            L_PAREN "(" [] []
+            R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           BOX_PAT
-            BOX_KW "box"
-            WHITESPACE " "
+            BOX_KW "box" [] [WHITESPACE(" ")]
             IDENT_PAT
-              REF_KW "ref"
-              WHITESPACE " "
-              MUT_KW "mut"
-              WHITESPACE " "
+              REF_KW "ref" [] [WHITESPACE(" ")]
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               NAME
-                IDENT "i"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+                IDENT "i" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
-            L_PAREN "("
-            R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+            L_PAREN "(" [] []
+            R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

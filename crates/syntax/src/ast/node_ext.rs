@@ -17,6 +17,7 @@ use crate::{
         HasTypeBounds, SyntaxNode, support,
     },
     syntax_editor::SyntaxEditor,
+    syntax_node::token_span,
 };
 
 use super::{GenericParam, RangeItem, RangeOp};
@@ -417,11 +418,14 @@ impl ast::UseTreeList {
     }
 
     pub fn has_inner_comment(&self) -> bool {
+        let span = token_span(self.syntax());
         self.syntax()
-            .children_with_tokens()
+            .descendants_with_tokens()
             .filter_map(|it| it.into_token())
-            .find_map(ast::Comment::cast)
-            .is_some()
+            .flat_map(|it| it.leading_trivia().chain(it.trailing_trivia()))
+            .any(|piece| {
+                piece.kind() == SyntaxKind::COMMENT && span.contains_range(piece.text_range())
+            })
     }
 
     pub fn comma(&self) -> impl Iterator<Item = SyntaxToken> {
@@ -1226,7 +1230,12 @@ impl Iterator for TokenTreeChildren {
                 let kind = token.kind();
                 (!matches!(
                     kind,
-                    SyntaxKind::WHITESPACE | SyntaxKind::COMMENT | T![')'] | T![']'] | T!['}']
+                    SyntaxKind::WHITESPACE
+                        | SyntaxKind::NEWLINE
+                        | SyntaxKind::COMMENT
+                        | T![')']
+                        | T![']']
+                        | T!['}']
                 ))
                 .then_some(NodeOrToken::Token(token))
             }

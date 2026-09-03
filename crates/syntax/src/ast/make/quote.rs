@@ -149,12 +149,13 @@ macro_rules! quote_ {
         $crate::ast::make::quote::quote_impl!( @append root $root { $($tree)* } );
         let root = root.into_iter().next().unwrap();
         let root = $crate::SyntaxNode::new_root(root.into_node().unwrap());
+        let root = $crate::syntax_node::fold_whitespace(&root);
         <$crate::ast::$root as $crate::ast::AstNode>::cast(root).unwrap()
     }};
 }
 pub(crate) use quote_ as quote;
 
-use crate::AstNode;
+use crate::{AstNode, syntax_node::clone_subtree_with_outer_trivia};
 
 pub(crate) trait ToNodeChild {
     fn append_node_child(self, children: &mut Vec<NodeOrToken<GreenNode, GreenToken>>);
@@ -162,7 +163,8 @@ pub(crate) trait ToNodeChild {
 
 impl<N: AstNode> ToNodeChild for N {
     fn append_node_child(self, children: &mut Vec<NodeOrToken<GreenNode, GreenToken>>) {
-        children.push((*self.syntax().clone_subtree().green()).to_owned().into());
+        let node = clone_subtree_with_outer_trivia(self.syntax(), Some(""), Some(""));
+        children.push((*node.green()).to_owned().into());
     }
 }
 

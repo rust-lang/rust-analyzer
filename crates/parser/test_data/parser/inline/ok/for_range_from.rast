@@ -1,42 +1,31 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n   "
+        L_CURLY "{" [] [NEWLINE("\n")]
         FOR_EXPR
-          FOR_KW "for"
-          WHITESPACE " "
+          FOR_KW "for" [WHITESPACE("   ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "x"
-          WHITESPACE " "
-          IN_KW "in"
-          WHITESPACE " "
+              IDENT "x" [] [WHITESPACE(" ")]
+          IN_KW "in" [] [WHITESPACE(" ")]
           RANGE_EXPR
             LITERAL
-              INT_NUMBER "0"
-            WHITESPACE " "
-            DOT2 ".."
-          WHITESPACE " "
+              INT_NUMBER "0" [] [WHITESPACE(" ")]
+            DOT2 ".." [] [WHITESPACE(" ")]
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE "\n       "
+              L_CURLY "{" [] [NEWLINE("\n")]
               EXPR_STMT
                 BREAK_EXPR
-                  BREAK_KW "break"
-                SEMICOLON ";"
-              WHITESPACE "\n   "
-              R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                  BREAK_KW "break" [WHITESPACE("       ")] []
+                SEMICOLON ";" [] [NEWLINE("\n")]
+              R_CURLY "}" [WHITESPACE("   ")] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

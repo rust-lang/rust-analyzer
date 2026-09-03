@@ -1,6 +1,7 @@
 use hir::{FileRange, diagnostics::RemoveTrailingReturn};
 use ide_db::text_edit::TextEdit;
 use ide_db::{assists::Assist, source_change::SourceChange};
+use syntax::token_span;
 use syntax::{AstNode, ast};
 
 use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range, fix};
@@ -23,7 +24,7 @@ pub(crate) fn remove_trailing_return(
             .syntax()
             .parent()
             .and_then(ast::ExprStmt::cast)
-            .map(|stmt| stmt.syntax().text_range())
+            .map(|stmt| token_span(stmt.syntax()))
     });
     Some(
         Diagnostic::new(

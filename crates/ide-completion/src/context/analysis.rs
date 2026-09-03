@@ -1,5 +1,6 @@
 //! Module responsible for analyzing the code surrounding the cursor for completion.
 use std::iter;
+use syntax::token_span;
 
 use hir::{EnumVariant, ExpandResult, InFile, Semantics, Type, TypeInfo};
 use ide_db::{
@@ -65,7 +66,8 @@ pub(super) fn expand_and_analyze<'db>(
     // if there is an ident already typed or not
     let fake_ident_token = speculative_file.token_at_offset(offset).right_biased()?;
     // the relative offset between the cursor and the *identifier* token we are completing on
-    let relative_offset = offset - fake_ident_token.text_range().start();
+    let relative_offset =
+        offset.checked_sub(fake_ident_token.text_range().start()).unwrap_or_default();
     // make the offset point to the start of the original token, as that is what the
     // intermediate offsets calculated in expansion always points to
     let offset = offset - relative_offset;
@@ -88,7 +90,8 @@ pub(super) fn expand_and_analyze<'db>(
 
     // add the relative offset back, so that left_biased finds the proper token
     let original_offset = expansion.original_offset + relative_offset;
-    let token = expansion.original_file.token_at_offset(original_offset).left_biased()?;
+    let token = algo::token_at_offset_with_trivia(&expansion.original_file, original_offset)
+        .left_biased()?;
 
     analyze(sema, expansion, original_token, &token).map(|(analysis, expected, qualifier_ctx)| {
         AnalysisResult { analysis, expected, qualifier_ctx, token, original_offset }
@@ -96,7 +99,7 @@ pub(super) fn expand_and_analyze<'db>(
 }
 
 fn token_at_offset_ignore_whitespace(file: &SyntaxNode, offset: TextSize) -> Option<SyntaxToken> {
-    let token = file.token_at_offset(offset).left_biased()?;
+    let token = algo::token_at_offset_with_trivia(file, offset).left_biased()?;
     algo::skip_whitespace_token(token, Direction::Prev)
 }
 
@@ -769,7 +772,7 @@ fn expected_type_and_name<'db>(
                 },
                 ast::MatchArm(it) => {
                     let on_arrow = previous_non_trivia_token(token.clone()).is_some_and(|it| T![=>] == it.kind());
-                    let in_body = it.expr().is_some_and(|it| it.syntax().text_range().contains_range(token.text_range()));
+                    let in_body = it.expr().is_some_and(|it| token_span(it.syntax()).contains_range(token.text_range()));
                     let match_expr = it.parent_match();
 
                     let ty = if on_arrow || in_body {
@@ -786,7 +789,7 @@ fn expected_type_and_name<'db>(
                 },
                 ast::IfExpr(it) => {
                     let ty = if let Some(body) = it.then_branch()
-                        && token.text_range().end() > body.syntax().text_range().start()
+                        && token.text_range().end() > token_span(body.syntax()).start()
                     {
                         sema.type_of_expr(&body.into())
                     } else {
@@ -806,7 +809,7 @@ fn expected_type_and_name<'db>(
                 },
                 ast::TupleStructPat(it) => {
                     let fields = sema.resolve_tuple_struct_pat_fields(&it);
-                    let nr = it.fields().take_while(|it| it.syntax().text_range().end() <= token.text_range().start()).count();
+                    let nr = it.fields().take_while(|it| token_span(it.syntax()).end() <= token.text_range().start()).count();
                     let ty = fields.and_then(|fields| Some(rebase_ty(fields.get(nr)?.1.clone())));
                     (ty, None)
                 },
@@ -843,7 +846,7 @@ fn expected_type_and_name<'db>(
                 ast::ParamList(it) => {
                     let closure = it.syntax().parent().and_then(ast::ClosureExpr::cast);
                     let ty = closure
-                        .filter(|_| it.syntax().text_range().end() <= self_token.text_range().start())
+                        .filter(|_| token_span(it.syntax()).end() <= self_token.text_range().start())
                         .and_then(|it| sema.type_of_expr(&it.into()));
                     ty.and_then(|ty| ty.original.as_callable(sema.db))
                         .map(|c| (Some(c.return_type()), None))
@@ -890,7 +893,7 @@ fn classify_lifetime(
     }
 
     let lifetime =
-        find_node_at_offset::<ast::Lifetime>(original_file, lifetime.syntax().text_range().start());
+        find_node_at_offset::<ast::Lifetime>(original_file, token_span(lifetime.syntax()).start());
     let kind = match_ast! {
         match parent {
             ast::LifetimeParam(_) => LifetimeKind::LifetimeParam,
@@ -943,7 +946,7 @@ fn classify_name(
             _ => return None,
         }
     };
-    let name = find_node_at_offset(original_file, name.syntax().text_range().start());
+    let name = find_node_at_offset(original_file, token_span(name.syntax()).start());
     Some(NameContext { name, kind })
 }
 
@@ -1760,9 +1763,7 @@ fn has_parens(node: &dyn HasArgList) -> bool {
     });
     prev_siblings
         .take_while(|syntax| syntax.kind().is_trivia())
-        .filter_map(|syntax| {
-            syntax.into_token().filter(|token| token.kind() == SyntaxKind::WHITESPACE)
-        })
+        .filter_map(|syntax| syntax.into_token().filter(|token| token.kind().is_trivia()))
         .all(|whitespace| !whitespace.text().contains('\n'))
 }
 
@@ -1919,7 +1920,7 @@ fn find_opt_node_in_file<N: AstNode>(syntax: &SyntaxNode, node: Option<N>) -> Op
 /// If the fake identifier has been inserted after this node or inside of this node use the `_compensated` version instead.
 fn find_node_in_file<N: AstNode>(syntax: &SyntaxNode, node: &N) -> Option<N> {
     let syntax_range = syntax.text_range();
-    let range = node.syntax().text_range();
+    let range = token_span(node.syntax());
     let intersection = range.intersect(syntax_range)?;
     syntax.covering_element(intersection).ancestors().find_map(N::cast)
 }
@@ -1995,10 +1996,10 @@ fn is_in_token_of_for_loop(path: &ast::Path) -> bool {
         let next_sibl = next_non_trivia_sibling(pat.syntax().clone().into())?;
         Some(match next_sibl {
             syntax::NodeOrToken::Node(n) => {
-                n.text_range().start() == path.syntax().text_range().start()
+                token_span(&n).start() == token_span(path.syntax()).start()
             }
             syntax::NodeOrToken::Token(t) => {
-                t.text_range().start() == path.syntax().text_range().start()
+                t.text_range().start() == token_span(path.syntax()).start()
             }
         })
     })()
@@ -2018,7 +2019,7 @@ fn is_in_breakable(node: &SyntaxNode) -> Option<(BreakableKind, SyntaxNode)> {
                     _ => return None,
                 }
             };
-            loop_body.syntax().text_range().contains_range(node.text_range())
+            token_span(loop_body.syntax()).contains_range(node.text_range())
                 .then_some((breakable, it))
         })
 }
@@ -2041,7 +2042,7 @@ fn is_in_block(node: &SyntaxNode) -> bool {
 fn has_in_newline_expr_first(node: &SyntaxNode) -> bool {
     if ast::PathExpr::can_cast(node.kind())
         && let Some(NodeOrToken::Token(next)) = node.next_sibling_or_token()
-        && next.kind() == SyntaxKind::WHITESPACE
+        && next.kind().is_trivia()
         && next.text().contains('\n')
         && let Some(stmt_like) = node
             .ancestors()

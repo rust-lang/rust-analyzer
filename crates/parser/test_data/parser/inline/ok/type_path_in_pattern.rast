@@ -1,40 +1,33 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "main"
+      IDENT "main" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [] [WHITESPACE(" ")]
           PATH_PAT
             PATH
               PATH
                 PATH_SEGMENT
                   TYPE_ANCHOR
-                    L_ANGLE "<"
+                    L_ANGLE "<" [] []
                     INFER_TYPE
-                      UNDERSCORE "_"
-                    R_ANGLE ">"
-              COLON2 "::"
+                      UNDERSCORE "_" [] []
+                    R_ANGLE ">" [] []
+              COLON2 "::" [] []
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "Foo"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+                  IDENT "Foo" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
-            L_PAREN "("
-            R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+            L_PAREN "(" [] []
+            R_PAREN ")" [] []
+          SEMICOLON ";" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

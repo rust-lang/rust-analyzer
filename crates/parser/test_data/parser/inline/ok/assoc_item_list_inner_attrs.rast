@@ -1,26 +1,22 @@
 SOURCE_FILE
   IMPL
-    IMPL_KW "impl"
-    WHITESPACE " "
+    IMPL_KW "impl" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "S"
-    WHITESPACE " "
+            IDENT "S" [] [WHITESPACE(" ")]
     ASSOC_ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE " "
+      L_CURLY "{" [] [WHITESPACE(" ")]
       ATTR
-        POUND "#"
-        BANG "!"
-        L_BRACK "["
+        POUND "#" [] []
+        BANG "!" [] []
+        L_BRACK "[" [] []
         PATH_META
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "attr"
-        R_BRACK "]"
-      WHITESPACE " "
-      R_CURLY "}"
-  WHITESPACE "\n"
+                IDENT "attr" [] []
+        R_BRACK "]" [] [WHITESPACE(" ")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

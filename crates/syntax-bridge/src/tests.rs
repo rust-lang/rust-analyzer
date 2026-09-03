@@ -120,15 +120,15 @@ fn main() {
     expect![[r#"
         SOURCE_FILE@0..19
           FN@0..19
-            FN_KW@0..2 "fn"
+            FN_KW@0..2 "fn" [] []
             NAME@2..6
-              IDENT@2..6 "main"
+              IDENT@2..6 "main" [] []
             PARAM_LIST@6..8
-              L_PAREN@6..7 "("
-              R_PAREN@7..8 ")"
+              L_PAREN@6..7 "(" [] []
+              R_PAREN@7..8 ")" [] []
             BLOCK_EXPR@8..19
               STMT_LIST@8..19
-                L_CURLY@8..9 "{"
+                L_CURLY@8..9 "{" [] []
                 EXPR_STMT@9..18
                   FIELD_EXPR@9..17
                     FIELD_EXPR@9..17
@@ -136,12 +136,12 @@ fn main() {
                         PATH@9..10
                           PATH_SEGMENT@9..10
                             NAME_REF@9..10
-                              IDENT@9..10 "s"
-                      DOT@10..11 "."
+                              IDENT@9..10 "s" [] []
+                      DOT@10..11 "." [] []
                       ERROR@11..17
-                        FLOAT_NUMBER@11..17 "00E+10"
-                  SEMICOLON@17..18 ";"
-                R_CURLY@18..19 "}"
+                        FLOAT_NUMBER@11..17 "00E+10" [] []
+                  SEMICOLON@17..18 ";" [] []
+                R_CURLY@18..19 "}" [] []
         error 11..11: illegal float literal
     "#]]
     .assert_eq(&parse.debug_dump());

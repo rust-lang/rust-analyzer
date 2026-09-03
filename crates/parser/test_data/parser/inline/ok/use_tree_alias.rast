@@ -1,32 +1,25 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "std"
-      WHITESPACE " "
+            IDENT "std" [] [WHITESPACE(" ")]
       RENAME
-        AS_KW "as"
-        WHITESPACE " "
+        AS_KW "as" [] [WHITESPACE(" ")]
         NAME
-          IDENT "stdlib"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+          IDENT "stdlib" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "Trait"
-      WHITESPACE " "
+            IDENT "Trait" [] [WHITESPACE(" ")]
       RENAME
-        AS_KW "as"
-        WHITESPACE " "
-        UNDERSCORE "_"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+        AS_KW "as" [] [WHITESPACE(" ")]
+        UNDERSCORE "_" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

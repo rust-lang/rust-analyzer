@@ -127,6 +127,16 @@ impl<'db> ReplacementRenderer<'_, 'db> {
     }
 
     fn render_token(&mut self, token: &SyntaxToken) {
+        for piece in token.leading_trivia() {
+            self.out.push_str(piece.text());
+        }
+        self.render_token_text(token);
+        for piece in token.trailing_trivia() {
+            self.out.push_str(piece.text());
+        }
+    }
+
+    fn render_token_text(&mut self, token: &SyntaxToken) {
         if let Some(placeholder) = self.rule.get_placeholder(token) {
             if let Some(placeholder_value) =
                 self.match_info.placeholder_values.get(&placeholder.ident)

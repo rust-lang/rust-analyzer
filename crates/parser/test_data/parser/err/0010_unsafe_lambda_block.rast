@@ -1,45 +1,35 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "main"
+      IDENT "main" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           CLOSURE_EXPR
             PARAM_LIST
-              PIPE "|"
-              PIPE "|"
-            WHITESPACE " "
+              PIPE "|" [WHITESPACE("    ")] []
+              PIPE "|" [] [WHITESPACE(" ")]
             RET_TYPE
-              THIN_ARROW "->"
-              WHITESPACE " "
+              THIN_ARROW "->" [] [WHITESPACE(" ")]
               TUPLE_TYPE
-                L_PAREN "("
-                R_PAREN ")"
-        WHITESPACE " "
+                L_PAREN "(" [] []
+                R_PAREN ")" [] [WHITESPACE(" ")]
         EXPR_STMT
           BLOCK_EXPR
-            UNSAFE_KW "unsafe"
-            WHITESPACE " "
+            UNSAFE_KW "unsafe" [] [WHITESPACE(" ")]
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE " "
+              L_CURLY "{" [] [WHITESPACE(" ")]
               TUPLE_EXPR
-                L_PAREN "("
-                R_PAREN ")"
-              WHITESPACE " "
-              R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
-error 24: expected a block
-error 24: expected SEMICOLON
+                L_PAREN "(" [] []
+                R_PAREN ")" [] [WHITESPACE(" ")]
+              R_CURLY "}" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
+error 25: expected a block
+error 25: expected SEMICOLON

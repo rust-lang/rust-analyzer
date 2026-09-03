@@ -4,6 +4,7 @@ use either::Either;
 use hir::{InFile, Semantics, Type};
 use parser::T;
 use span::TextSize;
+use syntax::token_span;
 use syntax::{
     AstNode, NodeOrToken, SyntaxKind, SyntaxNode, SyntaxToken,
     ast::{self, AstChildren, HasArgList, HasAttrs, HasName},
@@ -73,7 +74,7 @@ pub fn callable_for_token<'db>(
     let calling_node = parent
         .ancestors()
         .filter_map(ast::CallableExpr::cast)
-        .find(|it| it.arg_list().is_some_and(|it| it.syntax().text_range().contains(offset)))?;
+        .find(|it| it.arg_list().is_some_and(|it| token_span(it.syntax()).contains(offset)))?;
 
     callable_for_node(sema, &calling_node, offset)
 }
@@ -84,7 +85,7 @@ pub fn callable_for_arg_list<'db>(
     arg_list: ast::ArgList,
     at: TextSize,
 ) -> Option<(hir::Callable<'db>, Option<usize>)> {
-    debug_assert!(arg_list.syntax().text_range().contains(at));
+    debug_assert!(token_span(arg_list.syntax()).contains(at));
     let callable = arg_list.syntax().parent().and_then(ast::CallableExpr::cast)?;
     callable_for_node(sema, &callable, at)
 }

@@ -1,4 +1,5 @@
 use ide_db::{RootDatabase, famous_defs::FamousDefs};
+use syntax::token_span;
 use syntax::{
     ast::{self, AstNode, HasName, edit::AstNodeEdit, syntax_factory::SyntaxFactory},
     syntax_editor::{Position, SyntaxEditor},
@@ -42,7 +43,7 @@ pub(crate) fn generate_default_from_enum_variant(
         cov_mark::hit!(test_gen_default_on_non_unit_variant_not_implemented);
         return None;
     }
-    if !variant.syntax().text_range().contains_range(ctx.selection_trimmed()) {
+    if !token_span(variant.syntax()).contains_range(ctx.selection_trimmed()) {
         return None;
     }
 
@@ -51,7 +52,7 @@ pub(crate) fn generate_default_from_enum_variant(
         return None;
     }
 
-    let target = variant.syntax().text_range();
+    let target = token_span(variant.syntax());
     acc.add(
         AssistId::generate("generate_default_from_enum_variant"),
         "Generate `Default` impl from this enum variant",
@@ -62,13 +63,8 @@ pub(crate) fn generate_default_from_enum_variant(
             let indent = adt.indent_level();
             let impl_ = default_impl(variant_name, &adt, make);
 
-            editor.insert_all(
-                Position::after(adt.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                    impl_.indent(indent).syntax().clone().into(),
-                ],
-            );
+            let impl_ = impl_.indent(indent).with_leading_trivia(&format!("\n\n{indent}"), make);
+            editor.insert(Position::after(adt.syntax()), impl_.syntax());
             edit.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

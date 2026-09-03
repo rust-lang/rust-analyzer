@@ -1,126 +1,112 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "a"
+      IDENT "a" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       PATH_TYPE
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "Foo"
+              IDENT "Foo" [] []
             GENERIC_ARG_LIST
-              L_ANGLE "<"
+              L_ANGLE "<" [] []
               TYPE_ARG
                 PATH_TYPE
                   PATH
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "bar"
-                    COLON2 "::"
+                          IDENT "bar" [] []
+                    COLON2 "::" [] []
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "Baz"
-              R_ANGLE ">"
-    WHITESPACE " "
+                        IDENT "Baz" [] []
+              R_ANGLE ">" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "b"
+      IDENT "b" [] []
     PARAM_LIST
-      L_PAREN "("
+      L_PAREN "(" [] []
       PARAM
         WILDCARD_PAT
-          UNDERSCORE "_"
-        COLON ":"
-        WHITESPACE " "
+          UNDERSCORE "_" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         IMPL_TRAIT_TYPE
-          IMPL_KW "impl"
-          WHITESPACE " "
+          IMPL_KW "impl" [] [WHITESPACE(" ")]
           TYPE_BOUND_LIST
             TYPE_BOUND
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "FnMut"
+                      IDENT "FnMut" [] []
                     PARENTHESIZED_ARG_LIST
-                      L_PAREN "("
+                      L_PAREN "(" [] []
                       TYPE_ARG
                         PATH_TYPE
                           PATH
                             PATH
                               PATH_SEGMENT
                                 NAME_REF
-                                  IDENT "x"
-                            COLON2 "::"
+                                  IDENT "x" [] []
+                            COLON2 "::" [] []
                             PATH_SEGMENT
                               NAME_REF
-                                IDENT "Y"
-                      R_PAREN ")"
-      R_PAREN ")"
-    WHITESPACE " "
+                                IDENT "Y" [] []
+                      R_PAREN ")" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "c"
+      IDENT "c" [] []
     PARAM_LIST
-      L_PAREN "("
+      L_PAREN "(" [] []
       PARAM
         WILDCARD_PAT
-          UNDERSCORE "_"
-        COLON ":"
-        WHITESPACE " "
+          UNDERSCORE "_" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         IMPL_TRAIT_TYPE
-          IMPL_KW "impl"
-          WHITESPACE " "
+          IMPL_KW "impl" [] [WHITESPACE(" ")]
           TYPE_BOUND_LIST
             TYPE_BOUND
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "FnMut"
+                      IDENT "FnMut" [] []
                     PARENTHESIZED_ARG_LIST
-                      L_PAREN "("
+                      L_PAREN "(" [] []
                       TYPE_ARG
                         REF_TYPE
-                          AMP "&"
+                          AMP "&" [] []
                           PATH_TYPE
                             PATH
                               PATH
                                 PATH_SEGMENT
                                   NAME_REF
-                                    IDENT "x"
-                              COLON2 "::"
+                                    IDENT "x" [] []
+                              COLON2 "::" [] []
                               PATH_SEGMENT
                                 NAME_REF
-                                  IDENT "Y"
-                      R_PAREN ")"
-      R_PAREN ")"
-    WHITESPACE " "
+                                  IDENT "Y" [] []
+                      R_PAREN ")" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

@@ -1,18 +1,11 @@
 SOURCE_FILE
-  ERROR
-    IF_KW "if"
-  WHITESPACE " "
-  ERROR
-    MATCH_KW "match"
-  WHITESPACE "\n\n"
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [!IF_KW("if"), WHITESPACE(" "), !MATCH_KW("match"), NEWLINE("\n"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    WHITESPACE " "
+      IDENT "S" [] [WHITESPACE(" ")]
     RECORD_FIELD_LIST
-      L_CURLY "{"
-      R_CURLY "}"
+      L_CURLY "{" [] []
+      R_CURLY "}" [] []
+  EOF "" [] []
 error 0: expected an item
-error 3: expected an item
+error 2: expected an item

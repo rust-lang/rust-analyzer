@@ -1,5 +1,6 @@
 use hir::{ModPath, ModuleDef};
 use ide_db::{FileId, RootDatabase, famous_defs::FamousDefs};
+use syntax::token_span;
 use syntax::{
     Edition,
     ast::{self, AstNode, HasName, edit::AstNodeEdit},
@@ -62,7 +63,7 @@ fn generate_record_deref(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opti
 
     let field_type = field.ty()?;
     let field_name = field.name()?;
-    let target = field.syntax().text_range();
+    let target = token_span(field.syntax());
     let file_id = ctx.vfs_file_id();
     acc.add(
         AssistId::generate("generate_deref"),
@@ -105,7 +106,7 @@ fn generate_tuple_deref(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Optio
     let trait_path = module.find_path(ctx.db(), ModuleDef::Trait(trait_), cfg)?;
 
     let field_type = field.ty()?;
-    let target = field.syntax().text_range();
+    let target = token_span(field.syntax());
     let file_id = ctx.vfs_file_id();
     acc.add(
         AssistId::generate("generate_deref"),
@@ -197,11 +198,9 @@ fn generate_edit(
     let body = make.assoc_item_list(assoc_items);
     let indent = strukt.indent_level();
     let impl_ = generate_trait_impl_intransitive_with_item(make, &strukt_adt, trait_ty, body)
-        .indent(indent);
-    editor.insert_all(
-        Position::after(strukt.syntax()),
-        vec![make.whitespace(&format!("\n\n{indent}")).into(), impl_.syntax().clone().into()],
-    );
+        .indent(indent)
+        .with_leading_trivia(&format!("\n\n{indent}"), make);
+    editor.insert(Position::after(strukt.syntax()), impl_.syntax());
     edit.add_file_edits(file_id, editor);
 }
 

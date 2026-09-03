@@ -1,4 +1,5 @@
 use std::iter;
+use syntax::token_span;
 
 use ast::edit::IndentLevel;
 use ide_db::base_db::AnchoredPathBuf;
@@ -28,12 +29,12 @@ pub(crate) fn move_module_to_file(acc: &mut Assists, ctx: &AssistContext<'_, '_>
     let module_ast = ctx.find_node_at_offset::<ast::Module>()?;
     let module_items = module_ast.item_list()?;
 
-    let l_curly_offset = module_items.syntax().text_range().start();
+    let l_curly_offset = token_span(module_items.syntax()).start();
     if l_curly_offset <= ctx.offset() {
         cov_mark::hit!(available_before_curly);
         return None;
     }
-    let target = TextRange::new(module_ast.syntax().text_range().start(), l_curly_offset);
+    let target = TextRange::new(token_span(module_ast.syntax()).start(), l_curly_offset);
 
     let module_name = module_ast.name()?;
 
@@ -87,12 +88,12 @@ pub(crate) fn move_module_to_file(acc: &mut Assists, ctx: &AssistContext<'_, '_>
 
             let replacement_start = match module_ast.mod_token() {
                 Some(mod_token) => mod_token.text_range(),
-                None => module_ast.syntax().text_range(),
+                None => token_span(module_ast.syntax()),
             }
             .start();
 
             builder.replace(
-                TextRange::new(replacement_start, module_ast.syntax().text_range().end()),
+                TextRange::new(replacement_start, token_span(module_ast.syntax()).end()),
                 buf,
             );
 

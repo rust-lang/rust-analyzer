@@ -1,23 +1,20 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
+      IDENT "S" [] []
     GENERIC_PARAM_LIST
-      L_ANGLE "<"
+      L_ANGLE "<" [] []
       CONST_PARAM
-        CONST_KW "const"
-        WHITESPACE " "
+        CONST_KW "const" [] [WHITESPACE(" ")]
         NAME
-          IDENT "N"
-        COLON ":"
-        WHITESPACE " "
+          IDENT "N" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "u32"
-      R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                IDENT "u32" [] []
+      R_ANGLE ">" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

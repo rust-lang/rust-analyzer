@@ -1,28 +1,24 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           AWAIT_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "x"
-            DOT "."
-            AWAIT_KW "await"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                    IDENT "x" [WHITESPACE("    ")] []
+            DOT "." [] []
+            AWAIT_KW "await" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           AWAIT_EXPR
             FIELD_EXPR
@@ -30,14 +26,13 @@ SOURCE_FILE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "x"
-              DOT "."
+                      IDENT "x" [WHITESPACE("    ")] []
+              DOT "." [] []
               NAME_REF
-                INT_NUMBER "0"
-            DOT "."
-            AWAIT_KW "await"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "0" [] []
+            DOT "." [] []
+            AWAIT_KW "await" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           METHOD_CALL_EXPR
             TRY_EXPR
@@ -48,24 +43,23 @@ SOURCE_FILE
                       PATH
                         PATH_SEGMENT
                           NAME_REF
-                            IDENT "x"
-                    DOT "."
+                            IDENT "x" [WHITESPACE("    ")] []
+                    DOT "." [] []
                     NAME_REF
-                      INT_NUMBER "0"
+                      INT_NUMBER "0" [] []
                   ARG_LIST
-                    L_PAREN "("
-                    R_PAREN ")"
-                DOT "."
-                AWAIT_KW "await"
-              QUESTION "?"
-            DOT "."
+                    L_PAREN "(" [] []
+                    R_PAREN ")" [] []
+                DOT "." [] []
+                AWAIT_KW "await" [] []
+              QUESTION "?" [] []
+            DOT "." [] []
             NAME_REF
-              IDENT "hello"
+              IDENT "hello" [] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           AWAIT_EXPR
             FIELD_EXPR
@@ -74,17 +68,16 @@ SOURCE_FILE
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "x"
-                DOT "."
+                        IDENT "x" [WHITESPACE("    ")] []
+                DOT "." [] []
                 NAME_REF
-                  INT_NUMBER "0"
-              DOT "."
+                  INT_NUMBER "0" [] []
+              DOT "." [] []
               NAME_REF
-                INT_NUMBER "0"
-            DOT "."
-            AWAIT_KW "await"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "0" [] []
+            DOT "." [] []
+            AWAIT_KW "await" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           AWAIT_EXPR
             FIELD_EXPR
@@ -92,14 +85,12 @@ SOURCE_FILE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "x"
-              DOT "."
+                      IDENT "x" [WHITESPACE("    ")] []
+              DOT "." [] []
               NAME_REF
-                INT_NUMBER "0"
-            DOT "."
-            WHITESPACE " "
-            AWAIT_KW "await"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                INT_NUMBER "0" [] []
+            DOT "." [] [WHITESPACE(" ")]
+            AWAIT_KW "await" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

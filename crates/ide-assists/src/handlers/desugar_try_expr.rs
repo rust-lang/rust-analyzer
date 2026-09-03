@@ -1,4 +1,5 @@
 use std::iter;
+use syntax::token_span;
 
 use ide_db::{assists::AssistId, ty_filter::TryEnum};
 use syntax::{
@@ -59,7 +60,7 @@ pub(crate) fn desugar_try_expr(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
 
     let try_enum = TryEnum::from_ty(&ctx.sema, &expr_type_info.original)?;
 
-    let target = try_expr.syntax().text_range();
+    let target = token_span(try_expr.syntax());
     acc.add(
         AssistId::refactor_rewrite("desugar_try_expr_match"),
         "Replace try expression with match",

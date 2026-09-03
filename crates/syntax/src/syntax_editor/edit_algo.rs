@@ -6,11 +6,16 @@ use rowan::TextRange;
 use rustc_hash::FxHashMap;
 use stdx::format_to;
 
-use crate::{NodeOrToken, SyntaxElement, SyntaxNode};
+use crate::{
+    NodeOrToken, SyntaxElement, SyntaxNode,
+    syntax_node::{
+        TriviaPiece, clone_subtree_with_raw_outer_trivia, make_token_with_raw_trivia, trivia_of,
+    },
+};
 
 use super::{
     Change, ChangeKind, PositionRepr, SyntaxAnnotation, SyntaxEdit, SyntaxEditor, SyntaxMapping,
-    mapping::MissingMapping,
+    SyntaxMappingBuilder, mapping::MissingMapping,
 };
 
 /// A validated batch of changes in the exact order in which it must execute.
@@ -99,10 +104,7 @@ impl EditPlan {
         for (index, change) in changes.iter().enumerate() {
             let target_tree = change.target_parent().tree_top();
             let regions = regions_by_tree.entry(target_tree).or_default();
-            if let Some(region_index) = regions
-                .iter()
-                .rposition(|region| region.range.contains_range(change.target_range()))
-            {
+            if let Some(region_index) = regions.iter().rposition(|region| region.contains(change)) {
                 regions.truncate(region_index + 1);
                 match regions[region_index].nested_changes {
                     NestedChanges::Remap => {
@@ -263,7 +265,9 @@ impl EditPlan {
             Change::Insert(position, _) | Change::InsertAll(position, _) => {
                 match &mut position.repr {
                     PositionRepr::FirstChild(parent) => *parent = upmap_node(parent),
-                    PositionRepr::After(child) => *child = upmap_element(child),
+                    PositionRepr::After(child) | PositionRepr::Before(child) => {
+                        *child = upmap_element(child)
+                    }
                 }
             }
             Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => {
@@ -493,6 +497,12 @@ impl TreeState {
                         let child = self.map_original_element(child);
                         (child.parent().unwrap(), child.index() + 1)
                     }
+                    PositionRepr::Before(child) => {
+                        let index = child.index();
+                        let parent = child.parent().expect("insert position has a parent");
+                        let parent = self.map_original_element(&parent.into());
+                        (parent.into_node().unwrap(), index)
+                    }
                 };
                 self.splice(
                     SyntaxPath::new(&parent.into()),
@@ -501,7 +511,10 @@ impl TreeState {
                     record_as_changed,
                 );
             }
-            Change::Replace(SyntaxElement::Node(target), Some(_)) if target.parent().is_none() => {
+            Change::Replace(SyntaxElement::Node(target), Some(_))
+            | Change::ReplaceWithMany(SyntaxElement::Node(target), _)
+                if target.parent().is_none() =>
+            {
                 self.replace_root(replacement.into_iter().next().unwrap(), record_as_changed);
             }
             Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => {
@@ -664,16 +677,303 @@ impl TreeStore {
     }
 }
 
-/// Plans and executes all changes recorded by a SyntaxEditor.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Edge {
+    Leading,
+    Trailing,
+}
+
+impl Edge {
+    fn token_of(self, element: &SyntaxElement) -> Option<crate::SyntaxToken> {
+        match element {
+            SyntaxElement::Node(node) => match self {
+                Edge::Leading => node.first_token(),
+                Edge::Trailing => node.last_token(),
+            },
+            SyntaxElement::Token(token) => Some(token.clone()),
+        }
+    }
+
+    fn trivia_of(self, token: &crate::SyntaxToken) -> Vec<TriviaPiece> {
+        trivia_of(token, self == Edge::Leading)
+    }
+
+    fn opposite(self) -> Edge {
+        match self {
+            Edge::Leading => Edge::Trailing,
+            Edge::Trailing => Edge::Leading,
+        }
+    }
+}
+
+fn transfer_trivia(
+    changes: Vec<Change>,
+    discarded: &[SyntaxElement],
+    mappings: &mut SyntaxMapping,
+    annotations: &mut [(SyntaxElement, SyntaxAnnotation)],
+) -> Vec<Change> {
+    let edge_trivia = |element: &SyntaxElement, edge: Edge| -> Vec<TriviaPiece> {
+        edge.token_of(element).map(|token| edge.trivia_of(&token)).unwrap_or_default()
+    };
+
+    let mut rebuilt = Vec::new();
+    let mut adopt = |element: SyntaxElement,
+                     leading: Option<&[TriviaPiece]>,
+                     trailing: Option<&[TriviaPiece]>|
+     -> SyntaxElement {
+        match element {
+            SyntaxElement::Node(node) => {
+                let replacement = clone_subtree_with_raw_outer_trivia(&node, leading, trailing);
+                rebuilt.push((node, replacement.clone()));
+                SyntaxElement::Node(replacement)
+            }
+            SyntaxElement::Token(token) => {
+                let own_leading = trivia_of(&token, true);
+                let own_trailing = trivia_of(&token, false);
+                SyntaxElement::Token(make_token_with_raw_trivia(
+                    token.kind(),
+                    token.text(),
+                    leading.unwrap_or(&own_leading),
+                    trailing.unwrap_or(&own_trailing),
+                ))
+            }
+        }
+    };
+
+    let mut targeted: Vec<SyntaxElement> = Vec::new();
+    for change in &changes {
+        match change {
+            Change::Replace(old, _) | Change::ReplaceWithMany(old, _) => targeted.push(old.clone()),
+            Change::ReplaceAll(range, _) => {
+                targeted.push(range.start().clone());
+                targeted.push(range.end().clone());
+            }
+            _ => (),
+        }
+    }
+
+    let mut moved: Vec<Change> = Vec::new();
+    let mut carried_comments: Vec<Change> = Vec::new();
+    let mut shifted: Vec<SyntaxElement> = Vec::new();
+    let mut shift = |anchor: &SyntaxElement, edge: Edge| -> Vec<TriviaPiece> {
+        let text = edge_trivia(anchor, edge);
+        if text.is_empty() || shifted.contains(anchor) {
+            return Vec::new();
+        }
+        let Some(token) = edge.token_of(anchor) else { return Vec::new() };
+        let inside_target = targeted.iter().any(|it| match it {
+            SyntaxElement::Node(node) => token.parent_ancestors().any(|ancestor| &ancestor == node),
+            SyntaxElement::Token(other) => other == &token,
+        });
+        if inside_target {
+            return Vec::new();
+        }
+        let kept = edge.opposite().trivia_of(&token);
+        let (new_leading, new_trailing) = match edge {
+            Edge::Leading => (&[][..], kept.as_slice()),
+            Edge::Trailing => (kept.as_slice(), &[][..]),
+        };
+        let trimmed =
+            make_token_with_raw_trivia(token.kind(), token.text(), new_leading, new_trailing);
+        shifted.push(anchor.clone());
+        moved.push(Change::Replace(
+            SyntaxElement::Token(token),
+            Some(SyntaxElement::Token(trimmed)),
+        ));
+        text
+    };
+
+    let changes = changes
+        .into_iter()
+        .map(|change| {
+            if let Change::InsertAll(_, elements) = &change
+                && elements.is_empty()
+            {
+                return change;
+            }
+            if let Change::Insert(position, _) | Change::InsertAll(position, _) = &change {
+                let (anchor, edge) = match &position.repr {
+                    PositionRepr::After(anchor) => (anchor.clone(), Edge::Trailing),
+                    PositionRepr::Before(anchor) => (anchor.clone(), Edge::Leading),
+                    PositionRepr::FirstChild(_) => return change,
+                };
+                let outermost = match &change {
+                    Change::Insert(_, element) => Some(element.clone()),
+                    Change::InsertAll(_, elements) => match edge {
+                        Edge::Leading => elements.first().cloned(),
+                        Edge::Trailing => elements.last().cloned(),
+                    },
+                    _ => None,
+                };
+                let brings_own = outermost.is_some_and(|element| {
+                    edge.token_of(&element).is_some_and(|token| !edge.trivia_of(&token).is_empty())
+                });
+                if brings_own {
+                    return change;
+                }
+                let text = shift(&anchor, edge);
+                if text.is_empty() {
+                    return change;
+                }
+                let (leading, trailing) = match edge {
+                    Edge::Leading => (Some(text.as_slice()), None),
+                    Edge::Trailing => (None, Some(text.as_slice())),
+                };
+                return match change {
+                    Change::Insert(position, element) => {
+                        Change::Insert(position, adopt(element, leading, trailing))
+                    }
+                    Change::InsertAll(position, mut elements) => {
+                        let index = match edge {
+                            Edge::Leading => 0,
+                            Edge::Trailing => elements.len() - 1,
+                        };
+                        elements[index] = adopt(elements[index].clone(), leading, trailing);
+                        Change::InsertAll(position, elements)
+                    }
+                    change => change,
+                };
+            }
+            if let Change::Replace(old, None) = &change
+                && !discarded.contains(old)
+            {
+                let first = match old {
+                    SyntaxElement::Node(node) => node.first_token(),
+                    SyntaxElement::Token(token) => Some(token.clone()),
+                };
+                let mut pieces: Vec<_> =
+                    first.iter().flat_map(|token| token.leading_trivia()).collect();
+                if pieces.iter().any(|it| it.kind() == crate::SyntaxKind::COMMENT) {
+                    while pieces.last().is_some_and(|it| it.kind() == crate::SyntaxKind::WHITESPACE)
+                    {
+                        pieces.pop();
+                    }
+                    let carried: Vec<_> = pieces
+                        .iter()
+                        .map(|piece| (piece.green().kind(), piece.text().to_owned()))
+                        .collect();
+                    let last = match old {
+                        SyntaxElement::Node(node) => node.last_token(),
+                        SyntaxElement::Token(token) => Some(token.clone()),
+                    };
+                    let mut next = last.and_then(|it| it.next_token());
+                    while next.as_ref().is_some_and(|it| it.kind().is_trivia()) {
+                        next = next.and_then(|it| it.next_token());
+                    }
+                    if let Some(next) = next.filter(|next| {
+                        !targeted.iter().any(|it| match it {
+                            SyntaxElement::Node(node) => {
+                                next.parent_ancestors().any(|ancestor| &ancestor == node)
+                            }
+                            SyntaxElement::Token(other) => other == next,
+                        })
+                    }) {
+                        let leading: Vec<_> =
+                            carried.into_iter().chain(trivia_of(&next, true)).collect();
+                        let trailing = trivia_of(&next, false);
+                        let rebuilt = make_token_with_raw_trivia(
+                            next.kind(),
+                            next.text(),
+                            &leading,
+                            &trailing,
+                        );
+                        carried_comments.push(Change::Replace(
+                            SyntaxElement::Token(next),
+                            Some(SyntaxElement::Token(rebuilt)),
+                        ));
+                    }
+                }
+                return change;
+            }
+            let target = match &change {
+                Change::Replace(old, Some(_)) | Change::ReplaceWithMany(old, _) => old,
+                Change::ReplaceAll(range, _) => range.start(),
+                _ => return change,
+            };
+            if discarded.contains(target) {
+                return change;
+            }
+            match change {
+                Change::Replace(old, Some(new)) => {
+                    let new = adopt(
+                        new,
+                        Some(&edge_trivia(&old, Edge::Leading)),
+                        Some(&edge_trivia(&old, Edge::Trailing)),
+                    );
+                    Change::Replace(old, Some(new))
+                }
+                Change::ReplaceWithMany(old, mut elements) if !elements.is_empty() => {
+                    let last = elements.len() - 1;
+                    let trailing = edge_trivia(&old, Edge::Trailing);
+                    elements[0] =
+                        adopt(elements[0].clone(), Some(&edge_trivia(&old, Edge::Leading)), None);
+                    if !trailing.is_empty() || last == 0 {
+                        elements[last] = adopt(elements[last].clone(), None, Some(&trailing));
+                    }
+                    Change::ReplaceWithMany(old, elements)
+                }
+                Change::ReplaceAll(range, mut elements) if !elements.is_empty() => {
+                    let last = elements.len() - 1;
+                    elements[0] = adopt(
+                        elements[0].clone(),
+                        Some(&edge_trivia(range.start(), Edge::Leading)),
+                        None,
+                    );
+                    elements[last] = adopt(
+                        elements[last].clone(),
+                        None,
+                        Some(&edge_trivia(range.end(), Edge::Trailing)),
+                    );
+                    Change::ReplaceAll(range, elements)
+                }
+                change => change,
+            }
+        })
+        .collect();
+
+    for (node, replacement) in &rebuilt {
+        let mut builder = SyntaxMappingBuilder::new(replacement.clone());
+        builder.map_children(node.children(), replacement.children());
+        builder.finish(mappings);
+
+        let enter = |element| match element {
+            rowan::WalkEvent::Enter(it) => Some(it),
+            rowan::WalkEvent::Leave(_) => None,
+        };
+        let old: Vec<SyntaxElement> = node.preorder_with_tokens().filter_map(enter).collect();
+        let new: Vec<SyntaxElement> =
+            replacement.preorder_with_tokens().filter_map(enter).collect();
+        for (element, _) in annotations.iter_mut() {
+            if let Some(index) = old.iter().position(|it| it == element)
+                && let Some(mapped) = new.get(index)
+            {
+                *element = mapped.clone();
+            }
+        }
+    }
+
+    let mut changes: Vec<Change> = changes;
+    changes.extend(moved);
+    changes.extend(carried_comments);
+    changes
+}
+
 pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
-    let SyntaxEditor { root, changes, annotations, make } = editor;
-    let mappings = make.take();
+    let SyntaxEditor { root, changes, discarded, annotations, make } = editor;
+    let mut mappings = make.take();
     let mut node_depths = FxHashMap::<SyntaxNode, usize>::default();
     let mut node_depth = |node: SyntaxNode| {
         *node_depths.entry(node).or_insert_with_key(|node| node.ancestors().count())
     };
 
-    let plan = match EditPlan::build(changes.into_inner(), &mappings, &mut node_depth) {
+    let mut annotations = annotations.into_inner();
+    let changes = transfer_trivia(
+        changes.into_inner(),
+        &discarded.into_inner(),
+        &mut mappings,
+        &mut annotations,
+    );
+    let plan = match EditPlan::build(changes, &mappings, &mut node_depth) {
         Ok(plan) => plan,
         Err(InvalidEditPlan { changes }) => {
             report_intersecting_changes(&changes, &mut node_depth, &root);
@@ -686,7 +986,7 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
         }
     };
 
-    let mut trees = TreeStore::with_annotations(annotations.into_inner(), &mappings);
+    let mut trees = TreeStore::with_annotations(annotations, &mappings);
     trees.execute(plan);
     trees.finish(root)
 }
@@ -766,8 +1066,22 @@ fn report_intersecting_changes(
 /// A replacement region that can contain later source ordered changeds
 struct ChangedRegion {
     range: TextRange,
+    node: SyntaxNode,
     change_index: usize,
     nested_changes: NestedChanges,
+}
+
+impl ChangedRegion {
+    fn contains(&self, change: &Change) -> bool {
+        let range = change.target_range();
+        if !self.range.contains_range(range) {
+            return false;
+        }
+        if !range.is_empty() || range.start() != self.range.end() {
+            return true;
+        }
+        change.target_parent().ancestors().any(|it| it == self.node)
+    }
 }
 
 /// How changes nested within a replacement region are handled.
@@ -784,6 +1098,7 @@ impl ChangedRegion {
         match change {
             Change::Replace(SyntaxElement::Node(target), replacement) => Some(Self {
                 range: target.text_range(),
+                node: target.clone(),
                 change_index,
                 nested_changes: if !discarded && matches!(replacement, Some(SyntaxElement::Node(_)))
                 {
@@ -794,6 +1109,7 @@ impl ChangedRegion {
             }),
             Change::ReplaceWithMany(SyntaxElement::Node(target), _) => Some(Self {
                 range: target.text_range(),
+                node: target.clone(),
                 change_index,
                 nested_changes: NestedChanges::Discard,
             }),
@@ -802,6 +1118,7 @@ impl ChangedRegion {
                     elements.start().text_range().start(),
                     elements.end().text_range().end(),
                 ),
+                node: elements.start().parent().unwrap(),
                 change_index,
                 nested_changes: NestedChanges::Discard,
             }),

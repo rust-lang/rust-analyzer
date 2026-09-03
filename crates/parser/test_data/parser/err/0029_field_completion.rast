@@ -1,36 +1,31 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
+      L_PAREN "(" [] []
       PARAM
         IDENT_PAT
           NAME
-            IDENT "a"
-        COLON ":"
-        WHITESPACE " "
+            IDENT "a" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "A"
-      R_PAREN ")"
-    WHITESPACE " "
+                IDENT "A" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         FIELD_EXPR
           PATH_EXPR
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "a"
-          DOT "."
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
-error 21: expected field name or number
+                  IDENT "a" [WHITESPACE("    ")] []
+          DOT "." [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
+error 22: expected field name or number

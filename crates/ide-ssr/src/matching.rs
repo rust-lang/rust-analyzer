@@ -466,7 +466,7 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
                 for next in &mut children {
                     match &next {
                         SyntaxElement::Token(t) => {
-                            if Some(t.to_string()) == next_pattern_token {
+                            if Some(t.text()) == next_pattern_token.as_deref() {
                                 pattern.next();
                                 break;
                             }

@@ -1,5 +1,6 @@
 //! Various helper functions to work with SyntaxNodes.
 use std::ops::ControlFlow;
+use syntax::token_span;
 
 use either::Either;
 use itertools::Itertools;
@@ -559,7 +560,7 @@ pub fn is_in_macro_matcher(token: &SyntaxToken) -> bool {
     let Some(body) = (match macro_def {
         ast::Macro::MacroDef(macro_def) => {
             if let Some(args) = macro_def.args() {
-                return args.syntax().text_range().contains_range(range);
+                return token_span(args.syntax()).contains_range(range);
             }
             macro_def.body()
         }
@@ -567,7 +568,7 @@ pub fn is_in_macro_matcher(token: &SyntaxToken) -> bool {
     }) else {
         return false;
     };
-    if !body.syntax().text_range().contains_range(range) {
+    if !token_span(body.syntax()).contains_range(range) {
         return false;
     }
     body.token_trees_and_tokens().filter_map(|tt| tt.into_node()).any(|tt| {
@@ -577,6 +578,6 @@ pub fn is_in_macro_matcher(token: &SyntaxToken) -> bool {
         let Some(next_next) = next.next_sibling_or_token() else { return false };
         next.kind() == T![=]
             && next_next.kind() == T![>]
-            && tt.syntax().text_range().contains_range(range)
+            && token_span(tt.syntax()).contains_range(range)
     })
 }

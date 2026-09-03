@@ -1,42 +1,37 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           OFFSET_OF_EXPR
-            BUILTIN_KW "builtin"
-            POUND "#"
-            OFFSET_OF_KW "offset_of"
-            L_PAREN "("
+            BUILTIN_KW "builtin" [WHITESPACE("    ")] []
+            POUND "#" [] []
+            OFFSET_OF_KW "offset_of" [] []
+            L_PAREN "(" [] []
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "Foo"
-            COMMA ","
-            WHITESPACE " "
-            L_PAREN "("
+                    IDENT "Foo" [] []
+            COMMA "," [] [WHITESPACE(" ")]
+            L_PAREN "(" [] []
             NAME_REF
-              IDENT "bar"
-            DOT "."
+              IDENT "bar" [] []
+            DOT "." [] []
             NAME_REF
-              IDENT "baz"
-            DOT "."
+              IDENT "baz" [] []
+            DOT "." [] []
             NAME_REF
-              INT_NUMBER "0"
-            R_PAREN ")"
-            R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+              INT_NUMBER "0" [] []
+            R_PAREN ")" [] []
+            R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

@@ -1,4 +1,5 @@
 use std::iter;
+use syntax::token_span;
 
 use hir::HasSource;
 use ide_db::{
@@ -75,7 +76,7 @@ pub(crate) fn wrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             &GroupLabel("Wrap return type in...".into()),
             kind.assist_id(),
             kind.label(),
-            type_ref.syntax().text_range(),
+            token_span(type_ref.syntax()),
             |builder| {
                 let editor = builder.make_editor(&parent);
                 let make = editor.make();
@@ -142,7 +143,8 @@ pub(crate) fn wrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
                         .unwrap();
                     let error_type_arg = args.generic_args().find(|arg| match arg {
                         ast::GenericArg::TypeArg(_) => {
-                            arg.syntax().text() != type_ref.syntax().text()
+                            syntax::token_text(arg.syntax())
+                                != syntax::token_text(type_ref.syntax())
                         }
                         ast::GenericArg::LifetimeArg(_) => false,
                         _ => true,

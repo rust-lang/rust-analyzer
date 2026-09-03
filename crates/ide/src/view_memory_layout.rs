@@ -84,11 +84,15 @@ pub(crate) fn view_memory_layout(
     let sema = Semantics::new(db);
     let file = sema.parse_guess_edition(position.file_id);
     let display_target = sema.first_crate(position.file_id)?.to_display_target(db);
-    let token =
-        pick_best_token(file.syntax().token_at_offset(position.offset), |kind| match kind {
+    let token = pick_best_token(
+        file.syntax()
+            .token_at_offset(position.offset)
+            .filter(|it| it.text_range().contains_inclusive(position.offset)),
+        |kind| match kind {
             SyntaxKind::IDENT => 3,
             _ => 0,
-        })?;
+        },
+    )?;
 
     let def = get_definition(&sema, token)?;
 

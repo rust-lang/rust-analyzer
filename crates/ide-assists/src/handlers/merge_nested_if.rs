@@ -1,3 +1,4 @@
+use syntax::token_span;
 use syntax::{
     T,
     ast::{self, AstNode, BinaryOp, edit::AstNodeEdit},
@@ -39,7 +40,7 @@ pub(crate) fn merge_nested_if(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
 
     let cond = expr.condition()?;
 
-    let cond_range = cond.syntax().text_range();
+    let cond_range = token_span(cond.syntax());
 
     //check if the then branch is a nested if
     let then_branch = expr.then_branch()?;
@@ -62,15 +63,15 @@ pub(crate) fn merge_nested_if(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
 
     acc.add(AssistId::refactor_rewrite("merge_nested_if"), "Merge nested if", if_range, |edit| {
         let cond_text = if has_logic_op_or(&cond) {
-            format!("({})", cond.syntax().text())
+            format!("({})", syntax::token_text(cond.syntax()))
         } else {
-            cond.syntax().text().to_string()
+            syntax::token_text(cond.syntax())
         };
 
         let nested_if_cond_text = if has_logic_op_or(&nested_if_cond) {
-            format!("({})", nested_if_cond.syntax().text())
+            format!("({})", syntax::token_text(nested_if_cond.syntax()))
         } else {
-            nested_if_cond.syntax().text().to_string()
+            syntax::token_text(nested_if_cond.syntax())
         };
 
         let replace_cond = format!("{cond_text} && {nested_if_cond_text}");

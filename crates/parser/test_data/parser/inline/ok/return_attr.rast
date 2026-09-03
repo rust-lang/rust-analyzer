@@ -1,34 +1,28 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           RETURN_EXPR
-            RETURN_KW "return"
-            WHITESPACE " "
+            RETURN_KW "return" [WHITESPACE("    ")] [WHITESPACE(" ")]
             LITERAL
               ATTR
-                POUND "#"
-                L_BRACK "["
+                POUND "#" [] []
+                L_BRACK "[" [] []
                 PATH_META
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "attr"
-                R_BRACK "]"
-              WHITESPACE " "
-              INT_NUMBER "1"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                        IDENT "attr" [] []
+                R_BRACK "]" [] [WHITESPACE(" ")]
+              INT_NUMBER "1" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

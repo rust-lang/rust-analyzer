@@ -5,6 +5,7 @@ use ide_db::{
     label::Label,
     source_change::SourceChange,
 };
+use syntax::token_span;
 use syntax::{
     AstNode, SmolStr, TextRange, ToSmolStr,
     ast::{self, HasArgList, make},
@@ -35,15 +36,12 @@ pub(crate) fn unresolved_method(
             d.receiver.display(ctx.sema.db, ctx.display_target)
         ),
         adjusted_display_range(ctx, d.expr, &|expr| {
-            Some(
-                match expr.left()? {
-                    ast::Expr::MethodCallExpr(it) => it.name_ref(),
-                    ast::Expr::FieldExpr(it) => it.name_ref(),
-                    _ => None,
-                }?
-                .syntax()
-                .text_range(),
-            )
+            let name_ref = match expr.left()? {
+                ast::Expr::MethodCallExpr(it) => it.name_ref(),
+                ast::Expr::FieldExpr(it) => it.name_ref(),
+                _ => None,
+            }?;
+            Some(syntax::token_span(name_ref.syntax()))
         }),
     )
     .with_fixes(fixes(ctx, d))
@@ -122,7 +120,7 @@ fn assoc_func_fix(
         let expr: ast::Expr = expr_ptr.value.to_node(&root).left()?;
 
         let call = ast::MethodCallExpr::cast(expr.syntax().clone())?;
-        let range = InFile::new(expr_ptr.file_id, call.syntax().text_range())
+        let range = InFile::new(expr_ptr.file_id, token_span(call.syntax()))
             .original_node_file_range_rooted_opt(db)?;
 
         let receiver = call.receiver()?;

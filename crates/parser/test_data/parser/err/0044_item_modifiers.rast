@@ -1,45 +1,20 @@
 SOURCE_FILE
-  ERROR
-    UNSAFE_KW "unsafe"
-  WHITESPACE " "
   FN
-    ASYNC_KW "async"
-    WHITESPACE " "
-    FN_KW "fn"
-    WHITESPACE " "
+    ASYNC_KW "async" [!UNSAFE_KW("unsafe"), WHITESPACE(" ")] [WHITESPACE(" ")]
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
   CONST
-    UNSAFE_KW "unsafe"
-    WHITESPACE " "
-    CONST_KW "const"
-    WHITESPACE " "
-    ERROR
-      FN_KW "fn"
-  WHITESPACE " "
-  ERROR
-    PATH
-      PATH_SEGMENT
-        NAME_REF
-          IDENT "bar"
-  ERROR
-    L_PAREN "("
-  ERROR
-    R_PAREN ")"
-  WHITESPACE " "
-  ERROR
-    L_CURLY "{"
-    R_CURLY "}"
-  WHITESPACE "\n"
+    UNSAFE_KW "unsafe" [] [WHITESPACE(" ")]
+    CONST_KW "const" [] [WHITESPACE(" ")]
+  EOF "" [!FN_KW("fn"), WHITESPACE(" "), !IDENT("bar"), !L_PAREN("("), !R_PAREN(")"), WHITESPACE(" "), !L_CURLY("{"), !R_CURLY("}"), NEWLINE("\n")] []
 error 6: expected fn, trait or impl
 error 38: expected a name
 error 40: missing type for `const`
@@ -47,4 +22,4 @@ error 40: expected SEMICOLON
 error 44: expected an item
 error 44: expected an item
 error 45: expected an item
-error 47: expected an item
+error 46: expected an item

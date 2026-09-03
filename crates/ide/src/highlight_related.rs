@@ -1,4 +1,5 @@
 use std::iter;
+use syntax::token_span;
 
 use hir::{EditionedFileId, FilePosition, FileRange, HirFileId, InFile, Semantics};
 use ide_db::{
@@ -64,14 +65,17 @@ pub(crate) fn highlight_related(
     let file_id = sema.attach_first_edition(file_id);
     let syntax = sema.parse(file_id).syntax().clone();
 
-    let token = pick_best_token(syntax.token_at_offset(offset), |kind| match kind {
-        T![?] => 4, // prefer `?` when the cursor is sandwiched like in `await$0?`
-        T![->] | T![=>] => 4,
-        kind if kind.is_keyword(file_id.edition(sema.db)) => 3,
-        IDENT | INT_NUMBER => 2,
-        T![|] => 1,
-        _ => 0,
-    })?;
+    let token = pick_best_token(
+        syntax.token_at_offset(offset).filter(|it| it.text_range().contains_inclusive(offset)),
+        |kind| match kind {
+            T![?] => 4, // prefer `?` when the cursor is sandwiched like in `await$0?`
+            T![->] | T![=>] => 4,
+            kind if kind.is_keyword(file_id.edition(sema.db)) => 3,
+            IDENT | INT_NUMBER => 2,
+            T![|] => 1,
+            _ => 0,
+        },
+    )?;
     // most if not all of these should be re-implemented with information seeded from hir
     match token.kind() {
         T![?] if config.exit_points && token.parent().and_then(ast::TryExpr::cast).is_some() => {
@@ -244,7 +248,7 @@ fn highlight_references(
                 for_each_tail_expr(&block.into(), &mut |tail| {
                     if !matches!(tail, ast::Expr::BreakExpr(_)) {
                         res.insert(HighlightedRange {
-                            range: tail.syntax().text_range(),
+                            range: token_span(tail.syntax()),
                             category: ReferenceCategory::empty(),
                         });
                     }
@@ -325,7 +329,7 @@ pub(crate) fn highlight_branch_exit_points(
 
         for_each_tail_expr(&tail, &mut |tail| {
             let file_id = sema.hir_file_for(tail.syntax());
-            let range = tail.syntax().text_range();
+            let range = token_span(tail.syntax());
             push_to_highlights(file_id, Some(range), highlights);
         });
     };
@@ -415,7 +419,7 @@ fn hl_exit_points(
             ast::Expr::MethodCallExpr(_) | ast::Expr::CallExpr(_) | ast::Expr::MacroExpr(_)
                 if sema.type_of_expr(&expr).is_some_and(|ty| ty.original.is_never()) =>
             {
-                Some(expr.syntax().text_range())
+                Some(token_span(expr.syntax()))
             }
             _ => None,
         };
@@ -449,8 +453,8 @@ fn hl_exit_points(
             let range = match tail {
                 ast::Expr::BreakExpr(b) => b
                     .break_token()
-                    .map_or_else(|| tail.syntax().text_range(), |tok| tok.text_range()),
-                _ => tail.syntax().text_range(),
+                    .map_or_else(|| token_span(tail.syntax()), |tok| tok.text_range()),
+                _ => token_span(tail.syntax()),
             };
             push_to_highlights(file_id, Some(range));
         });
@@ -512,7 +516,7 @@ pub(crate) fn highlight_break_points(
 
         if let Some(range) = cover_range(
             loop_token.as_ref().map(|tok| tok.text_range()),
-            label.as_ref().map(|it| it.syntax().text_range()),
+            label.as_ref().map(|it| token_span(it.syntax())),
         ) {
             let file_id = loop_token
                 .and_then(|tok| Some(sema.hir_file_for(&tok.parent()?)))
@@ -542,7 +546,7 @@ pub(crate) fn highlight_break_points(
 
                 let text_range = cover_range(
                     token.map(|it| it.text_range()),
-                    token_lt.map(|it| it.syntax().text_range()),
+                    token_lt.map(|it| token_span(it.syntax())),
                 );
 
                 push_to_highlights(file_id, text_range);
@@ -555,7 +559,7 @@ pub(crate) fn highlight_break_points(
                 }
 
                 let file_id = sema.hir_file_for(tail.syntax());
-                let range = tail.syntax().text_range();
+                let range = token_span(tail.syntax());
                 push_to_highlights(file_id, Some(range));
             });
         }

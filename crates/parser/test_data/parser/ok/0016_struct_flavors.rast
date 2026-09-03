@@ -1,93 +1,74 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "A"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      IDENT "A" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "B"
-    WHITESPACE " "
+      IDENT "B" [] [WHITESPACE(" ")]
     RECORD_FIELD_LIST
-      L_CURLY "{"
-      R_CURLY "}"
-  WHITESPACE "\n"
+      L_CURLY "{" [] []
+      R_CURLY "}" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "C"
+      IDENT "C" [] []
     TUPLE_FIELD_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n\n"
+      L_PAREN "(" [] []
+      R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "D"
-    WHITESPACE " "
+      IDENT "D" [] [WHITESPACE(" ")]
     RECORD_FIELD_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       RECORD_FIELD
         NAME
-          IDENT "a"
-        COLON ":"
-        WHITESPACE " "
+          IDENT "a" [WHITESPACE("    ")] []
+        COLON ":" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "u32"
-      COMMA ","
-      WHITESPACE "\n    "
+                IDENT "u32" [] []
+      COMMA "," [] [NEWLINE("\n")]
       RECORD_FIELD
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
-          IDENT "b"
-        COLON ":"
-        WHITESPACE " "
+          IDENT "b" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "u32"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n\n"
+                IDENT "u32" [] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "E"
+      IDENT "E" [] []
     TUPLE_FIELD_LIST
-      L_PAREN "("
+      L_PAREN "(" [] []
       TUPLE_FIELD
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
+          PUB_KW "pub" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "x"
-      COMMA ","
-      WHITESPACE " "
+                IDENT "x" [] []
+      COMMA "," [] [WHITESPACE(" ")]
       TUPLE_FIELD
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "y"
-      COMMA ","
-      R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                IDENT "y" [] []
+      COMMA "," [] []
+      R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

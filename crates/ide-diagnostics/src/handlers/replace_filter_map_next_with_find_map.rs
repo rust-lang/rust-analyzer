@@ -1,6 +1,7 @@
 use hir::InFile;
 use ide_db::source_change::SourceChange;
 use ide_db::text_edit::TextEdit;
+use syntax::token_span;
 use syntax::{
     AstNode, TextRange,
     ast::{self, HasArgList},
@@ -38,9 +39,9 @@ fn fixes(
     let filter_map_args = filter_map_call.arg_list()?;
 
     let range_to_replace =
-        TextRange::new(filter_map_name_range.start(), next_expr.syntax().text_range().end());
+        TextRange::new(filter_map_name_range.start(), token_span(next_expr.syntax()).end());
     let replacement = format!("find_map{}", filter_map_args.syntax().text());
-    let trigger_range = next_expr.syntax().text_range();
+    let trigger_range = token_span(next_expr.syntax());
 
     let edit = TextEdit::replace(range_to_replace, replacement);
 

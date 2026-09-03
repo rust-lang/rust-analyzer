@@ -1,112 +1,82 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     GENERIC_PARAM_LIST
-      L_ANGLE "<"
+      L_ANGLE "<" [] []
       TYPE_PARAM
         NAME
-          IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+          IDENT "T" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "T"
-            ERROR
-              BANG "!"
-              TOKEN_TREE
-                L_BRACK "["
-                R_BRACK "]"
-      COMMA ","
-      WHITESPACE " "
+                    IDENT "T" [] []
+      COMMA "," [!BANG("!"), !L_BRACK("["), !R_BRACK("]")] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
-          IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+          IDENT "T" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "T"
-            ERROR
-              BANG "!"
-      COMMA ","
-      WHITESPACE " "
+                    IDENT "T" [] []
+      COMMA "," [!BANG("!")] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
-          IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+          IDENT "T" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "T"
-            ERROR
-              BANG "!"
-              TOKEN_TREE
-                L_CURLY "{"
-                R_CURLY "}"
-      R_ANGLE ">"
+                    IDENT "T" [] []
+      R_ANGLE ">" [!BANG("!"), !L_CURLY("{"), !R_CURLY("}")] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       PATH_TYPE
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "Box"
+              IDENT "Box" [] []
             GENERIC_ARG_LIST
-              L_ANGLE "<"
+              L_ANGLE "<" [] []
               TYPE_ARG
                 MACRO_TYPE
                   MACRO_CALL
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "T"
-                    BANG "!"
-  WHITESPACE " "
-  ERROR
-    PLUS "+"
-  WHITESPACE " "
+                          IDENT "T" [] []
+                    BANG "!" [] [WHITESPACE(" ")]
   MACRO_CALL
     PATH
       PATH_SEGMENT
         NAME_REF
-          IDENT "T"
-    BANG "!"
+          IDENT "T" [!PLUS("+"), WHITESPACE(" ")] []
+    BANG "!" [] []
     TOKEN_TREE
-      L_CURLY "{"
-      R_CURLY "}"
-  ERROR
-    R_ANGLE ">"
-  WHITESPACE " "
-  ERROR
-    L_CURLY "{"
-    R_CURLY "}"
-  WHITESPACE "\n"
+      L_CURLY "{" [] []
+      R_CURLY "}" [] []
+  EOF "" [!R_ANGLE(">"), WHITESPACE(" "), !L_CURLY("{"), !R_CURLY("}"), NEWLINE("\n")] []
 error 12: unexpected `!` in type path, macro calls are not allowed here
 error 21: unexpected `!` in type path, macro calls are not allowed here
 error 28: unexpected `!` in type path, macro calls are not allowed here
-error 43: expected `{`, `[`, `(`
-error 43: expected R_ANGLE
-error 43: expected a block
+error 44: expected `{`, `[`, `(`
+error 44: expected R_ANGLE
+error 44: expected a block
 error 44: expected an item
 error 50: expected an item
-error 52: expected an item
+error 51: expected an item

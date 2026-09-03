@@ -1,7 +1,9 @@
 use hir::{HasSource, HasVisibility, ModuleDef, PathResolution, ScopeDef, db::HirDatabase};
 use ide_db::FileId;
+use syntax::token_span;
 use syntax::{
     AstNode, TextRange,
+    ast::edit::AstNodeEdit,
     ast::{self, HasVisibility as _, syntax_factory::SyntaxFactory},
 };
 
@@ -80,30 +82,22 @@ fn add_vis_to_referenced_module_def(acc: &mut Assists, ctx: &AssistContext<'_, '
     acc.add(AssistId::quick_fix("fix_visibility"), assist_label, target, |builder| {
         let editor = builder.make_editor(vis_owner.syntax());
 
-        if let Some(current_visibility) = vis_owner.visibility() {
+        let inserted = if let Some(current_visibility) = vis_owner.visibility() {
             editor.replace(current_visibility.syntax(), missing_visibility.syntax());
+            missing_visibility.clone()
         } else {
             let vis_before = vis_owner
                 .syntax()
                 .children_with_tokens()
-                .find(|it| {
-                    !matches!(
-                        it.kind(),
-                        syntax::SyntaxKind::WHITESPACE
-                            | syntax::SyntaxKind::COMMENT
-                            | syntax::SyntaxKind::ATTR
-                    )
-                })
+                .find(|it| it.kind() != syntax::SyntaxKind::ATTR)
                 .unwrap_or_else(|| vis_owner.syntax().first_child_or_token().unwrap());
-
-            editor.insert_all(
-                syntax::syntax_editor::Position::before(vis_before),
-                vec![missing_visibility.syntax().clone().into(), make.whitespace(" ").into()],
-            );
-        }
+            let vis = missing_visibility.with_trailing_trivia(" ", &make);
+            editor.insert(syntax::syntax_editor::Position::before(vis_before), vis.syntax());
+            vis
+        };
 
         if let Some(cap) = ctx.config.snippet_cap {
-            editor.add_annotation(missing_visibility.syntax(), builder.make_tabstop_before(cap));
+            editor.add_annotation(inserted.syntax(), builder.make_tabstop_before(cap));
         }
 
         builder.add_file_edits(target_file, editor);
@@ -167,7 +161,7 @@ fn target_data_for_def(
             target_name = m.name(db);
             let in_file_source = m.declaration_source(db)?;
             let file_id = in_file_source.file_id.original_file(db);
-            let range = in_file_source.value.syntax().text_range();
+            let range = token_span(in_file_source.value.syntax());
             (ast::AnyHasVisibility::new(in_file_source.value), range, file_id.file_id(db))
         }
         // FIXME

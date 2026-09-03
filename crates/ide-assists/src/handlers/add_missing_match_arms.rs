@@ -10,7 +10,11 @@ use syntax::ast::edit::IndentLevel;
 use syntax::ast::syntax_factory::SyntaxFactory;
 use syntax::ast::{self, AstNode, MatchArmList, MatchExpr, Pat};
 use syntax::syntax_editor::{Position, SyntaxEditor};
-use syntax::{SyntaxKind, SyntaxNode, ToSmolStr};
+use syntax::{
+    SyntaxKind::{COMMENT, NEWLINE},
+    SyntaxNode, ToSmolStr,
+    ast::edit::AstNodeEdit,
+};
 
 use crate::{AssistContext, AssistId, Assists, utils};
 
@@ -285,7 +289,7 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, 
 
             arms_edit.remove_wildcard_arms(ctx, &editor);
             arms_edit.add_comma_after_last_arm(ctx, &make, &editor);
-            arms_edit.append_arms(&missing_arms, &make, &editor);
+            arms_edit.append_arms(&mut missing_arms, &make, &editor);
 
             if let Some(cap) = ctx.config.snippet_cap {
                 if let Some(it) = missing_arms
@@ -340,7 +344,7 @@ fn cursor_at_trivial_match_arm_list(
 
         if ast::Expr::cast(last_node.clone()).is_some_and(is_empty_expr)
             && last_node_range.contains(ctx.offset())
-            && !last_node.text().contains_char('\n')
+            && !syntax::token_text(&last_node).contains('\n')
         {
             cov_mark::hit!(add_missing_match_arms_end_of_last_empty_arm);
             return Some(());
@@ -379,49 +383,47 @@ impl ArmsEdit {
             }
             let Some(range) = self.cover_edit_range(ctx, &arm) else { continue };
 
-            let prev = match range.start() {
-                syntax::NodeOrToken::Node(node) => {
-                    node.first_token().and_then(|it| it.prev_token())
-                }
-                syntax::NodeOrToken::Token(tok) => tok.prev_token(),
-            };
-            if let Some(prev) = prev
-                && prev.kind() == SyntaxKind::WHITESPACE
-            {
-                editor.delete(prev);
-            }
-
             editor.delete_all(range);
         }
     }
 
-    fn append_arms(&self, arms: &[ast::MatchArm], make: &SyntaxFactory, editor: &SyntaxEditor) {
-        let Some(mut before) = self.place.last_token() else {
+    fn append_arms(&self, arms: &mut [ast::MatchArm], make: &SyntaxFactory, editor: &SyntaxEditor) {
+        let Some(before) = self.place.last_token() else {
             stdx::never!("match arm list not contain any token");
             return;
         };
-        if let Some(prev) = before.prev_token()
-            && prev.kind() == SyntaxKind::WHITESPACE
-        {
-            before = prev;
-        }
-        let open_curly =
-            !self.place.text().contains_char('\n') || before.kind() == SyntaxKind::WHITESPACE;
         let indent = IndentLevel::from_node(&self.place);
         let arm_indent = indent + 1;
-        let indent = make.whitespace(&format!("\n{indent}"));
-        let arm_indent = make.whitespace(&format!("\n{arm_indent}"));
-        let elements = arms
-            .iter()
-            .flat_map(|arm| [arm_indent.clone().into(), arm.syntax().clone().into()])
-            .chain(open_curly.then(|| indent.clone().into()))
-            .collect();
 
-        if before.kind() == SyntaxKind::WHITESPACE {
-            editor.replace_with_many(before, elements);
-        } else {
-            editor.insert_all(Position::before(before), elements);
-        }
+        let pieces: Vec<_> = before.leading_trivia().collect();
+        let mut kept: String = match pieces.iter().rposition(|it| it.kind() == COMMENT) {
+            Some(end) => pieces[..=end].iter().map(|it| it.text()).collect(),
+            None => String::new(),
+        };
+
+        let mut line_open = before
+            .prev_token()
+            .is_some_and(|prev| prev.trailing_trivia().any(|it| it.kind() == NEWLINE));
+        let elements = arms
+            .iter_mut()
+            .map(|arm| {
+                if !line_open {
+                    kept.push('\n');
+                }
+                line_open = false;
+                kept.push_str(&format!("{arm_indent}"));
+                *arm = arm.with_leading_trivia(&kept, make);
+                kept.clear();
+                arm.syntax().clone().into()
+            })
+            .collect();
+        editor.insert_all(Position::before(before.clone()), elements);
+
+        let trailing: String =
+            before.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+        let trimmed =
+            make.token_with_trivia(before.kind(), before.text(), &format!("\n{indent}"), &trailing);
+        editor.replace_discard_trivia(before, trimmed);
     }
 
     fn add_comma_after_last_arm(

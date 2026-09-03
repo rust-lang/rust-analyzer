@@ -512,7 +512,7 @@ mod tests {
         let expr =
             element.ancestors().find_map(ast::Expr::cast).expect("selection is not an expression");
         assert_eq!(
-            expr.syntax().text_range(),
+            syntax::token_span(expr.syntax()),
             frange.range,
             "selection is not an expression(yet contained in one)"
         );

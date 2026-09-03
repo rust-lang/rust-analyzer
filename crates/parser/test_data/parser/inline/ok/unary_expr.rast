@@ -1,45 +1,39 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           PREFIX_EXPR
-            STAR "*"
+            STAR "*" [WHITESPACE("    ")] []
             PREFIX_EXPR
-              STAR "*"
+              STAR "*" [] []
               REF_EXPR
-                AMP "&"
+                AMP "&" [] []
                 LITERAL
-                  INT_NUMBER "1"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                  INT_NUMBER "1" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           PREFIX_EXPR
-            BANG "!"
+            BANG "!" [WHITESPACE("    ")] []
             PREFIX_EXPR
-              BANG "!"
+              BANG "!" [] []
               LITERAL
-                TRUE_KW "true"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                TRUE_KW "true" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           PREFIX_EXPR
-            MINUS "-"
+            MINUS "-" [WHITESPACE("    ")] []
             PREFIX_EXPR
-              MINUS "-"
+              MINUS "-" [] []
               LITERAL
-                INT_NUMBER "1"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                INT_NUMBER "1" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

@@ -39,8 +39,9 @@ use ide_db::{
 };
 use syntax::ast::HasGenericParams;
 use syntax::syntax_editor::{Position, SyntaxEditor};
+use syntax::token_span;
 use syntax::{
-    AstNode, SmolStr, SyntaxElement, SyntaxKind, T, TextRange, ToSmolStr,
+    AstNode, SmolStr, SyntaxElement, SyntaxKind, T, TextRange, TextSize, ToSmolStr,
     ast::{
         self, HasGenericArgs, HasTypeBounds,
         edit::{AstNodeEdit, AttrsOwnerEdit},
@@ -117,7 +118,11 @@ fn complete_trait_impl_name(
             })
             .unwrap_or_else(|| SyntaxElement::Node(real_file_item.clone()));
 
-        TextRange::new(first_child.text_range().start(), ctx.source_range().end())
+        let start = match &first_child {
+            SyntaxElement::Node(node) => syntax::token_span(node).start(),
+            SyntaxElement::Token(token) => token.text_range().start(),
+        };
+        TextRange::new(start, ctx.source_range().end())
     };
 
     complete_trait_impl(acc, ctx, kind, replacement_range, &impl_def);
@@ -143,7 +148,7 @@ pub(crate) fn complete_trait_impl_item_by_name(
                 .as_ref()
                 .and_then(|name| ctx.sema.original_syntax_node_rooted(name.syntax()))
             {
-                Some(name) => name.text_range(),
+                Some(name) => syntax::token_span(&name),
                 None => ctx.source_range(),
             },
             impl_,
@@ -323,11 +328,10 @@ fn get_transformed_fn(
                     );
                 }
                 None => {
-                    let ret_type = factory.ret_type(factory.ty("impl Future<Output = ()>"));
-                    editor.insert_with_whitespace(
-                        Position::after(fn_.param_list()?.syntax()),
-                        ret_type.syntax(),
-                    );
+                    let ret_type = factory
+                        .ret_type(factory.ty("impl Future<Output = ()>"))
+                        .with_leading_trivia(" ", factory);
+                    editor.insert(Position::after(fn_.param_list()?.syntax()), ret_type.syntax());
                 }
             }
             editor.delete(fn_.async_token()?);
@@ -364,9 +368,9 @@ fn get_transformed_fn(
                 }
                 _ => (),
             }
-            editor.insert_with_whitespace(
+            editor.insert(
                 Position::first_child_of(fn_.syntax()),
-                factory.token(T![async]),
+                factory.token_trivia(T![async], "", " "),
             );
         }
         AsyncSugaring::Async | AsyncSugaring::Plain => (),
@@ -401,7 +405,7 @@ fn add_type_alias_impl(
                 _ => unreachable!(),
             };
 
-            let start = transformed_ty.syntax().text_range().start();
+            let start = token_span(transformed_ty.syntax()).start();
 
             let end = if let Some(end) =
                 transformed_ty.colon_token().map(|tok| tok.text_range().start())
@@ -425,7 +429,12 @@ fn add_type_alias_impl(
             };
 
             let len = end - start;
-            let mut decl = transformed_ty.syntax().text().slice(..len).to_string();
+            let leading: TextSize = transformed_ty
+                .syntax()
+                .first_token()
+                .map_or(0.into(), |it| it.leading_trivia().map(|p| TextSize::of(p.text())).sum());
+            let mut decl =
+                transformed_ty.syntax().text().slice(TextRange::at(leading, len)).to_string();
             decl.truncate(decl.trim_end().len());
             decl.push_str(" = ");
 
@@ -434,9 +443,9 @@ fn add_type_alias_impl(
                 .map(|wc| {
                     let ws = wc
                         .where_token()
-                        .and_then(|it| it.prev_token())
-                        .filter(|token| token.kind() == SyntaxKind::WHITESPACE)
-                        .map(|token| token.to_string())
+                        .and_then(|it| it.leading_trivia().next())
+                        .filter(|piece| piece.kind().is_trivia())
+                        .map(|piece| piece.text().to_owned())
                         .unwrap_or_else(|| " ".into());
                     format!("{ws}{wc}")
                 })
@@ -513,7 +522,10 @@ fn make_const_compl_syntax(const_: &ast::Const) -> SmolStr {
         .map_or(const_end, |f| f.text_range().start());
 
     let len = end - start;
-    let range = TextRange::new(0.into(), len);
+    let leading: TextSize = const_
+        .first_token()
+        .map_or(0.into(), |it| it.leading_trivia().map(|p| TextSize::of(p.text())).sum());
+    let range = TextRange::new(leading, len);
 
     let syntax = const_.text().slice(range).to_smolstr();
 
@@ -541,7 +553,10 @@ fn function_declaration(
         .map_or(end, |f| f.text_range().start());
 
     let len = end - start;
-    let mut syntax = node.text().slice(..len).to_string();
+    let leading: TextSize = node
+        .first_token()
+        .map_or(0.into(), |it| it.leading_trivia().map(|p| TextSize::of(p.text())).sum());
+    let mut syntax = node.text().slice(TextRange::new(leading, len)).to_string();
     syntax.truncate(syntax.trim_end().len());
 
     syntax

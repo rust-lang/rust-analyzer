@@ -1,55 +1,22 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
+      IDENT "S" [] []
     GENERIC_PARAM_LIST
-      L_ANGLE "<"
-      ERROR
-        INT_NUMBER "90"
-  WHITESPACE " "
-  ERROR
-    PLUS "+"
-  WHITESPACE " "
-  ERROR
-    INT_NUMBER "2"
-  ERROR
-    R_ANGLE ">"
-  WHITESPACE " "
-  ERROR
-    L_CURLY "{"
-    WHITESPACE "\n    "
-    EXPR_STMT
-      PATH_EXPR
-        PATH
-          PATH_SEGMENT
-            NAME_REF
-              IDENT "f"
-    ERROR
-      COLON ":"
-    WHITESPACE " "
-    PATH_EXPR
-      PATH
-        PATH_SEGMENT
-          NAME_REF
-            IDENT "u32"
-    WHITESPACE "\n"
-    R_CURLY "}"
-  WHITESPACE "\n\n"
+      L_ANGLE "<" [] []
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [!INT_NUMBER("90"), WHITESPACE(" "), !PLUS("+"), WHITESPACE(" "), !INT_NUMBER("2"), !R_ANGLE(">"), WHITESPACE(" "), !L_CURLY("{"), WHITESPACE("\n    "), !IDENT("f"), !COLON(":"), WHITESPACE(" "), !IDENT("u32"), WHITESPACE("\n"), !R_CURLY("}"), NEWLINE("\n"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      IDENT "T" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 9: expected generic parameter
 error 11: expected R_ANGLE
 error 11: expected `;`, `{`, or `(`
-error 12: expected an item
-error 14: expected an item
+error 11: expected an item
+error 13: expected an item
 error 15: expected an item
-error 17: expected an item
+error 16: expected an item
 error 24: expected SEMICOLON
 error 24: expected expression

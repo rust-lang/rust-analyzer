@@ -1,4 +1,5 @@
 use hir::InFile;
+use syntax::token_span;
 use syntax::{AstNode, TextRange};
 
 use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range};
@@ -12,7 +13,7 @@ pub(crate) fn incoherent_impl(
 ) -> Diagnostic {
     let display_range = adjusted_display_range(ctx, InFile::new(d.file_id, d.impl_), &|node| {
         Some(TextRange::new(
-            node.syntax().text_range().start(),
+            token_span(node.syntax()).start(),
             node.self_ty()?.syntax().text_range().end(),
         ))
     });

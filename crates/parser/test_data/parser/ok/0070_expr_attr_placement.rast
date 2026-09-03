@@ -1,59 +1,51 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "f"
+      IDENT "f" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         PAREN_EXPR
-          L_PAREN "("
+          L_PAREN "(" [WHITESPACE("    ")] []
           BIN_EXPR
             TRY_EXPR
               ATTR
-                POUND "#"
-                L_BRACK "["
+                POUND "#" [] []
+                L_BRACK "[" [] []
                 PATH_META
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "a"
-                R_BRACK "]"
-              WHITESPACE " "
+                        IDENT "a" [] []
+                R_BRACK "]" [] [WHITESPACE(" ")]
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "lhs"
-              QUESTION "?"
-            WHITESPACE " "
-            PLUS "+"
-            WHITESPACE " "
+                      IDENT "lhs" [] []
+              QUESTION "?" [] [WHITESPACE(" ")]
+            PLUS "+" [] [WHITESPACE(" ")]
             AWAIT_EXPR
               ATTR
-                POUND "#"
-                L_BRACK "["
+                POUND "#" [] []
+                L_BRACK "[" [] []
                 PATH_META
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "b"
-                R_BRACK "]"
-              WHITESPACE " "
+                        IDENT "b" [] []
+                R_BRACK "]" [] [WHITESPACE(" ")]
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "rhs"
-              DOT "."
-              AWAIT_KW "await"
-          R_PAREN ")"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                      IDENT "rhs" [] []
+              DOT "." [] []
+              AWAIT_KW "await" [] []
+          R_PAREN ")" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

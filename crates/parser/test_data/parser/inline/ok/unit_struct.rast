@@ -1,8 +1,7 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      IDENT "S" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

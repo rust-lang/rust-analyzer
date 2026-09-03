@@ -31,7 +31,7 @@ pub(super) fn fn_hints(
     let param_list = func.param_list()?;
     let generic_param_list = func.generic_param_list();
     let ret_type = func.ret_type();
-    let gpl_append_range = func.name()?.syntax().text_range();
+    let gpl_append_range = syntax::token_span(func.name()?.syntax());
     hints_(
         acc,
         ctx,

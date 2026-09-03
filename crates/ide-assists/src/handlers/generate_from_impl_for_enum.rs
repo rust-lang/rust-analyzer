@@ -1,6 +1,7 @@
 use ide_db::{RootDatabase, famous_defs::FamousDefs};
 use syntax::ast::{self, AstNode, HasName, edit::AstNodeEdit, syntax_factory::SyntaxFactory};
 use syntax::syntax_editor::Position;
+use syntax::token_span;
 
 use crate::{
     AssistContext, AssistId, Assists,
@@ -32,7 +33,7 @@ pub(crate) fn generate_from_impl_for_enum(
     let adt = ast::Adt::Enum(variant.parent_enum());
     let variants = selected_variants(ctx, &variant)?;
 
-    let target = variant.syntax().text_range();
+    let target = token_span(variant.syntax());
     let file_id = ctx.vfs_file_id();
     acc.add(
         AssistId::generate("generate_from_impl_for_enum"),
@@ -45,8 +46,9 @@ pub(crate) fn generate_from_impl_for_enum(
             let mut elements = Vec::new();
 
             for variant_info in variants {
-                let impl_ = build_from_impl(make, &adt, variant_info).indent(indent);
-                elements.push(make.whitespace(&format!("\n\n{indent}")).into());
+                let impl_ = build_from_impl(make, &adt, variant_info)
+                    .indent(indent)
+                    .with_leading_trivia(&format!("\n\n{indent}"), make);
                 elements.push(impl_.syntax().clone().into());
             }
 

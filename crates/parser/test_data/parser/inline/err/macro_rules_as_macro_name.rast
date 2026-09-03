@@ -3,37 +3,30 @@ SOURCE_FILE
     PATH
       PATH_SEGMENT
         NAME_REF
-          IDENT "macro_rules"
-    BANG "!"
-    WHITESPACE " "
+          IDENT "macro_rules" [] []
+    BANG "!" [] [WHITESPACE(" ")]
     TOKEN_TREE
-      L_CURLY "{"
-      R_CURLY "}"
-  ERROR
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      L_CURLY "{" [] []
+      R_CURLY "}" [] []
   MACRO_CALL
     PATH
       PATH_SEGMENT
         NAME_REF
-          IDENT "macro_rules"
-    BANG "!"
-    WHITESPACE " "
+          IDENT "macro_rules" [!SEMICOLON(";"), NEWLINE("\n")] []
+    BANG "!" [] [WHITESPACE(" ")]
     TOKEN_TREE
-      L_PAREN "("
-      R_PAREN ")"
-  WHITESPACE "\n"
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [NEWLINE("\n")]
   MACRO_CALL
     PATH
       PATH_SEGMENT
         NAME_REF
-          IDENT "macro_rules"
-    BANG "!"
-    WHITESPACE " "
+          IDENT "macro_rules" [] []
+    BANG "!" [] [WHITESPACE(" ")]
     TOKEN_TREE
-      L_BRACK "["
-      R_BRACK "]"
-  WHITESPACE "\n"
+      L_BRACK "[" [] []
+      R_BRACK "]" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 15: expected an item
-error 32: expected SEMICOLON
-error 48: expected SEMICOLON
+error 33: expected SEMICOLON
+error 49: expected SEMICOLON

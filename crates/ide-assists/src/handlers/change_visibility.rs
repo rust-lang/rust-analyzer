@@ -1,3 +1,4 @@
+use syntax::token_span;
 use syntax::{
     AstNode,
     SyntaxKind::{
@@ -66,14 +67,14 @@ fn add_vis(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
             return None;
         }
         check_is_not_variant(&field)?;
-        (vis_offset(field.syntax()), field_name.syntax().text_range())
+        (vis_offset(field.syntax()), token_span(field_name.syntax()))
     } else {
         let field = ctx.find_node_at_offset::<ast::TupleField>()?;
         if field.visibility().is_some() {
             return None;
         }
         check_is_not_variant(&field)?;
-        (vis_offset(field.syntax()), field.syntax().text_range())
+        (vis_offset(field.syntax()), token_span(field.syntax()))
     };
 
     acc.add(
@@ -110,25 +111,25 @@ fn can_add(node: &SyntaxNode) -> bool {
 }
 
 fn change_vis(acc: &mut Assists, vis: ast::Visibility) -> Option<()> {
-    if vis.syntax().text() == "pub" {
-        let target = vis.syntax().text_range();
+    if syntax::token_text(vis.syntax()) == "pub" {
+        let target = token_span(vis.syntax());
         return acc.add(
             AssistId::refactor_rewrite("change_visibility"),
             "Change Visibility to pub(crate)",
             target,
             |edit| {
-                edit.replace(vis.syntax().text_range(), "pub(crate)");
+                edit.replace(token_span(vis.syntax()), "pub(crate)");
             },
         );
     }
-    if vis.syntax().text() == "pub(crate)" {
-        let target = vis.syntax().text_range();
+    if syntax::token_text(vis.syntax()) == "pub(crate)" {
+        let target = token_span(vis.syntax());
         return acc.add(
             AssistId::refactor_rewrite("change_visibility"),
             "Change visibility to pub",
             target,
             |edit| {
-                edit.replace(vis.syntax().text_range(), "pub");
+                edit.replace(token_span(vis.syntax()), "pub");
             },
         );
     }

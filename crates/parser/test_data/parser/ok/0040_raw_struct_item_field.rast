@@ -1,22 +1,18 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    WHITESPACE " "
+      IDENT "S" [] [WHITESPACE(" ")]
     RECORD_FIELD_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       RECORD_FIELD
         NAME
-          IDENT "r#foo"
-        COLON ":"
-        WHITESPACE " "
+          IDENT "r#foo" [WHITESPACE("    ")] []
+        COLON ":" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "u32"
-      WHITESPACE "\n"
-      R_CURLY "}"
+                IDENT "u32" [] [NEWLINE("\n")]
+      R_CURLY "}" [] []
+  EOF "" [] []

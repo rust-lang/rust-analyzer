@@ -1,6 +1,7 @@
 use ide_db::{famous_defs::FamousDefs, traits::resolve_target_trait};
+use syntax::token_span;
 use syntax::{
-    AstNode, SyntaxElement, SyntaxNode, T,
+    AstNode, SyntaxKind, SyntaxNode, T,
     ast::{self, edit::AstNodeEdit, syntax_factory::SyntaxFactory},
     syntax_editor::{Element, Position, SyntaxEditor},
 };
@@ -63,7 +64,7 @@ pub(crate) fn generate_mut_trait_impl(
     let trait_ = resolve_target_trait(&ctx.sema, &impl_def)?;
     let trait_new = get_trait_mut(&trait_, famous)?;
 
-    let target = impl_def.syntax().text_range();
+    let target = token_span(impl_def.syntax());
 
     acc.add(
         AssistId::generate("generate_mut_trait_impl"),
@@ -79,17 +80,11 @@ pub(crate) fn generate_mut_trait_impl(
 
             let new_impl = ast::Impl::cast(new_root.clone()).unwrap();
 
-            let new_impl = new_impl.indent(indent);
-
             let editor = edit.make_editor(impl_def.syntax());
             let make = editor.make();
-            editor.insert_all(
-                Position::before(impl_def.syntax()),
-                vec![
-                    new_impl.syntax().syntax_element(),
-                    make.whitespace(&format!("\n\n{indent}")).syntax_element(),
-                ],
-            );
+            let new_impl =
+                new_impl.indent(indent).with_trailing_trivia(&format!("\n{indent}"), make);
+            editor.insert(Position::before(impl_def.syntax()), new_impl.syntax());
 
             if let Some(cap) = ctx.config.snippet_cap {
                 let tabstop_before = edit.make_tabstop_before(cap);
@@ -102,16 +97,20 @@ pub(crate) fn generate_mut_trait_impl(
 }
 
 fn delete_with_trivia(editor: &SyntaxEditor, node: &SyntaxNode) {
-    let mut end: SyntaxElement = node.clone().into();
-
-    if let Some(next) = node.next_sibling_or_token()
-        && let SyntaxElement::Token(tok) = &next
-        && tok.kind().is_trivia()
-    {
-        end = next.clone();
+    if let Some(next) = node.last_token().and_then(|it| it.next_token()) {
+        let mut pieces: Vec<_> = next.leading_trivia().collect();
+        if let Some(index) = pieces.iter().position(|it| it.kind() == SyntaxKind::NEWLINE) {
+            pieces.drain(..=index);
+            let leading: String = pieces.iter().map(|it| it.text().to_owned()).collect();
+            let trailing: String =
+                next.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+            let trimmed =
+                editor.make().token_with_trivia(next.kind(), next.text(), &leading, &trailing);
+            editor.replace_discard_trivia(next, trimmed);
+        }
     }
 
-    editor.delete_all(node.clone().into()..=end);
+    editor.delete(node);
 }
 
 fn apply_generate_mut_impl(
@@ -175,11 +174,7 @@ fn process_ref_mut(editor: &SyntaxEditor, fn_: &ast::Fn) {
 
     let Some(amp) = ref_expr.amp_token() else { return };
 
-    let mut_kw = make.token(T![mut]);
-    let space = make.whitespace(" ");
-
-    editor.insert(Position::after(amp.clone()), space.syntax_element());
-    editor.insert(Position::after(amp), mut_kw.syntax_element());
+    editor.insert(Position::after(amp), make.token_trivia(T![mut], "", " ").syntax_element());
 }
 
 fn process_ret_type(factory: &SyntaxFactory, ref_ty: &ast::RetType) -> Option<ast::Type> {

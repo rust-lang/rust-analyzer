@@ -1,230 +1,186 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "inner"
+      IDENT "inner" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         ATTR
-          POUND "#"
-          BANG "!"
-          L_BRACK "["
+          POUND "#" [WHITESPACE("    ")] []
+          BANG "!" [] []
+          L_BRACK "[" [] []
           TOKEN_TREE_META
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "doc"
+                  IDENT "doc" [] []
             TOKEN_TREE
-              L_PAREN "("
-              STRING "\"Inner attributes allowed here\""
-              R_PAREN ")"
-          R_BRACK "]"
-        WHITESPACE "\n    "
-        COMMENT "//! As are ModuleDoc style comments"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              STRING "\"Inner attributes allowed here\"" [] []
+              R_PAREN ")" [] []
+          R_BRACK "]" [] [NEWLINE("\n")]
         EXPR_STMT
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE "\n        "
+              L_CURLY "{" [WHITESPACE("    "), COMMENT("//! As are ModuleDoc style comments"), NEWLINE("\n"), WHITESPACE("    ")] [NEWLINE("\n")]
               ATTR
-                POUND "#"
-                BANG "!"
-                L_BRACK "["
+                POUND "#" [WHITESPACE("        ")] []
+                BANG "!" [] []
+                L_BRACK "[" [] []
                 TOKEN_TREE_META
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "doc"
+                        IDENT "doc" [] []
                   TOKEN_TREE
-                    L_PAREN "("
-                    STRING "\"Inner attributes are allowed in blocks used as statements\""
-                    R_PAREN ")"
-                R_BRACK "]"
-              WHITESPACE "\n        "
+                    L_PAREN "(" [] []
+                    STRING "\"Inner attributes are allowed in blocks used as statements\"" [] []
+                    R_PAREN ")" [] []
+                R_BRACK "]" [] [NEWLINE("\n")]
               ATTR
-                POUND "#"
-                BANG "!"
-                L_BRACK "["
+                POUND "#" [WHITESPACE("        ")] []
+                BANG "!" [] []
+                L_BRACK "[" [] []
                 TOKEN_TREE_META
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "doc"
+                        IDENT "doc" [] []
                   TOKEN_TREE
-                    L_PAREN "("
-                    STRING "\"Being validated is not affected by duplicates\""
-                    R_PAREN ")"
-                R_BRACK "]"
-              WHITESPACE "\n        "
-              COMMENT "//! As are ModuleDoc style comments"
-              WHITESPACE "\n    "
-              R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                    L_PAREN "(" [] []
+                    STRING "\"Being validated is not affected by duplicates\"" [] []
+                    R_PAREN ")" [] []
+                R_BRACK "]" [] [NEWLINE("\n")]
+              R_CURLY "}" [WHITESPACE("        "), COMMENT("//! As are ModuleDoc style comments"), NEWLINE("\n"), WHITESPACE("    ")] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         BLOCK_EXPR
           STMT_LIST
-            L_CURLY "{"
-            WHITESPACE "\n        "
+            L_CURLY "{" [WHITESPACE("    ")] [NEWLINE("\n")]
             ATTR
-              POUND "#"
-              BANG "!"
-              L_BRACK "["
+              POUND "#" [WHITESPACE("        ")] []
+              BANG "!" [] []
+              L_BRACK "[" [] []
               TOKEN_TREE_META
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "doc"
+                      IDENT "doc" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  STRING "\"Inner attributes are allowed in blocks when they are the last statement of another block\""
-                  R_PAREN ")"
-              R_BRACK "]"
-            WHITESPACE "\n        "
-            COMMENT "//! As are ModuleDoc style comments"
-            WHITESPACE "\n    "
-            R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                  L_PAREN "(" [] []
+                  STRING "\"Inner attributes are allowed in blocks when they are the last statement of another block\"" [] []
+                  R_PAREN ")" [] []
+              R_BRACK "]" [] [NEWLINE("\n")]
+            R_CURLY "}" [WHITESPACE("        "), COMMENT("//! As are ModuleDoc style comments"), NEWLINE("\n"), WHITESPACE("    ")] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "outer"
+      IDENT "outer" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           BLOCK_EXPR
             ATTR
-              POUND "#"
-              L_BRACK "["
+              POUND "#" [] []
+              L_BRACK "[" [] []
               TOKEN_TREE_META
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "doc"
+                      IDENT "doc" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  STRING "\"Outer attributes are always allowed\""
-                  R_PAREN ")"
-              R_BRACK "]"
-            WHITESPACE " "
+                  L_PAREN "(" [] []
+                  STRING "\"Outer attributes are always allowed\"" [] []
+                  R_PAREN ")" [] []
+              R_BRACK "]" [] [WHITESPACE(" ")]
             STMT_LIST
-              L_CURLY "{"
-              R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+              L_CURLY "{" [] []
+              R_CURLY "}" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   IMPL
-    COMMENT "// https://github.com/rust-lang/rust-analyzer/issues/689"
-    WHITESPACE "\n"
-    IMPL_KW "impl"
-    WHITESPACE " "
+    IMPL_KW "impl" [NEWLINE("\n"), COMMENT("// https://github.com/rust-lang/rust-analyzer/issues/689"), NEWLINE("\n")] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "Whatever"
-    WHITESPACE " "
+            IDENT "Whatever" [] [WHITESPACE(" ")]
     ASSOC_ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
-          IDENT "salsa_event"
+          IDENT "salsa_event" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           SELF_PARAM
-            AMP "&"
+            AMP "&" [] []
             NAME
-              SELF_KW "self"
-          COMMA ","
-          WHITESPACE " "
+              SELF_KW "self" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "event_fn"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "event_fn" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             IMPL_TRAIT_TYPE
-              IMPL_KW "impl"
-              WHITESPACE " "
+              IMPL_KW "impl" [] [WHITESPACE(" ")]
               TYPE_BOUND_LIST
                 TYPE_BOUND
                   PATH_TYPE
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "Fn"
+                          IDENT "Fn" [] []
                         PARENTHESIZED_ARG_LIST
-                          L_PAREN "("
-                          R_PAREN ")"
-                        WHITESPACE " "
+                          L_PAREN "(" [] []
+                          R_PAREN ")" [] [WHITESPACE(" ")]
                         RET_TYPE
-                          THIN_ARROW "->"
-                          WHITESPACE " "
+                          THIN_ARROW "->" [] [WHITESPACE(" ")]
                           PATH_TYPE
                             PATH
                               PATH_SEGMENT
                                 NAME_REF
-                                  IDENT "Event"
+                                  IDENT "Event" [] []
                                 GENERIC_ARG_LIST
-                                  L_ANGLE "<"
+                                  L_ANGLE "<" [] []
                                   TYPE_ARG
                                     PATH_TYPE
                                       PATH
                                         PATH_SEGMENT
                                           NAME_REF
-                                            SELF_TYPE_KW "Self"
-                                  R_ANGLE ">"
-          R_PAREN ")"
-        WHITESPACE " "
+                                            SELF_TYPE_KW "Self" [] []
+                                  R_ANGLE ">" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         BLOCK_EXPR
           STMT_LIST
-            L_CURLY "{"
-            WHITESPACE "\n        "
+            L_CURLY "{" [] [NEWLINE("\n")]
             ATTR
-              POUND "#"
-              BANG "!"
-              L_BRACK "["
+              POUND "#" [WHITESPACE("        ")] []
+              BANG "!" [] []
+              L_BRACK "[" [] []
               TOKEN_TREE_META
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "allow"
+                      IDENT "allow" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  IDENT "unused_variables"
-                  R_PAREN ")"
-              R_BRACK "]"
-            WHITESPACE " "
-            COMMENT "// this is  `inner_attr` of the block"
-            WHITESPACE "\n    "
-            R_CURLY "}"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n"
+                  L_PAREN "(" [] []
+                  IDENT "unused_variables" [] []
+                  R_PAREN ")" [] []
+              R_BRACK "]" [] [WHITESPACE(" "), COMMENT("// this is  `inner_attr` of the block"), NEWLINE("\n")]
+            R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

@@ -1,4 +1,5 @@
 use std::collections::hash_map::Entry;
+use syntax::token_span;
 
 use hir::{
     FileRange, InFile, InRealFile, Module, ModuleDef, ModuleSource, PathResolution,
@@ -121,7 +122,7 @@ pub(crate) fn remove_unused_imports(acc: &mut Assists, ctx: &AssistContext<'_, '
             selected_el.text_range(),
             |builder| {
                 let editor = builder.make_editor(&selected_el);
-                unused.sort_by_key(|use_tree| use_tree.syntax().text_range().start());
+                unused.sort_by_key(|use_tree| token_span(use_tree.syntax()).start());
                 for node in &unused {
                     editor.delete(node.syntax());
                 }
@@ -209,8 +210,8 @@ fn module_search_scope(db: &RootDatabase, module: hir::Module) -> Vec<SearchScop
                 file_id.original_file(db),
                 match value {
                     ModuleSource::SourceFile(_) => None,
-                    ModuleSource::Module(it) => Some(it.syntax().text_range()),
-                    ModuleSource::BlockExpr(it) => Some(it.syntax().text_range()),
+                    ModuleSource::Module(it) => Some(token_span(it.syntax())),
+                    ModuleSource::BlockExpr(it) => Some(token_span(it.syntax())),
                 },
             )
         }
@@ -238,7 +239,7 @@ fn module_search_scope(db: &RootDatabase, module: hir::Module) -> Vec<SearchScop
         for child in module.children(db) {
             let rng = match child.definition_source(db).value {
                 ModuleSource::SourceFile(_) => continue,
-                ModuleSource::Module(it) => it.syntax().text_range(),
+                ModuleSource::Module(it) => token_span(it.syntax()),
                 ModuleSource::BlockExpr(_) => continue,
             };
             let mut new_ranges = Vec::new();

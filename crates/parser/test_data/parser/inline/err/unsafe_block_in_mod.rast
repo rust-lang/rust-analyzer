@@ -1,37 +1,26 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
+      L_PAREN "(" [] []
+      R_PAREN ")" [] []
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE " "
-  ERROR
-    UNSAFE_KW "unsafe"
-  WHITESPACE " "
-  ERROR
-    L_CURLY "{"
-    WHITESPACE " "
-    R_CURLY "}"
-  WHITESPACE " "
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [WHITESPACE(" ")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [!UNSAFE_KW("unsafe"), WHITESPACE(" "), !L_CURLY("{"), WHITESPACE(" "), !R_CURLY("}"), WHITESPACE(" ")] [WHITESPACE(" ")]
     NAME
-      IDENT "bar"
+      IDENT "bar" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
+      L_PAREN "(" [] []
+      R_PAREN ")" [] []
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 11: expected an item
-error 18: expected an item
+error 17: expected an item

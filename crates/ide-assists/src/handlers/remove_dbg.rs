@@ -1,7 +1,8 @@
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
     Edition, NodeOrToken, SyntaxNode, SyntaxToken, T,
-    ast::{self, AstNode, syntax_factory::SyntaxFactory},
+    ast::{self, AstNode, edit::AstNodeEdit, syntax_factory::SyntaxFactory},
     match_ast,
     syntax_editor::{Position, SyntaxEditor},
 };
@@ -32,7 +33,7 @@ pub(crate) fn remove_dbg(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opti
         ctx.covering_element()
             .as_node()?
             .descendants()
-            .filter(|node| ctx.selection_trimmed().contains_range(node.text_range()))
+            .filter(|node| ctx.selection_trimmed().contains_range(token_span(node)))
             // When the selection exactly covers the macro call to be removed, `covering_element()`
             // returns `ast::MacroCall` instead of its parent `ast::MacroExpr` that we want. So
             // first try finding `ast::MacroCall`s and then retrieve their parent.
@@ -53,7 +54,29 @@ pub(crate) fn remove_dbg(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opti
     acc.add(AssistId::quick_fix("remove_dbg"), "Remove dbg!()", target, |builder| {
         for (range, expr) in replacements {
             if let Some(expr) = expr {
-                editor.insert(Position::before(range[0].clone()), expr.syntax());
+                let leading: String = match &range[0] {
+                    NodeOrToken::Node(node) => node.first_token(),
+                    NodeOrToken::Token(token) => Some(token.clone()),
+                }
+                .into_iter()
+                .flat_map(|token| token.leading_trivia())
+                .map(|piece| piece.text().to_owned())
+                .collect();
+                let trailing: String = match range.last() {
+                    Some(NodeOrToken::Node(node)) => node.last_token(),
+                    Some(NodeOrToken::Token(token)) => Some(token.clone()),
+                    None => None,
+                }
+                .into_iter()
+                .flat_map(|token| token.trailing_trivia())
+                .map(|piece| piece.text().to_owned())
+                .collect();
+                editor.insert(
+                    Position::before(range[0].clone()),
+                    expr.with_leading_trivia(&leading, editor.make())
+                        .with_trailing_trivia(&trailing, editor.make())
+                        .syntax(),
+                );
             }
             for node_or_token in range {
                 editor.delete(node_or_token);
@@ -89,7 +112,16 @@ fn compute_dbg_replacement(
         .filter_map(|(is_sep, group)| (!is_sep).then_some(group))
         .map(|tokens| tokens.collect::<Vec<_>>())
         .filter(|tokens| !tokens.iter().all(|it| it.kind().is_trivia()))
-        .map(|tokens| syntax::hacks::parse_expr_from_str(&tokens.iter().join(""), Edition::CURRENT))
+        .map(|tokens| {
+            let text: String = tokens
+                .iter()
+                .map(|it| match it {
+                    NodeOrToken::Node(node) => node.text().to_string(),
+                    NodeOrToken::Token(token) => token.text_including_trivia(),
+                })
+                .collect();
+            syntax::hacks::parse_expr_from_str(&text, Edition::CURRENT)
+        })
         .collect::<Option<Vec<ast::Expr>>>()?;
 
     let parent = macro_expr.syntax().parent()?;

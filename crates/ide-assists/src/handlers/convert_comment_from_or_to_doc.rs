@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use syntax::{
-    AstToken, Direction, SyntaxElement, TextRange,
-    ast::{self, Comment, CommentPlacement, Whitespace, edit::IndentLevel},
+    AstToken, SyntaxKind, TextRange,
+    ast::{self, Comment, CommentPlacement, edit::IndentLevel},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -180,10 +180,14 @@ fn can_be_doc_comment(comment: &ast::Comment) -> Option<CommentPlacement> {
     use syntax::SyntaxKind::*;
 
     // if the comment is not on its own line, then we do not propose anything.
-    match comment.syntax().prev_token() {
+    let mut prev = comment.syntax().prev_token();
+    while prev.as_ref().is_some_and(|it| it.kind() == syntax::SyntaxKind::WHITESPACE) {
+        prev = prev.and_then(|it| it.prev_token());
+    }
+    match prev {
         Some(prev) => {
             // There was a previous token, now check if it was a newline
-            Whitespace::cast(prev).filter(|w| w.text().contains('\n'))?;
+            (prev.kind() == syntax::SyntaxKind::NEWLINE).then_some(())?;
         }
         // There is no previous token, this is the start of the file.
         None => return Some(CommentPlacement::Inner),
@@ -203,38 +207,38 @@ fn can_be_doc_comment(comment: &ast::Comment) -> Option<CommentPlacement> {
 pub(crate) fn relevant_line_comments(comment: &ast::Comment) -> Vec<Comment> {
     // The prefix identifies the kind of comment we're dealing with
     let prefix = comment.prefix();
-    let same_prefix = |c: &ast::Comment| c.prefix() == prefix;
 
-    // These tokens are allowed to exist between comments
-    let skippable = |not: &SyntaxElement| {
-        not.clone()
-            .into_token()
-            .and_then(Whitespace::cast)
-            .map(|w| !w.spans_multiple_lines())
-            .unwrap_or(false)
+    let run = |forward: bool| {
+        let mut res = Vec::new();
+        let mut token = comment.syntax().clone();
+        let mut newlines = 0;
+        loop {
+            token = match if forward { token.next_token() } else { token.prev_token() } {
+                Some(it) => it,
+                None => break,
+            };
+            if matches!(token.kind(), SyntaxKind::WHITESPACE | SyntaxKind::NEWLINE) {
+                newlines += token.text().matches('\n').count();
+                if newlines > 1 {
+                    break;
+                }
+                continue;
+            }
+            match Comment::cast(token.clone()).filter(|c| c.prefix() == prefix) {
+                Some(c) => {
+                    res.push(c);
+                    newlines = 0;
+                }
+                None => break,
+            }
+        }
+        res
     };
 
-    // Find all preceding comments (in reverse order) that have the same prefix
-    let prev_comments = comment
-        .syntax()
-        .siblings_with_tokens(Direction::Prev)
-        .filter(|s| !skippable(s))
-        .map(|not| not.into_token().and_then(Comment::cast).filter(same_prefix))
-        .take_while(|opt_com| opt_com.is_some())
-        .flatten()
-        .skip(1); // skip the first element so we don't duplicate it in next_comments
-
-    let next_comments = comment
-        .syntax()
-        .siblings_with_tokens(Direction::Next)
-        .filter(|s| !skippable(s))
-        .map(|not| not.into_token().and_then(Comment::cast).filter(same_prefix))
-        .take_while(|opt_com| opt_com.is_some())
-        .flatten();
-
-    let mut comments: Vec<_> = prev_comments.collect();
+    let mut comments = run(false);
     comments.reverse();
-    comments.extend(next_comments);
+    comments.push(comment.clone());
+    comments.extend(run(true));
     comments
 }
 

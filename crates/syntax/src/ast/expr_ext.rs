@@ -101,6 +101,7 @@ impl ast::IfExpr {
 
 #[test]
 fn if_block_condition() {
+    use crate::syntax_node::token_text;
     let parse = ast::SourceFile::parse(
         r#"
         fn test() {
@@ -114,31 +115,32 @@ fn if_block_condition() {
         parser::Edition::CURRENT,
     );
     let if_ = parse.tree().syntax().descendants().find_map(ast::IfExpr::cast).unwrap();
-    assert_eq!(if_.then_branch().unwrap().syntax().text(), r#"{ "if" }"#);
+    assert_eq!(token_text(if_.then_branch().unwrap().syntax()), r#"{ "if" }"#);
     let elif = match if_.else_branch().unwrap() {
         ElseBranch::IfExpr(elif) => elif,
         ElseBranch::Block(_) => panic!("should be `else if`"),
     };
-    assert_eq!(elif.then_branch().unwrap().syntax().text(), r#"{ "first elif" }"#);
+    assert_eq!(token_text(elif.then_branch().unwrap().syntax()), r#"{ "first elif" }"#);
     let elif = match elif.else_branch().unwrap() {
         ElseBranch::IfExpr(elif) => elif,
         ElseBranch::Block(_) => panic!("should be `else if`"),
     };
-    assert_eq!(elif.then_branch().unwrap().syntax().text(), r#"{ "second elif" }"#);
+    assert_eq!(token_text(elif.then_branch().unwrap().syntax()), r#"{ "second elif" }"#);
     let elif = match elif.else_branch().unwrap() {
         ElseBranch::IfExpr(elif) => elif,
         ElseBranch::Block(_) => panic!("should be `else if`"),
     };
-    assert_eq!(elif.then_branch().unwrap().syntax().text(), r#"{ "third elif" }"#);
+    assert_eq!(token_text(elif.then_branch().unwrap().syntax()), r#"{ "third elif" }"#);
     let else_ = match elif.else_branch().unwrap() {
         ElseBranch::Block(else_) => else_,
         ElseBranch::IfExpr(_) => panic!("should be `else`"),
     };
-    assert_eq!(else_.syntax().text(), r#"{ "else" }"#);
+    assert_eq!(token_text(else_.syntax()), r#"{ "else" }"#);
 }
 
 #[test]
 fn if_condition_with_if_inside() {
+    use crate::syntax_node::token_text;
     let parse = ast::SourceFile::parse(
         r#"
         fn test() {
@@ -149,12 +151,12 @@ fn if_condition_with_if_inside() {
         parser::Edition::CURRENT,
     );
     let if_ = parse.tree().syntax().descendants().find_map(ast::IfExpr::cast).unwrap();
-    assert_eq!(if_.then_branch().unwrap().syntax().text(), r#"{ "if" }"#);
+    assert_eq!(token_text(if_.then_branch().unwrap().syntax()), r#"{ "if" }"#);
     let else_ = match if_.else_branch().unwrap() {
         ElseBranch::Block(else_) => else_,
         ElseBranch::IfExpr(_) => panic!("should be `else`"),
     };
-    assert_eq!(else_.syntax().text(), r#"{ "else" }"#);
+    assert_eq!(token_text(else_.syntax()), r#"{ "else" }"#);
 }
 
 impl ast::PrefixExpr {

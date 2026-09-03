@@ -6,9 +6,13 @@ use ide_db::{
     text_edit::TextRange,
 };
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
     T,
-    ast::{self, AstNode, FieldExpr, HasName, IdentPat, syntax_factory::SyntaxFactory},
+    ast::{
+        self, AstNode, FieldExpr, HasName, IdentPat, edit::AstNodeEdit,
+        syntax_factory::SyntaxFactory,
+    },
     syntax_editor::{Position, SyntaxEditor},
 };
 
@@ -71,7 +75,7 @@ pub(crate) fn destructure_tuple_binding_impl(
         acc.add(
             AssistId::refactor_rewrite("destructure_tuple_binding_in_sub_pattern"),
             "Destructure tuple in sub-pattern",
-            data.ident_pat.syntax().text_range(),
+            token_span(data.ident_pat.syntax()),
             |edit| destructure_tuple_edit_impl(ctx, edit, &data, true),
         );
     }
@@ -79,7 +83,7 @@ pub(crate) fn destructure_tuple_binding_impl(
     acc.add(
         AssistId::refactor_rewrite("destructure_tuple_binding"),
         if with_sub_pattern { "Destructure tuple in place" } else { "Destructure tuple" },
-        data.ident_pat.syntax().text_range(),
+        token_span(data.ident_pat.syntax()),
         |edit| destructure_tuple_edit_impl(ctx, edit, &data, false),
     );
 
@@ -227,9 +231,25 @@ impl AssignmentEdit {
         if self.in_sub_pattern {
             self.ident_pat.set_pat(Some(self.tuple_pat.into()), editor);
         } else if self.is_shorthand_field {
-            editor.insert(Position::after(self.ident_pat.syntax()), self.tuple_pat.syntax());
-            editor.insert(Position::after(self.ident_pat.syntax()), make.whitespace(" "));
-            editor.insert(Position::after(self.ident_pat.syntax()), make.token(T![:]));
+            let last = self.ident_pat.syntax().last_token();
+            let trailing: String = last
+                .iter()
+                .flat_map(|token| token.trailing_trivia())
+                .map(|piece| piece.text().to_owned())
+                .collect();
+            if let Some(last) = last.filter(|_| !trailing.is_empty()) {
+                let leading: String =
+                    last.leading_trivia().map(|piece| piece.text().to_owned()).collect();
+                let trimmed = make.token_with_trivia(last.kind(), last.text(), &leading, "");
+                editor.replace_discard_trivia(last, trimmed);
+            }
+            editor.insert_all(
+                Position::after(self.ident_pat.syntax()),
+                vec![
+                    make.token_with_trivia(T![:], ":", "", " ").into(),
+                    self.tuple_pat.with_trailing_trivia(&trailing, make).syntax().clone().into(),
+                ],
+            );
         } else {
             editor.replace(self.ident_pat.syntax(), self.tuple_pat.syntax())
         }

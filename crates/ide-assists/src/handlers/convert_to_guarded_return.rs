@@ -1,18 +1,17 @@
 use std::iter::once;
+use syntax::token_span;
 
 use either::Either;
 use hir::Semantics;
 use ide_db::{RootDatabase, ty_filter::TryEnum};
 use syntax::{
-    AstNode,
-    SyntaxKind::WHITESPACE,
-    SyntaxNode, T,
+    AstNode, SyntaxNode, T,
     ast::{
         self,
         edit::{AstNodeEdit, IndentLevel},
         syntax_factory::SyntaxFactory,
     },
-    match_ast,
+    clone_subtree_with_outer_trivia, match_ast,
     syntax_editor::SyntaxEditor,
 };
 
@@ -78,7 +77,7 @@ fn if_expr_to_guarded_return(
     let cond = if_expr.condition()?;
 
     let if_token_range = if_expr.if_token()?.text_range();
-    let if_cond_range = cond.syntax().text_range();
+    let if_cond_range = token_span(cond.syntax());
 
     let cursor_in_range =
         if_token_range.cover(if_cond_range).contains_range(ctx.selection_trimmed());
@@ -115,13 +114,8 @@ fn if_expr_to_guarded_return(
     let then_block_items = then_block.dedent(IndentLevel(1));
 
     let end_of_then = then_block_items.syntax().last_child_or_token()?;
-    let end_of_then = if end_of_then.prev_sibling_or_token().map(|n| n.kind()) == Some(WHITESPACE) {
-        end_of_then.prev_sibling_or_token()?
-    } else {
-        end_of_then
-    };
 
-    let target = if_expr.syntax().text_range();
+    let target = token_span(if_expr.syntax());
     acc.add(
         AssistId::refactor_rewrite("convert_to_guarded_return"),
         "Convert to guarded return",
@@ -155,17 +149,33 @@ fn if_expr_to_guarded_return(
             let then_statements = replacement
                 .enumerate()
                 .flat_map(|(i, node)| {
-                    (i != 0)
-                        .then(|| make.whitespace(newline).into())
-                        .into_iter()
-                        .chain(node.children_with_tokens())
+                    let node = match i {
+                        0 => node,
+                        _ => clone_subtree_with_outer_trivia(&node, Some(newline), None),
+                    };
+                    node.children_with_tokens().collect::<Vec<_>>()
                 })
                 .chain(
                     then_block_items
                         .syntax()
                         .children_with_tokens()
                         .skip(1)
-                        .take_while(|i| *i != end_of_then),
+                        .take_while(|i| *i != end_of_then)
+                        .enumerate()
+                        .map(|(i, element)| match (i, &element) {
+                            (0, syntax::NodeOrToken::Node(node)) => {
+                                let leading: String = std::iter::once("\n".to_owned())
+                                    .chain(
+                                        node.first_token()
+                                            .into_iter()
+                                            .flat_map(|it| it.leading_trivia())
+                                            .map(|it| it.text().to_owned()),
+                                    )
+                                    .collect();
+                                clone_subtree_with_outer_trivia(node, Some(&leading), None).into()
+                            }
+                            _ => element,
+                        }),
                 )
                 .collect();
             editor.replace_with_many(if_expr.syntax(), then_statements);
@@ -183,7 +193,7 @@ fn let_stmt_to_guarded_return(
     let expr = let_stmt.initializer()?;
 
     let let_token_range = let_stmt.let_token()?.text_range();
-    let let_pattern_range = pat.syntax().text_range();
+    let let_pattern_range = token_span(pat.syntax());
     let cursor_in_range =
         let_token_range.cover(let_pattern_range).contains_range(ctx.selection_trimmed());
 
@@ -195,7 +205,7 @@ fn let_stmt_to_guarded_return(
         ctx.sema.type_of_expr(&expr).and_then(|ty| TryEnum::from_ty(&ctx.sema, &ty.adjusted()))?;
 
     let happy_pattern = try_enum.happy_pattern(pat);
-    let target = let_stmt.syntax().text_range();
+    let target = token_span(let_stmt.syntax());
 
     let parent_block = let_stmt.syntax().parent()?.ancestors().find_map(ast::BlockExpr::cast)?;
     let container = container_of(&parent_block)?;
@@ -282,8 +292,6 @@ impl<'db> ElseBlock<'db> {
         let Some(last_element) = tail_expr.clone().or(last_stmt.clone()) else {
             return make.tail_only_block_expr(self.kind.make_early_expr(sema, make, None));
         };
-        let whitespace = last_element.prev_sibling_or_token().filter(|it| it.kind() == WHITESPACE);
-
         if let Some(tail_expr) = block_expr.tail_expr()
             && !self.kind.is_unit()
         {
@@ -294,13 +302,13 @@ impl<'db> ElseBlock<'db> {
                 Some(expr) if !expr.is_block_like() => make.expr_stmt(expr).syntax().clone(),
                 _ => last_element.clone(),
             };
-            let whitespace =
-                make.whitespace(&whitespace.map_or(String::new(), |it| it.to_string()));
-            let early_expr = self.kind.make_early_expr(sema, make, None).syntax().clone().into();
-            editor.replace_with_many(
-                last_element,
-                vec![last_stmt.into(), whitespace.into(), early_expr],
+            let leading = format!("\n{}", IndentLevel::from_node(&last_element));
+            let early_expr = clone_subtree_with_outer_trivia(
+                self.kind.make_early_expr(sema, make, None).syntax(),
+                Some(&leading),
+                None,
             );
+            editor.replace_with_many(last_element, vec![last_stmt.into(), early_expr.into()]);
         }
 
         ast::BlockExpr::cast(editor.finish().new_root().clone()).unwrap()

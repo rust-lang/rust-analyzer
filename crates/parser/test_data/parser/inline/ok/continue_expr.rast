@@ -1,38 +1,29 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LOOP_EXPR
-          LOOP_KW "loop"
-          WHITESPACE " "
+          LOOP_KW "loop" [WHITESPACE("    ")] [WHITESPACE(" ")]
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE "\n        "
+              L_CURLY "{" [] [NEWLINE("\n")]
               EXPR_STMT
                 CONTINUE_EXPR
-                  CONTINUE_KW "continue"
-                SEMICOLON ";"
-              WHITESPACE "\n        "
+                  CONTINUE_KW "continue" [WHITESPACE("        ")] []
+                SEMICOLON ";" [] [NEWLINE("\n")]
               EXPR_STMT
                 CONTINUE_EXPR
-                  CONTINUE_KW "continue"
-                  WHITESPACE " "
+                  CONTINUE_KW "continue" [WHITESPACE("        ")] [WHITESPACE(" ")]
                   LIFETIME
-                    LIFETIME_IDENT "'l"
-                SEMICOLON ";"
-              WHITESPACE "\n    "
-              R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                    LIFETIME_IDENT "'l" [] []
+                SEMICOLON ";" [] [NEWLINE("\n")]
+              R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

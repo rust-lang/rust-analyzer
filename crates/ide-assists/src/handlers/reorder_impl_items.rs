@@ -1,6 +1,7 @@
 use hir::{PathResolution, Semantics};
 use ide_db::{FxHashMap, RootDatabase};
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
     AstNode, SyntaxElement,
     ast::{self, HasName},
@@ -53,7 +54,7 @@ pub(crate) fn reorder_impl_items(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
 
     // restrict the range
     // if cursor is in assoc_items, abort
-    let assoc_range = items.syntax().text_range();
+    let assoc_range = token_span(items.syntax());
     let cursor_position = ctx.offset();
     if assoc_range.contains_inclusive(cursor_position) {
         cov_mark::hit!(not_applicable_editing_assoc_items);
@@ -93,7 +94,7 @@ pub(crate) fn reorder_impl_items(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         return None;
     }
 
-    let target = items.syntax().text_range();
+    let target = token_span(items.syntax());
     acc.add(
         AssistId::refactor_rewrite("reorder_impl_items"),
         "Sort items by trait definition",

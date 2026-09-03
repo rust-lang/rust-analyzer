@@ -1,3 +1,4 @@
+use syntax::token_span;
 use syntax::{
     SyntaxKind, SyntaxNode, SyntaxToken,
     ast::{self, AstNode, HasGenericParams, HasName},
@@ -38,7 +39,7 @@ pub(crate) fn add_lifetime_to_type(acc: &mut Assists, ctx: &AssistContext<'_, '_
     }
 
     let changes = fetch_borrowed_types(&node)?;
-    let target = node.syntax().text_range();
+    let target = token_span(node.syntax());
 
     acc.add(AssistId::quick_fix("add_lifetime_to_type"), "Add lifetime", target, |builder| {
         match node.generic_param_list() {
@@ -49,7 +50,7 @@ pub(crate) fn add_lifetime_to_type(acc: &mut Assists, ctx: &AssistContext<'_, '_
             }
             None => {
                 if let Some(name) = node.name() {
-                    builder.insert(name.syntax().text_range().end(), "<'a>");
+                    builder.insert(token_span(name.syntax()).end(), "<'a>");
                 }
             }
         }

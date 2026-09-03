@@ -8,10 +8,7 @@ use ide_db::{
 use syntax::{
     Direction, NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T, TextRange,
     algo::{ancestors_at_offset, skip_trivia_token},
-    ast::{
-        self, AstNode,
-        edit::{AstNodeEdit, IndentLevel},
-    },
+    ast::{self, AstNode, edit::AstNodeEdit},
     hacks::parse_expr_from_str,
     syntax_editor::{Element, Position},
 };
@@ -88,7 +85,15 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             expr_or_field.syntax().ancestors().find_map(valid_target_expr(ctx))?.syntax().clone()
         }
     } else {
-        match ctx.covering_element() {
+        let range = ctx.selection_trimmed();
+        let covering =
+            match syntax::algo::trivia_at_offset(ctx.source_file().syntax(), range.start())
+                .filter(|piece| piece.text_range().contains_range(range))
+            {
+                Some(piece) => piece.into(),
+                None => ctx.covering_element(),
+            };
+        match covering {
             NodeOrToken::Node(it) => it,
             NodeOrToken::Token(it) if it.kind() == SyntaxKind::COMMENT => {
                 cov_mark::hit!(extract_var_in_comment_is_not_applicable);
@@ -268,25 +273,53 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
 
                 match &anchor {
                     Anchor::Before(place) => {
-                        let prev_ws = place.prev_sibling_or_token().and_then(|it| it.into_token());
-                        let indent_to = IndentLevel::from_node(place);
-
+                        let on_own_line = place
+                            .first_token()
+                            .is_some_and(|token| syntax::algo::starts_line(&token));
                         // Adjust ws to insert depending on if this is all inline or on separate lines
-                        let trailing_ws = if prev_ws.is_some_and(|it| it.text().starts_with('\n')) {
-                            format!("\n{indent_to}")
+                        let separator = if on_own_line { "\n".to_owned() } else { " ".to_owned() };
+
+                        let first = place.first_token();
+                        let leading: String = first
+                            .iter()
+                            .flat_map(|token| token.leading_trivia())
+                            .map(|piece| piece.text().to_owned())
+                            .collect();
+                        let new_stmt = new_stmt
+                            .clone()
+                            .with_leading_trivia(&leading, make)
+                            .with_trailing_trivia(&separator, make);
+                        editor.insert(Position::before(place), new_stmt.syntax());
+                        let starts_place =
+                            first.as_ref().is_some_and(|first| match to_replace.start() {
+                                syntax::NodeOrToken::Node(node) => {
+                                    node.first_token().as_ref() == Some(first)
+                                }
+                                syntax::NodeOrToken::Token(token) => token == first,
+                            });
+                        if starts_place {
+                            let last = match to_replace.end() {
+                                syntax::NodeOrToken::Node(node) => node.last_token(),
+                                syntax::NodeOrToken::Token(token) => Some(token.clone()),
+                            };
+                            let trailing: String = last
+                                .into_iter()
+                                .flat_map(|token| token.trailing_trivia())
+                                .map(|piece| piece.text().to_owned())
+                                .collect();
+                            editor.replace_all(
+                                to_replace,
+                                vec![
+                                    name_expr
+                                        .with_trailing_trivia(&trailing, make)
+                                        .syntax()
+                                        .syntax_element(),
+                                ],
+                            );
                         } else {
-                            " ".to_owned()
-                        };
-
-                        editor.insert_all(
-                            Position::before(place),
-                            vec![
-                                new_stmt.syntax().clone().into(),
-                                make.whitespace(&trailing_ws).into(),
-                            ],
-                        );
-
-                        editor.replace_all(to_replace, vec![name_expr.syntax().syntax_element()]);
+                            editor
+                                .replace_all(to_replace, vec![name_expr.syntax().syntax_element()]);
+                        }
                     }
                     Anchor::Replace(stmt) => {
                         cov_mark::hit!(test_extract_var_expr_stmt);

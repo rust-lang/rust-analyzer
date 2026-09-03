@@ -1,67 +1,52 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           BLOCK_EXPR
             TRY_BLOCK_MODIFIER
-              TRY_KW "try"
-            WHITESPACE " "
+              TRY_KW "try" [] [WHITESPACE(" ")]
             STMT_LIST
-              L_CURLY "{"
-              R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_CURLY "{" [] []
+              R_CURLY "}" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           BLOCK_EXPR
             TRY_BLOCK_MODIFIER
-              TRY_KW "try"
-              WHITESPACE " "
-              BIKESHED_KW "bikeshed"
-              WHITESPACE " "
+              TRY_KW "try" [] [WHITESPACE(" ")]
+              BIKESHED_KW "bikeshed" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "T"
+                      IDENT "T" [] []
                     GENERIC_ARG_LIST
-                      L_ANGLE "<"
+                      L_ANGLE "<" [] []
                       TYPE_ARG
                         PATH_TYPE
                           PATH
                             PATH_SEGMENT
                               NAME_REF
-                                IDENT "U"
-                      R_ANGLE ">"
-            WHITESPACE " "
+                                IDENT "U" [] []
+                      R_ANGLE ">" [] [WHITESPACE(" ")]
             STMT_LIST
-              L_CURLY "{"
-              R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+              L_CURLY "{" [] []
+              R_CURLY "}" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

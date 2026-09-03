@@ -1,4 +1,5 @@
 use ide_db::{FxHashSet, syntax_helpers::node_ext::vis_eq};
+use syntax::token_span;
 use syntax::{
     Direction, NodeOrToken, SourceFile, SyntaxElement,
     SyntaxKind::*,
@@ -66,11 +67,23 @@ pub(crate) fn folding_ranges(file: &SourceFile, add_collapsed_text: bool) -> Vec
     // regions can be nested, here is a LIFO buffer
     let mut region_starts: Vec<TextSize> = vec![];
 
+    let mut elements: Vec<SyntaxElement> = Vec::new();
     for element in file.syntax().descendants_with_tokens() {
+        match element {
+            NodeOrToken::Token(token) => {
+                elements.extend(token.leading_trivia().map(NodeOrToken::Token));
+                elements.push(NodeOrToken::Token(token.clone()));
+                elements.extend(token.trailing_trivia().map(NodeOrToken::Token));
+            }
+            node => elements.push(node),
+        }
+    }
+
+    for element in elements {
         // Fold items that span multiple lines
         if let Some((kind, collapsed_text)) = fold_kind(element.clone(), add_collapsed_text) {
             let is_multiline = match &element {
-                NodeOrToken::Node(node) => node.text().contains_char('\n'),
+                NodeOrToken::Node(node) => syntax::token_text(node).contains('\n'),
                 NodeOrToken::Token(token) => token.text().contains('\n'),
             };
 
@@ -80,7 +93,7 @@ pub(crate) fn folding_ranges(file: &SourceFile, add_collapsed_text: bool) -> Vec
                 {
                     if !fn_
                         .param_list()
-                        .map(|param_list| param_list.syntax().text().contains_char('\n'))
+                        .map(|param_list| syntax::token_text(param_list.syntax()).contains('\n'))
                         .unwrap_or_default()
                     {
                         continue;
@@ -93,14 +106,18 @@ pub(crate) fn folding_ranges(file: &SourceFile, add_collapsed_text: bool) -> Vec
                             .map(|token| token.text_range().start())
                             .unwrap_or(node.text_range().start());
                         res.push(Fold::new(
-                            TextRange::new(fn_start, body.syntax().text_range().end()),
+                            TextRange::new(fn_start, token_span(body.syntax()).end()),
                             FoldKind::Function,
                         ));
                         continue;
                     }
                 }
 
-                let fold = Fold::new(element.text_range(), kind).with_text(collapsed_text);
+                let range = match &element {
+                    NodeOrToken::Node(node) => token_span(node),
+                    NodeOrToken::Token(token) => token.text_range(),
+                };
+                let fold = Fold::new(range, kind).with_text(collapsed_text);
                 res.push(fold);
                 continue;
             }
@@ -259,9 +276,10 @@ fn collapsed_stmt(stmt: ast::Stmt) -> Option<String> {
                 break 'blk None;
             };
             let eq_token_offset =
-                eq_token.text_range().end() - let_stmt.syntax().text_range().start();
-            let text_until_eq_token = let_stmt.syntax().text().slice(..eq_token_offset);
-            if text_until_eq_token.contains_char('\n') {
+                eq_token.text_range().end() - token_span(let_stmt.syntax()).start();
+            let full = syntax::token_text(let_stmt.syntax());
+            let text_until_eq_token = &full[..usize::from(eq_token_offset)];
+            if text_until_eq_token.contains('\n') {
                 break 'blk None;
             }
 
@@ -346,20 +364,27 @@ where
 
     let (mut last, mut last_vis) = (first.clone(), first.visibility());
     for element in first.syntax().siblings_with_tokens(Direction::Next) {
-        let node = match element {
-            NodeOrToken::Token(token) => {
-                if let Some(ws) = ast::Whitespace::cast(token)
-                    && !ws.spans_multiple_lines()
-                {
-                    // Ignore whitespace without blank lines
-                    continue;
-                }
-                // There is a blank line or another token, which means that the
-                // group ends here
-                break;
+        let NodeOrToken::Node(node) = element else { break };
+        if &node == last.syntax() {
+            continue;
+        }
+
+        let gap = last
+            .syntax()
+            .last_token()
+            .into_iter()
+            .flat_map(|it| it.trailing_trivia())
+            .chain(node.first_token().into_iter().flat_map(|it| it.leading_trivia()));
+        let mut newlines = 0;
+        for piece in gap {
+            match piece.kind() {
+                COMMENT => newlines = 0,
+                _ => newlines += piece.text().matches('\n').count(),
             }
-            NodeOrToken::Node(node) => node,
-        };
+        }
+        if newlines > 1 {
+            break;
+        }
 
         if let Some(next) = N::cast(node) {
             let next_vis = next.visibility();
@@ -375,7 +400,7 @@ where
     }
 
     if first != last {
-        Some(TextRange::new(first.syntax().text_range().start(), last.syntax().text_range().end()))
+        Some(TextRange::new(token_span(first.syntax()).start(), token_span(last.syntax()).end()))
     } else {
         // The group consists of only one element, therefore it cannot be folded
         None
@@ -403,33 +428,33 @@ fn contiguous_range_for_comment(
     }
 
     let mut last = first.clone();
-    for element in first.syntax().siblings_with_tokens(Direction::Next) {
-        match element {
-            NodeOrToken::Token(token) => {
-                if let Some(ws) = ast::Whitespace::cast(token.clone())
-                    && !ws.spans_multiple_lines()
-                {
-                    // Ignore whitespace without blank lines
-                    continue;
-                }
-                if let Some(c) = ast::Comment::cast(token)
-                    && c.kind() == group_kind
-                {
-                    let text = c.text().trim_start();
-                    // regions are not real comments
-                    if !(text.starts_with(REGION_START) || text.starts_with(REGION_END)) {
-                        visited.insert(c.clone());
-                        last = c;
-                        continue;
-                    }
-                }
-                // The comment group ends because either:
-                // * An element of a different kind was reached
-                // * A comment of a different flavor was reached
+    let mut next = first.syntax().next_token();
+    let mut newlines = 0;
+    while let Some(token) = next {
+        next = token.next_token();
+        if matches!(token.kind(), WHITESPACE | NEWLINE) {
+            newlines += token.text().matches('\n').count();
+            if newlines > 1 {
                 break;
             }
-            NodeOrToken::Node(_) => break,
-        };
+            continue;
+        }
+        if let Some(c) = ast::Comment::cast(token)
+            && c.kind() == group_kind
+        {
+            let text = c.text().trim_start();
+            // regions are not real comments
+            if !(text.starts_with(REGION_START) || text.starts_with(REGION_END)) {
+                visited.insert(c.clone());
+                last = c;
+                newlines = 0;
+                continue;
+            }
+        }
+        // The comment group ends because either:
+        // * An element of a different kind was reached
+        // * A comment of a different flavor was reached
+        break;
     }
 
     if first != last {

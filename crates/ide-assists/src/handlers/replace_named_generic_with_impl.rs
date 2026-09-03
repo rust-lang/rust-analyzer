@@ -5,6 +5,7 @@ use ide_db::{
     defs::Definition,
     search::{SearchScope, UsageSearchResult},
 };
+use syntax::token_span;
 use syntax::{
     AstNode,
     ast::{self, HasGenericParams, HasName, HasTypeBounds, Name, NameLike, PathType},
@@ -64,7 +65,7 @@ pub(crate) fn replace_named_generic_with_impl(
         }
     }
 
-    let target = type_param.syntax().text_range();
+    let target = token_span(type_param.syntax());
 
     acc.add(
         AssistId::refactor_rewrite("replace_named_generic_with_impl"),
@@ -161,7 +162,7 @@ fn find_usages<'db>(
     type_param_def: Definition<'db>,
     file_id: EditionedFileId,
 ) -> UsageSearchResult {
-    let file_range = FileRange { file_id, range: fn_.syntax().text_range() };
+    let file_range = FileRange { file_id, range: token_span(fn_.syntax()) };
     type_param_def.usages(sema).in_scope(&SearchScope::file_range(file_range)).all()
 }
 

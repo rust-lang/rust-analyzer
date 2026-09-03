@@ -1,65 +1,53 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "foo"
-      WHITESPACE " "
+            IDENT "foo" [] [WHITESPACE(" ")]
       RENAME
-        AS_KW "as"
-        WHITESPACE " "
+        AS_KW "as" [] [WHITESPACE(" ")]
         NAME
-          IDENT "bar"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+          IDENT "bar" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "foo"
-      COLON2 "::"
+            IDENT "foo" [] []
+      COLON2 "::" [] []
       USE_TREE_LIST
-        L_CURLY "{"
+        L_CURLY "{" [] []
         USE_TREE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "a"
-          WHITESPACE " "
+                IDENT "a" [] [WHITESPACE(" ")]
           RENAME
-            AS_KW "as"
-            WHITESPACE " "
+            AS_KW "as" [] [WHITESPACE(" ")]
             NAME
-              IDENT "b"
-        COMMA ","
-        WHITESPACE " "
+              IDENT "b" [] []
+        COMMA "," [] [WHITESPACE(" ")]
         USE_TREE
-          STAR "*"
-        COMMA ","
-        WHITESPACE " "
+          STAR "*" [] []
+        COMMA "," [] [WHITESPACE(" ")]
         USE_TREE
-          COLON2 "::"
-          STAR "*"
-        COMMA ","
-        WHITESPACE " "
+          COLON2 "::" [] []
+          STAR "*" [] []
+        COMMA "," [] [WHITESPACE(" ")]
         USE_TREE
           PATH
             PATH_SEGMENT
-              COLON2 "::"
+              COLON2 "::" [] []
               NAME_REF
-                IDENT "foo"
-          WHITESPACE " "
+                IDENT "foo" [] [WHITESPACE(" ")]
           RENAME
-            AS_KW "as"
-            WHITESPACE " "
+            AS_KW "as" [] [WHITESPACE(" ")]
             NAME
-              IDENT "x"
-        R_CURLY "}"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+              IDENT "x" [] []
+        R_CURLY "}" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

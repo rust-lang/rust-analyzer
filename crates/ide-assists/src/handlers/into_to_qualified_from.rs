@@ -1,5 +1,6 @@
 use hir::{AsAssocItem, HirDisplay};
 use ide_db::{assists::AssistId, famous_defs::FamousDefs};
+use syntax::token_span;
 use syntax::{AstNode, ast};
 
 use crate::assist_context::{AssistContext, Assists};
@@ -59,10 +60,10 @@ pub(crate) fn into_to_qualified_from(acc: &mut Assists, ctx: &AssistContext<'_, 
         acc.add(
             AssistId::generate("into_to_qualified_from"),
             "Convert `into` to fully qualified `from`",
-            nameref.syntax().text_range(),
+            token_span(nameref.syntax()),
             |edit| {
                 edit.replace(
-                    method_call.syntax().text_range(),
+                    token_span(method_call.syntax()),
                     if sc.chars().all(|c| c.is_alphanumeric() || c == ':') {
                         format!("{sc}::from({receiver})")
                     } else {

@@ -97,7 +97,14 @@ fn check_closure_captures(#[rust_analyzer::rust_fixture] ra_fixture: &str, expec
                         syntax: InFileWrapper<HirFileId, AstPtr<N>>,
                     ) -> TextRange {
                         let root = syntax.file_syntax(db);
-                        syntax.value.to_node(&root).syntax().text_range()
+                        let node = syntax.value.to_node(&root);
+                        let node = node.syntax();
+                        match (node.first_token(), node.last_token()) {
+                            (Some(first), Some(last)) => {
+                                TextRange::new(first.text_range().start(), last.text_range().end())
+                            }
+                            _ => TextRange::empty(node.text_range().start()),
+                        }
                     }
 
                     // FIXME: Deduplicate this with hir::Local::sources().

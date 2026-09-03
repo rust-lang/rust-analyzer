@@ -1,7 +1,9 @@
 use either::Either;
 use ide_db::assists::{AssistId, GroupLabel};
+use syntax::token_span;
 use syntax::{
     AstNode,
+    ast::edit::AstNodeEdit,
     ast::{self, HasGenericParams, HasName, edit::IndentLevel},
     syntax_editor,
 };
@@ -53,7 +55,7 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, 
             &GroupLabel("Generate a type alias for function...".into()),
             style.assist_id(),
             style.label(),
-            func_node.syntax().text_range(),
+            token_span(func_node.syntax()),
             |builder| {
                 let editor = builder.make_editor(func);
                 let make = editor.make();
@@ -103,13 +105,8 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, 
                 );
 
                 let indent = IndentLevel::from_node(insertion_node);
-                editor.insert_all(
-                    syntax_editor::Position::before(insertion_node),
-                    vec![
-                        ty_alias.syntax().clone().into(),
-                        make.whitespace(&format!("\n\n{indent}")).into(),
-                    ],
-                );
+                let ty_alias = ty_alias.with_trailing_trivia(&format!("\n\n{indent}"), make);
+                editor.insert(syntax_editor::Position::before(insertion_node), ty_alias.syntax());
 
                 if let Some(cap) = ctx.config.snippet_cap
                     && let Some(name) = ty_alias.name()

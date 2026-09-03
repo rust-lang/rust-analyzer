@@ -1,54 +1,40 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [] [WHITESPACE(" ")]
           RECORD_PAT
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "R"
-            WHITESPACE " "
+                  IDENT "R" [] [WHITESPACE(" ")]
             RECORD_PAT_FIELD_LIST
-              L_CURLY "{"
-              WHITESPACE " "
+              L_CURLY "{" [] [WHITESPACE(" ")]
               RECORD_PAT_FIELD
                 NAME_REF
-                  IDENT "a"
-                COLON ":"
-                WHITESPACE " "
+                  IDENT "a" [] []
+                COLON ":" [] [WHITESPACE(" ")]
                 OR_PAT
-                  PIPE "|"
-                  WHITESPACE " "
+                  PIPE "|" [] [WHITESPACE(" ")]
                   LITERAL_PAT
                     LITERAL
-                      INT_NUMBER "1"
-                  WHITESPACE " "
-                  PIPE "|"
-                  WHITESPACE " "
+                      INT_NUMBER "1" [] [WHITESPACE(" ")]
+                  PIPE "|" [] [WHITESPACE(" ")]
                   LITERAL_PAT
                     LITERAL
-                      INT_NUMBER "2"
-              WHITESPACE " "
-              R_CURLY "}"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+                      INT_NUMBER "2" [] [WHITESPACE(" ")]
+              R_CURLY "}" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            INT_NUMBER "0"
-          SEMICOLON ";"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+            INT_NUMBER "0" [] []
+          SEMICOLON ";" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

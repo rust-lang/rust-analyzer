@@ -1,4 +1,5 @@
 use hir::HirDisplay;
+use syntax::token_span;
 use syntax::{
     AstNode, TextRange,
     ast::{Expr, GenericArg, GenericArgList, HasGenericArgs, LetStmt, Type::InferType},
@@ -62,7 +63,7 @@ pub(crate) fn replace_turbofish_with_explicit_type(
         }
     };
 
-    let initializer_start = initializer.syntax().text_range().start();
+    let initializer_start = token_span(initializer.syntax()).start();
     if ctx.offset() > turbofish_range.end() || ctx.offset() < initializer_start {
         cov_mark::hit!(not_applicable_outside_turbofish);
         return None;
@@ -71,7 +72,7 @@ pub(crate) fn replace_turbofish_with_explicit_type(
     if let_stmt.colon_token().is_none() {
         // If there's no colon in a let statement, then there is no explicit type.
         // let x = fn::<...>();
-        let ident_range = let_stmt.pat()?.syntax().text_range();
+        let ident_range = token_span(let_stmt.pat()?.syntax());
 
         return acc.add(
             AssistId::refactor_rewrite("replace_turbofish_with_explicit_type"),
@@ -86,7 +87,7 @@ pub(crate) fn replace_turbofish_with_explicit_type(
         // If there's a type inference underscore, we can offer to replace it with the type in
         // the turbofish.
         // let x: _ = fn::<...>();
-        let underscore_range = t.syntax().text_range();
+        let underscore_range = token_span(t.syntax());
 
         return acc.add(
             AssistId::refactor_rewrite("replace_turbofish_with_explicit_type"),

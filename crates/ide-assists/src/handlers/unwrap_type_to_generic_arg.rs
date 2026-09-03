@@ -1,4 +1,5 @@
 use ide_db::assists::AssistId;
+use syntax::token_span;
 use syntax::{
     AstNode,
     ast::{self, GenericArg, HasGenericArgs},
@@ -47,7 +48,7 @@ pub(crate) fn unwrap_type_to_generic_arg(
     acc.add(
         AssistId::refactor_extract("unwrap_type_to_generic_arg"),
         format!("Unwrap type to type argument {generic_arg}"),
-        path_type.syntax().text_range(),
+        token_span(path_type.syntax()),
         |builder| {
             let editor = builder.make_editor(path_type.syntax());
             editor.replace(path_type.syntax(), generic_arg.syntax());

@@ -1,4 +1,5 @@
 use hir::HasCrate;
+use syntax::token_span;
 use syntax::{AstNode, ast};
 
 use crate::{AssistContext, AssistId, Assists};
@@ -50,10 +51,10 @@ pub(crate) fn inline_const_as_literal(
         let id = AssistId::refactor_inline("inline_const_as_literal");
 
         let label = "Inline const as literal".to_owned();
-        let target = variable.syntax().text_range();
+        let target = token_span(variable.syntax());
 
         return acc.add(id, label, target, |edit| {
-            edit.replace(variable.syntax().text_range(), value);
+            edit.replace(token_span(variable.syntax()), value);
         });
     }
     None

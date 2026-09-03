@@ -3,6 +3,7 @@ use ide_db::{
     helpers::mod_path_to_ast_with_factory,
     imports::insert_use::{ImportScope, insert_use_with_editor},
 };
+use syntax::token_span;
 use syntax::{
     AstNode, Edition, SyntaxNode,
     ast::{self, HasGenericArgs},
@@ -70,7 +71,7 @@ pub(crate) fn replace_qualified_name_with_use(
         .flatten();
 
     let scope = ImportScope::find_insert_use_container(original_path.syntax(), &ctx.sema)?;
-    let target = original_path.syntax().text_range();
+    let target = token_span(original_path.syntax());
     acc.add(
         AssistId::refactor_rewrite("replace_qualified_name_with_use"),
         "Replace qualified path with use",
@@ -154,11 +155,30 @@ fn maybe_replace_path(editor: &SyntaxEditor, path: ast::Path, target: ast::Path)
     }
 
     // Shorten `path`, leaving only its last segment.
+    let leading: String = path
+        .syntax()
+        .first_token()
+        .into_iter()
+        .flat_map(|token| token.leading_trivia())
+        .map(|piece| piece.text().to_owned())
+        .collect();
+
     if let Some(parent) = path.qualifier() {
         editor.delete(parent.syntax());
     }
     if let Some(double_colon) = path.coloncolon_token() {
         editor.delete(double_colon);
+    }
+
+    if !leading.is_empty()
+        && let Some(segment) = path.segment()
+        && let Some(first) = segment.syntax().first_token()
+    {
+        let trailing: String =
+            first.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+        let moved =
+            editor.make().token_with_trivia(first.kind(), first.text(), &leading, &trailing);
+        editor.replace_discard_trivia(first, moved);
     }
 
     Some(())

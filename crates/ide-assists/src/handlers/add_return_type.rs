@@ -1,6 +1,7 @@
 use either::Either;
 use hir::HirDisplay;
-use syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize, ast, match_ast};
+use syntax::token_span;
+use syntax::{AstNode, SyntaxToken, TextRange, TextSize, ast, match_ast};
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -31,7 +32,7 @@ pub(crate) fn add_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
             FnType::Function => "Add this function's return type",
             FnType::Closure { .. } => "Add this closure's return type",
         },
-        tail_expr.syntax().text_range(),
+        token_span(tail_expr.syntax()),
         |builder| {
             match builder_edit_pos {
                 InsertOrReplace::Insert(insert_pos, needs_whitespace) => {
@@ -45,7 +46,7 @@ pub(crate) fn add_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
             if let FnType::Closure { wrap_expr: true } = fn_type {
                 cov_mark::hit!(wrap_closure_non_block_expr);
                 // `|x| x` becomes `|x| -> T x` which is invalid, so wrap it in a block
-                builder.replace(tail_expr.syntax().text_range(), format!("{{{tail_expr}}}"));
+                builder.replace(token_span(tail_expr.syntax()), format!("{{{tail_expr}}}"));
             }
         },
     )
@@ -67,7 +68,7 @@ fn ret_ty_to_action(
             Some(ast::Type::InferType(_)) | None => {
                 cov_mark::hit!(existing_infer_ret_type);
                 cov_mark::hit!(existing_infer_ret_type_closure);
-                Some(InsertOrReplace::Replace(ret_ty.syntax().text_range()))
+                Some(InsertOrReplace::Replace(token_span(ret_ty.syntax())))
             }
             _ => {
                 cov_mark::hit!(existing_ret_type);
@@ -77,9 +78,9 @@ fn ret_ty_to_action(
         },
         None => {
             let insert_after_pos = insert_after.text_range().end();
-            let (insert_pos, needs_whitespace) = match insert_after.next_token() {
-                Some(it) if it.kind() == SyntaxKind::WHITESPACE => {
-                    (insert_after_pos + TextSize::from(1), false)
+            let (insert_pos, needs_whitespace) = match insert_after.trailing_trivia().next() {
+                Some(it) if it.kind().is_trivia() => {
+                    (insert_after_pos + TextSize::of(it.text()), false)
                 }
                 _ => (insert_after_pos, true),
             };
@@ -170,7 +171,7 @@ fn extract_tail(ctx: &AssistContext<'_, '_>) -> Option<(FnType, ast::Expr, Inser
     if return_type_range.contains_range(range) {
         cov_mark::hit!(cursor_in_ret_position);
         cov_mark::hit!(cursor_in_ret_position_closure);
-    } else if tail_expr.syntax().text_range().contains_range(range) {
+    } else if token_span(tail_expr.syntax()).contains_range(range) {
         cov_mark::hit!(cursor_on_tail);
         cov_mark::hit!(cursor_on_tail_closure);
     } else {

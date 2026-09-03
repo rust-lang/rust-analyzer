@@ -1,16 +1,14 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "foo"
-        COLON2 "::"
+              IDENT "foo" [] []
+        COLON2 "::" [] []
         PATH_SEGMENT
-          ERROR
-            INT_NUMBER "92"
-    SEMICOLON ";"
+    SEMICOLON ";" [!INT_NUMBER("92")] []
+  EOF "" [] []
 error 9: expected identifier, `self`, `super`, `crate`, or `Self`

@@ -2,6 +2,7 @@ use ide_db::{
     imports::import_assets::item_for_path_search, syntax_helpers::suggest_name::NameGenerator,
     use_trivial_constructor::use_trivial_constructor_with_factory,
 };
+use syntax::token_span;
 use syntax::{
     ast::{self, AstNode, HasName, HasVisibility, StructKind, edit::AstNodeEdit},
     syntax_editor::Position,
@@ -67,7 +68,7 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
 
     let current_module = ctx.sema.scope(strukt.syntax())?.module();
 
-    let target = strukt.syntax().text_range();
+    let target = token_span(strukt.syntax());
     acc.add(AssistId::generate("generate_new"), "Generate `new`", target, |builder| {
         let editor = builder.make_editor(strukt.syntax());
         let make = editor.make();
@@ -162,14 +163,10 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
 
             if let Some(l_curly) = impl_def.assoc_item_list().and_then(|list| list.l_curly_token())
             {
-                editor.insert_all(
-                    Position::after(l_curly),
-                    vec![
-                        make.whitespace(&format!("\n{}", impl_def.indent_level() + 1)).into(),
-                        fn_.syntax().clone().into(),
-                        make.whitespace("\n").into(),
-                    ],
-                );
+                let fn_ = fn_
+                    .with_leading_trivia(&format!("\n{}", impl_def.indent_level() + 1), make)
+                    .with_trailing_trivia("\n", make);
+                editor.insert(Position::after(l_curly), fn_.syntax());
                 fn_.syntax().clone()
             } else {
                 let list = make.assoc_item_list([ast::AssocItem::Fn(fn_)]);
@@ -185,13 +182,8 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
                     .indent(strukt.indent_level());
 
             // Insert it after the adt
-            editor.insert_all(
-                Position::after(strukt.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent_level}")).into(),
-                    impl_def.syntax().clone().into(),
-                ],
-            );
+            let impl_def = impl_def.with_leading_trivia(&format!("\n\n{indent_level}"), make);
+            editor.insert(Position::after(strukt.syntax()), impl_def.syntax());
             impl_def.syntax().clone()
         };
 

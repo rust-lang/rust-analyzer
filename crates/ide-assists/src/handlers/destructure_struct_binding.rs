@@ -8,7 +8,8 @@ use ide_db::{
 };
 use itertools::Itertools;
 use syntax::syntax_editor::SyntaxEditor;
-use syntax::{AstNode, Edition, SmolStr, SyntaxNode, ToSmolStr, ast};
+use syntax::token_span;
+use syntax::{AstNode, Edition, SmolStr, SyntaxNode, ToSmolStr, ast, ast::edit::AstNodeEdit};
 use syntax::{
     SyntaxToken,
     ast::{HasName, edit::IndentLevel, syntax_factory::SyntaxFactory},
@@ -57,7 +58,7 @@ pub(crate) fn destructure_struct_binding(
     acc.add(
         AssistId::refactor_rewrite("destructure_struct_binding"),
         "Destructure struct binding",
-        data.target.syntax().text_range(),
+        token_span(data.target.syntax()),
         |edit| destructure_struct_binding_impl(ctx, edit, &data),
     );
 
@@ -164,13 +165,11 @@ impl StructEditData {
             }
             Target::SelfParam { insert_after, .. } => {
                 let indent = IndentLevel::from_token(insert_after) + 1;
-                let newline = make.whitespace(&format!("\n{indent}"));
                 let initializer = make.expr_path(make.ident_path("self"));
-                let let_stmt = make.let_stmt(new_pat, None, Some(initializer));
-                editor.insert_all(
-                    Position::after(insert_after),
-                    vec![newline.into(), let_stmt.syntax().clone().into()],
-                );
+                let let_stmt = make
+                    .let_stmt(new_pat, None, Some(initializer))
+                    .with_leading_trivia(&format!("\n{indent}"), make);
+                editor.insert(Position::after(insert_after), let_stmt.syntax());
             }
         }
     }

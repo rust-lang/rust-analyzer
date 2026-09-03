@@ -6,6 +6,7 @@ use ide_db::famous_defs::FamousDefs;
 use span::Edition;
 use stdx::{TupleExt, never};
 use syntax::ast::{self, AstNode};
+use syntax::token_span;
 
 use crate::{
     InlayHint, InlayHintLabel, InlayHintLabelPart, InlayHintPosition, InlayHintsConfig, InlayKind,
@@ -74,7 +75,7 @@ pub(super) fn hints(
         position,
         pad_left: false,
         pad_right,
-        resolve_parent: Some(expr.syntax().text_range()),
+        resolve_parent: Some(token_span(expr.syntax())),
     };
     hint.label.append_str("(");
     let last = captures.len() - 1;

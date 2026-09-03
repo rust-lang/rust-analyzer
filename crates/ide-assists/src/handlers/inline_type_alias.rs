@@ -10,6 +10,7 @@ use ide_db::{
 use itertools::Itertools;
 use syntax::ast::syntax_factory::SyntaxFactory;
 use syntax::syntax_editor::SyntaxEditor;
+use syntax::token_span;
 use syntax::{
     AstNode, NodeOrToken, SyntaxKind, SyntaxNode, T,
     ast::{self, HasGenericParams, HasName},
@@ -62,7 +63,7 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_, 
     acc.add(
         AssistId::refactor_inline("inline_type_alias_uses"),
         "Inline type alias into all uses",
-        name.syntax().text_range(),
+        token_span(name.syntax()),
         |builder| {
             let usages = usages.all();
             let mut definition_deleted = false;
@@ -164,7 +165,7 @@ pub(crate) fn inline_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
     acc.add(
         AssistId::refactor_inline("inline_type_alias"),
         "Inline type alias",
-        alias_instance.syntax().text_range(),
+        token_span(alias_instance.syntax()),
         |builder| {
             let editor = builder.make_editor(alias_instance.syntax());
             let replace = replacement.replace_generic(&concrete_type);

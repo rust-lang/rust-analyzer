@@ -1,8 +1,12 @@
 use either::Either;
 use hir::HirDisplay;
 use ide_db::syntax_helpers::{node_ext::walk_ty, suggest_name::NameGenerator};
+use syntax::token_span;
 use syntax::{
-    ast::{self, AstNode, HasGenericArgs, HasGenericParams, HasName, edit::IndentLevel},
+    ast::{
+        self, AstNode, HasGenericArgs, HasGenericParams, HasName,
+        edit::{AstNodeEdit, IndentLevel},
+    },
     syntax_editor,
 };
 
@@ -38,7 +42,7 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         || item.syntax(),
         |impl_| impl_.as_ref().either(AstNode::syntax, AstNode::syntax),
     );
-    let target = ty.syntax().text_range();
+    let target = token_span(ty.syntax());
 
     let scope = ctx.sema.scope(ty.syntax())?;
     let resolved_ty = ctx.sema.resolve_type(&ty)?;
@@ -94,12 +98,10 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
             }
 
             let indent = IndentLevel::from_node(node);
-            editor.insert_all(
+            let _first = node.first_token();
+            editor.insert(
                 syntax_editor::Position::before(node),
-                vec![
-                    ty_alias.syntax().clone().into(),
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                ],
+                ty_alias.with_trailing_trivia(&format!("\n\n{indent}"), make).syntax(),
             );
 
             builder.add_file_edits(ctx.vfs_file_id(), editor);

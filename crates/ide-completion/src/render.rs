@@ -18,6 +18,7 @@ use ide_db::{
     helpers::item_name,
     imports::import_assets::LocatedImport,
 };
+use syntax::token_span;
 use syntax::{AstNode, SmolStr, SyntaxKind, TextRange, ToSmolStr, ast, format_smolstr};
 
 use crate::{
@@ -322,7 +323,7 @@ pub(crate) fn render_expr<'db>(
 
     let source_range = match ctx.original_token.parent() {
         Some(node) => match node.ancestors().find_map(ast::Path::cast) {
-            Some(path) => path.syntax().text_range(),
+            Some(path) => token_span(path.syntax()),
             None => node.text_range(),
         },
         None => ctx.source_range(),

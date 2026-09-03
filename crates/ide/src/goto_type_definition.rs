@@ -20,13 +20,17 @@ pub(crate) fn goto_type_definition(
     let sema = hir::Semantics::new(db);
 
     let file: ast::SourceFile = sema.parse_guess_edition(file_id);
-    let token: SyntaxToken =
-        pick_best_token(file.syntax().token_at_offset(offset), |kind| match kind {
+    let token: SyntaxToken = pick_best_token(
+        file.syntax()
+            .token_at_offset(offset)
+            .filter(|it| it.text_range().contains_inclusive(offset)),
+        |kind| match kind {
             IDENT | INT_NUMBER | T![self] => 3,
             kind if kind.is_trivia() => 0,
             T![;] => 1,
             _ => 2,
-        })?;
+        },
+    )?;
 
     let mut res = Vec::new();
     let mut push = |def: Definition<'_>| {

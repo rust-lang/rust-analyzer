@@ -1,23 +1,17 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         INCLUDE_BYTES_EXPR
-          BUILTIN_KW "builtin"
-          WHITESPACE " "
-          POUND "#"
-          WHITESPACE " "
-          INCLUDE_BYTES_KW "include_bytes"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+          BUILTIN_KW "builtin" [] [WHITESPACE(" ")]
+          POUND "#" [] [WHITESPACE(" ")]
+          INCLUDE_BYTES_KW "include_bytes" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

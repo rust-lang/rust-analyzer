@@ -69,7 +69,18 @@ fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
     check_impl(ra_fixture, false, false, false)
 }
 
+use syntax::token_span;
+
 #[track_caller]
+fn token_text(node: &syntax::SyntaxNode) -> String {
+    let full = node.text_range();
+    let span = token_span(node);
+    let text = node.text().to_string();
+    let start = usize::from(span.start() - full.start());
+    let end = text.len() - usize::from(full.end() - span.end());
+    text[start..end].to_owned()
+}
+
 fn check_impl(
     #[rust_analyzer::rust_fixture] ra_fixture: &str,
     allow_none: bool,
@@ -388,7 +399,7 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
 
             // sort ranges for consistency
             types.sort_by_key(|(node, _)| {
-                let range = node.value.text_range();
+                let range = token_span(&node.value);
                 (range.start(), range.end())
             });
             for (node, ty) in &types {
@@ -396,7 +407,7 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
                     if let Some(self_param) = ast::SelfParam::cast(node.value.clone()) {
                         (self_param.name().unwrap().syntax().text_range(), "self".to_owned())
                     } else {
-                        (node.value.text_range(), node.value.text().to_string().replace('\n', " "))
+                        (token_span(&node.value), token_text(&node.value).replace('\n', " "))
                     };
                 let macro_prefix = if node.file_id != file_id { "!" } else { "" };
                 format_to!(
@@ -410,11 +421,11 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
             }
             if include_mismatches {
                 mismatches.sort_by_key(|(node, _)| {
-                    let range = node.value.text_range();
+                    let range = token_span(&node.value);
                     (range.start(), range.end())
                 });
                 for (src_ptr, (expected, actual)) in &mismatches {
-                    let range = src_ptr.value.text_range();
+                    let range = token_span(&src_ptr.value);
                     let macro_prefix = if src_ptr.file_id != file_id { "!" } else { "" };
                     format_to!(
                         buf,

@@ -1,1787 +1,1424 @@
 SOURCE_FILE
-  COMMENT "//! Adapted from a `rustc` test, which can be found at "
-  WHITESPACE "\n"
-  COMMENT "//! https://github.com/rust-lang/rust/blob/6d34ec18c7d7e574553f6347ecf08e1e1c45c13d/src/test/run-pass/weird-exprs.rs."
-  WHITESPACE "\n"
-  COMMENT "//! "
-  WHITESPACE "\n"
-  COMMENT "//! Reported to rust-analyzer in https://github.com/rust-lang/rust-analyzer/issues/290"
-  WHITESPACE "\n\n"
   ATTR
-    POUND "#"
-    BANG "!"
-    L_BRACK "["
+    POUND "#" [COMMENT("//! Adapted from a `rustc` test, which can be found at "), NEWLINE("\n"), COMMENT("//! https://github.com/rust-lang/rust/blob/6d34ec18c7d7e574553f6347ecf08e1e1c45c13d/src/test/run-pass/weird-exprs.rs."), NEWLINE("\n"), COMMENT("//! "), NEWLINE("\n"), COMMENT("//! Reported to rust-analyzer in https://github.com/rust-lang/rust-analyzer/issues/290"), NEWLINE("\n"), NEWLINE("\n")] []
+    BANG "!" [] []
+    L_BRACK "[" [] []
     TOKEN_TREE_META
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "allow"
+            IDENT "allow" [] []
       TOKEN_TREE
-        L_PAREN "("
-        IDENT "non_camel_case_types"
-        R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+        L_PAREN "(" [] []
+        IDENT "non_camel_case_types" [] []
+        R_PAREN ")" [] []
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
-    POUND "#"
-    BANG "!"
-    L_BRACK "["
+    POUND "#" [] []
+    BANG "!" [] []
+    L_BRACK "[" [] []
     TOKEN_TREE_META
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "allow"
+            IDENT "allow" [] []
       TOKEN_TREE
-        L_PAREN "("
-        IDENT "dead_code"
-        R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+        L_PAREN "(" [] []
+        IDENT "dead_code" [] []
+        R_PAREN ")" [] []
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
-    POUND "#"
-    BANG "!"
-    L_BRACK "["
+    POUND "#" [] []
+    BANG "!" [] []
+    L_BRACK "[" [] []
     TOKEN_TREE_META
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "allow"
+            IDENT "allow" [] []
       TOKEN_TREE
-        L_PAREN "("
-        IDENT "unreachable_code"
-        R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+        L_PAREN "(" [] []
+        IDENT "unreachable_code" [] []
+        R_PAREN ")" [] []
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
-    POUND "#"
-    BANG "!"
-    L_BRACK "["
+    POUND "#" [] []
+    BANG "!" [] []
+    L_BRACK "[" [] []
     TOKEN_TREE_META
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "allow"
+            IDENT "allow" [] []
       TOKEN_TREE
-        L_PAREN "("
-        IDENT "unused_parens"
-        R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n\n"
+        L_PAREN "(" [] []
+        IDENT "unused_parens" [] []
+        R_PAREN ")" [] []
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
-    POUND "#"
-    BANG "!"
-    L_BRACK "["
+    POUND "#" [NEWLINE("\n")] []
+    BANG "!" [] []
+    L_BRACK "[" [] []
     KEY_VALUE_META
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "recursion_limit"
-      WHITESPACE " "
-      EQ "="
-      WHITESPACE " "
+            IDENT "recursion_limit" [] [WHITESPACE(" ")]
+      EQ "=" [] [WHITESPACE(" ")]
       LITERAL
-        STRING "\"128\""
-    R_BRACK "]"
-  WHITESPACE "\n\n"
+        STRING "\"128\"" [] []
+    R_BRACK "]" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [NEWLINE("\n")] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "std"
-          COLON2 "::"
+                IDENT "std" [] []
+          COLON2 "::" [] []
           PATH_SEGMENT
             NAME_REF
-              IDENT "cell"
-        COLON2 "::"
+              IDENT "cell" [] []
+        COLON2 "::" [] []
         PATH_SEGMENT
           NAME_REF
-            IDENT "Cell"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+            IDENT "Cell" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "std"
-          COLON2 "::"
+                IDENT "std" [] []
+          COLON2 "::" [] []
           PATH_SEGMENT
             NAME_REF
-              IDENT "mem"
-        COLON2 "::"
+              IDENT "mem" [] []
+        COLON2 "::" [] []
         PATH_SEGMENT
           NAME_REF
-            IDENT "swap"
-    SEMICOLON ";"
-  WHITESPACE "\n\n"
-  COMMENT "// Just a grab bag of stuff that you wouldn't want to actually write."
-  WHITESPACE "\n\n"
+            IDENT "swap" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n"), COMMENT("// Just a grab bag of stuff that you wouldn't want to actually write."), NEWLINE("\n"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "strange"
+      IDENT "strange" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       PATH_TYPE
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "bool"
-    WHITESPACE " "
+              IDENT "bool" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "_x"
-          COLON ":"
-          WHITESPACE " "
+              IDENT "_x" [] []
+          COLON ":" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "bool"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+                  IDENT "bool" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           RETURN_EXPR
-            RETURN_KW "return"
-            WHITESPACE " "
+            RETURN_KW "return" [] [WHITESPACE(" ")]
             LITERAL
-              TRUE_KW "true"
-          SEMICOLON ";"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+              TRUE_KW "true" [] []
+          SEMICOLON ";" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "funny"
+      IDENT "funny" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         FN
-          FN_KW "fn"
-          WHITESPACE " "
+          FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
           NAME
-            IDENT "f"
+            IDENT "f" [] []
           PARAM_LIST
-            L_PAREN "("
+            L_PAREN "(" [] []
             PARAM
               IDENT_PAT
                 NAME
-                  IDENT "_x"
-              COLON ":"
-              WHITESPACE " "
+                  IDENT "_x" [] []
+              COLON ":" [] [WHITESPACE(" ")]
               TUPLE_TYPE
-                L_PAREN "("
-                R_PAREN ")"
-            R_PAREN ")"
-          WHITESPACE " "
+                L_PAREN "(" [] []
+                R_PAREN ")" [] []
+            R_PAREN ")" [] [WHITESPACE(" ")]
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE " "
-              R_CURLY "}"
-        WHITESPACE "\n    "
+              L_CURLY "{" [] [WHITESPACE(" ")]
+              R_CURLY "}" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "f"
+                    IDENT "f" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
+              L_PAREN "(" [] []
               RETURN_EXPR
-                RETURN_KW "return"
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                RETURN_KW "return" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "what"
+      IDENT "what" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         FN
-          FN_KW "fn"
-          WHITESPACE " "
+          FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
           NAME
-            IDENT "the"
+            IDENT "the" [] []
           PARAM_LIST
-            L_PAREN "("
+            L_PAREN "(" [] []
             PARAM
               IDENT_PAT
                 NAME
-                  IDENT "x"
-              COLON ":"
-              WHITESPACE " "
+                  IDENT "x" [] []
+              COLON ":" [] [WHITESPACE(" ")]
               REF_TYPE
-                AMP "&"
+                AMP "&" [] []
                 PATH_TYPE
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "Cell"
+                        IDENT "Cell" [] []
                       GENERIC_ARG_LIST
-                        L_ANGLE "<"
+                        L_ANGLE "<" [] []
                         TYPE_ARG
                           PATH_TYPE
                             PATH
                               PATH_SEGMENT
                                 NAME_REF
-                                  IDENT "bool"
-                        R_ANGLE ">"
-            R_PAREN ")"
-          WHITESPACE " "
+                                  IDENT "bool" [] []
+                        R_ANGLE ">" [] []
+            R_PAREN ")" [] [WHITESPACE(" ")]
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE "\n        "
+              L_CURLY "{" [] [NEWLINE("\n")]
               EXPR_STMT
                 RETURN_EXPR
-                  RETURN_KW "return"
-                  WHITESPACE " "
+                  RETURN_KW "return" [WHITESPACE("        ")] [WHITESPACE(" ")]
                   WHILE_EXPR
-                    WHILE_KW "while"
-                    WHITESPACE " "
+                    WHILE_KW "while" [] [WHITESPACE(" ")]
                     PREFIX_EXPR
-                      BANG "!"
+                      BANG "!" [] []
                       METHOD_CALL_EXPR
                         PATH_EXPR
                           PATH
                             PATH_SEGMENT
                               NAME_REF
-                                IDENT "x"
-                        DOT "."
+                                IDENT "x" [] []
+                        DOT "." [] []
                         NAME_REF
-                          IDENT "get"
+                          IDENT "get" [] []
                         ARG_LIST
-                          L_PAREN "("
-                          R_PAREN ")"
-                    WHITESPACE " "
+                          L_PAREN "(" [] []
+                          R_PAREN ")" [] [WHITESPACE(" ")]
                     BLOCK_EXPR
                       STMT_LIST
-                        L_CURLY "{"
-                        WHITESPACE " "
+                        L_CURLY "{" [] [WHITESPACE(" ")]
                         EXPR_STMT
                           METHOD_CALL_EXPR
                             PATH_EXPR
                               PATH
                                 PATH_SEGMENT
                                   NAME_REF
-                                    IDENT "x"
-                            DOT "."
+                                    IDENT "x" [] []
+                            DOT "." [] []
                             NAME_REF
-                              IDENT "set"
+                              IDENT "set" [] []
                             ARG_LIST
-                              L_PAREN "("
+                              L_PAREN "(" [] []
                               LITERAL
-                                TRUE_KW "true"
-                              R_PAREN ")"
-                          SEMICOLON ";"
-                        WHITESPACE " "
-                        R_CURLY "}"
-                SEMICOLON ";"
-              WHITESPACE "\n    "
-              R_CURLY "}"
-        WHITESPACE "\n    "
+                                TRUE_KW "true" [] []
+                              R_PAREN ")" [] []
+                          SEMICOLON ";" [] [WHITESPACE(" ")]
+                        R_CURLY "}" [] []
+                SEMICOLON ";" [] [NEWLINE("\n")]
+              R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "i"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "i" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           REF_EXPR
-            AMP "&"
+            AMP "&" [] []
             CALL_EXPR
               PATH_EXPR
                 PATH
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "Cell"
-                  COLON2 "::"
+                        IDENT "Cell" [] []
+                  COLON2 "::" [] []
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "new"
+                      IDENT "new" [] []
               ARG_LIST
-                L_PAREN "("
+                L_PAREN "(" [] []
                 LITERAL
-                  FALSE_KW "false"
-                R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                  FALSE_KW "false" [] []
+                R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "dont"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "dont" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
+              L_CURLY "{" [] []
               CLOSURE_EXPR
                 PARAM_LIST
-                  PIPE "|"
-                  PIPE "|"
+                  PIPE "|" [] []
+                  PIPE "|" [] []
                 CALL_EXPR
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "the"
+                          IDENT "the" [] []
                   ARG_LIST
-                    L_PAREN "("
+                    L_PAREN "(" [] []
                     PATH_EXPR
                       PATH
                         PATH_SEGMENT
                           NAME_REF
-                            IDENT "i"
-                    R_PAREN ")"
-              R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                            IDENT "i" [] []
+                    R_PAREN ")" [] []
+              R_CURLY "}" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "dont"
+                    IDENT "dont" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           MACRO_EXPR
             MACRO_CALL
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "assert"
-              BANG "!"
+                    IDENT "assert" [WHITESPACE("    ")] []
+              BANG "!" [] []
               TOKEN_TREE
-                L_PAREN "("
+                L_PAREN "(" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  IDENT "i"
-                  DOT "."
-                  IDENT "get"
+                  L_PAREN "(" [] []
+                  IDENT "i" [] []
+                  DOT "." [] []
+                  IDENT "get" [] []
                   TOKEN_TREE
-                    L_PAREN "("
-                    R_PAREN ")"
-                  R_PAREN ")"
-                R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                    L_PAREN "(" [] []
+                    R_PAREN ")" [] []
+                  R_PAREN ")" [] []
+                R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "zombiejesus"
+      IDENT "zombiejesus" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LOOP_EXPR
-          LOOP_KW "loop"
-          WHITESPACE " "
+          LOOP_KW "loop" [WHITESPACE("    ")] [WHITESPACE(" ")]
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE "\n        "
+              L_CURLY "{" [] [NEWLINE("\n")]
               EXPR_STMT
                 WHILE_EXPR
-                  WHILE_KW "while"
-                  WHITESPACE " "
+                  WHILE_KW "while" [WHITESPACE("        ")] [WHITESPACE(" ")]
                   PAREN_EXPR
-                    L_PAREN "("
+                    L_PAREN "(" [] []
                     RETURN_EXPR
-                      RETURN_KW "return"
-                    R_PAREN ")"
-                  WHITESPACE " "
+                      RETURN_KW "return" [] []
+                    R_PAREN ")" [] [WHITESPACE(" ")]
                   BLOCK_EXPR
                     STMT_LIST
-                      L_CURLY "{"
-                      WHITESPACE "\n            "
+                      L_CURLY "{" [] [NEWLINE("\n")]
                       IF_EXPR
-                        IF_KW "if"
-                        WHITESPACE " "
+                        IF_KW "if" [WHITESPACE("            ")] [WHITESPACE(" ")]
                         PAREN_EXPR
-                          L_PAREN "("
+                          L_PAREN "(" [] []
                           RETURN_EXPR
-                            RETURN_KW "return"
-                          R_PAREN ")"
-                        WHITESPACE " "
+                            RETURN_KW "return" [] []
+                          R_PAREN ")" [] [WHITESPACE(" ")]
                         BLOCK_EXPR
                           STMT_LIST
-                            L_CURLY "{"
-                            WHITESPACE "\n                "
+                            L_CURLY "{" [] [NEWLINE("\n")]
                             EXPR_STMT
                               MATCH_EXPR
-                                MATCH_KW "match"
-                                WHITESPACE " "
+                                MATCH_KW "match" [WHITESPACE("                ")] [WHITESPACE(" ")]
                                 PAREN_EXPR
-                                  L_PAREN "("
+                                  L_PAREN "(" [] []
                                   RETURN_EXPR
-                                    RETURN_KW "return"
-                                  R_PAREN ")"
-                                WHITESPACE " "
+                                    RETURN_KW "return" [] []
+                                  R_PAREN ")" [] [WHITESPACE(" ")]
                                 MATCH_ARM_LIST
-                                  L_CURLY "{"
-                                  WHITESPACE "\n                    "
+                                  L_CURLY "{" [] [NEWLINE("\n")]
                                   MATCH_ARM
                                     LITERAL_PAT
                                       LITERAL
-                                        INT_NUMBER "1"
-                                    WHITESPACE " "
-                                    FAT_ARROW "=>"
-                                    WHITESPACE " "
+                                        INT_NUMBER "1" [WHITESPACE("                    ")] [WHITESPACE(" ")]
+                                    FAT_ARROW "=>" [] [WHITESPACE(" ")]
                                     BLOCK_EXPR
                                       STMT_LIST
-                                        L_CURLY "{"
-                                        WHITESPACE "\n                        "
+                                        L_CURLY "{" [] [NEWLINE("\n")]
                                         IF_EXPR
-                                          IF_KW "if"
-                                          WHITESPACE " "
+                                          IF_KW "if" [WHITESPACE("                        ")] [WHITESPACE(" ")]
                                           PAREN_EXPR
-                                            L_PAREN "("
+                                            L_PAREN "(" [] []
                                             RETURN_EXPR
-                                              RETURN_KW "return"
-                                            R_PAREN ")"
-                                          WHITESPACE " "
+                                              RETURN_KW "return" [] []
+                                            R_PAREN ")" [] [WHITESPACE(" ")]
                                           BLOCK_EXPR
                                             STMT_LIST
-                                              L_CURLY "{"
-                                              WHITESPACE "\n                            "
+                                              L_CURLY "{" [] [NEWLINE("\n")]
                                               RETURN_EXPR
-                                                RETURN_KW "return"
-                                              WHITESPACE "\n                        "
-                                              R_CURLY "}"
-                                          WHITESPACE " "
-                                          ELSE_KW "else"
-                                          WHITESPACE " "
+                                                RETURN_KW "return" [WHITESPACE("                            ")] [NEWLINE("\n")]
+                                              R_CURLY "}" [WHITESPACE("                        ")] [WHITESPACE(" ")]
+                                          ELSE_KW "else" [] [WHITESPACE(" ")]
                                           BLOCK_EXPR
                                             STMT_LIST
-                                              L_CURLY "{"
-                                              WHITESPACE "\n                            "
+                                              L_CURLY "{" [] [NEWLINE("\n")]
                                               RETURN_EXPR
-                                                RETURN_KW "return"
-                                              WHITESPACE "\n                        "
-                                              R_CURLY "}"
-                                        WHITESPACE "\n                    "
-                                        R_CURLY "}"
-                                  WHITESPACE "\n                    "
+                                                RETURN_KW "return" [WHITESPACE("                            ")] [NEWLINE("\n")]
+                                              R_CURLY "}" [WHITESPACE("                        ")] [NEWLINE("\n")]
+                                        R_CURLY "}" [WHITESPACE("                    ")] [NEWLINE("\n")]
                                   MATCH_ARM
                                     WILDCARD_PAT
-                                      UNDERSCORE "_"
-                                    WHITESPACE " "
-                                    FAT_ARROW "=>"
-                                    WHITESPACE " "
+                                      UNDERSCORE "_" [WHITESPACE("                    ")] [WHITESPACE(" ")]
+                                    FAT_ARROW "=>" [] [WHITESPACE(" ")]
                                     BLOCK_EXPR
                                       STMT_LIST
-                                        L_CURLY "{"
-                                        WHITESPACE " "
+                                        L_CURLY "{" [] [WHITESPACE(" ")]
                                         RETURN_EXPR
-                                          RETURN_KW "return"
-                                        WHITESPACE " "
-                                        R_CURLY "}"
-                                  WHITESPACE "\n                "
-                                  R_CURLY "}"
-                              SEMICOLON ";"
-                            WHITESPACE "\n            "
-                            R_CURLY "}"
-                        WHITESPACE " "
-                        ELSE_KW "else"
-                        WHITESPACE " "
+                                          RETURN_KW "return" [] [WHITESPACE(" ")]
+                                        R_CURLY "}" [] [NEWLINE("\n")]
+                                  R_CURLY "}" [WHITESPACE("                ")] []
+                              SEMICOLON ";" [] [NEWLINE("\n")]
+                            R_CURLY "}" [WHITESPACE("            ")] [WHITESPACE(" ")]
+                        ELSE_KW "else" [] [WHITESPACE(" ")]
                         IF_EXPR
-                          IF_KW "if"
-                          WHITESPACE " "
+                          IF_KW "if" [] [WHITESPACE(" ")]
                           PAREN_EXPR
-                            L_PAREN "("
+                            L_PAREN "(" [] []
                             RETURN_EXPR
-                              RETURN_KW "return"
-                            R_PAREN ")"
-                          WHITESPACE " "
+                              RETURN_KW "return" [] []
+                            R_PAREN ")" [] [WHITESPACE(" ")]
                           BLOCK_EXPR
                             STMT_LIST
-                              L_CURLY "{"
-                              WHITESPACE "\n                "
+                              L_CURLY "{" [] [NEWLINE("\n")]
                               EXPR_STMT
                                 RETURN_EXPR
-                                  RETURN_KW "return"
-                                SEMICOLON ";"
-                              WHITESPACE "\n            "
-                              R_CURLY "}"
-                      WHITESPACE "\n        "
-                      R_CURLY "}"
-              WHITESPACE "\n        "
+                                  RETURN_KW "return" [WHITESPACE("                ")] []
+                                SEMICOLON ";" [] [NEWLINE("\n")]
+                              R_CURLY "}" [WHITESPACE("            ")] [NEWLINE("\n")]
+                      R_CURLY "}" [WHITESPACE("        ")] [NEWLINE("\n")]
               IF_EXPR
-                IF_KW "if"
-                WHITESPACE " "
+                IF_KW "if" [WHITESPACE("        ")] [WHITESPACE(" ")]
                 PAREN_EXPR
-                  L_PAREN "("
+                  L_PAREN "(" [] []
                   RETURN_EXPR
-                    RETURN_KW "return"
-                  R_PAREN ")"
-                WHITESPACE " "
+                    RETURN_KW "return" [] []
+                  R_PAREN ")" [] [WHITESPACE(" ")]
                 BLOCK_EXPR
                   STMT_LIST
-                    L_CURLY "{"
-                    WHITESPACE " "
+                    L_CURLY "{" [] [WHITESPACE(" ")]
                     EXPR_STMT
                       BREAK_EXPR
-                        BREAK_KW "break"
-                      SEMICOLON ";"
-                    WHITESPACE " "
-                    R_CURLY "}"
-              WHITESPACE "\n    "
-              R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                        BREAK_KW "break" [] []
+                      SEMICOLON ";" [] [WHITESPACE(" ")]
+                    R_CURLY "}" [] [NEWLINE("\n")]
+              R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "notsure"
+      IDENT "notsure" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
-            MUT_KW "mut"
-            WHITESPACE " "
+            MUT_KW "mut" [] [WHITESPACE(" ")]
             NAME
-              IDENT "_x"
-          COLON ":"
-          WHITESPACE " "
+              IDENT "_x" [] []
+          COLON ":" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "isize"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                  IDENT "isize" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
-            MUT_KW "mut"
-            WHITESPACE " "
+            MUT_KW "mut" [] [WHITESPACE(" ")]
             NAME
-              IDENT "_y"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "_y" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           BIN_EXPR
             PAREN_EXPR
-              L_PAREN "("
+              L_PAREN "(" [] []
               BIN_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "_x"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
+                        IDENT "_x" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
                 LITERAL
-                  INT_NUMBER "0"
-              R_PAREN ")"
-            WHITESPACE " "
-            EQ2 "=="
-            WHITESPACE " "
+                  INT_NUMBER "0" [] []
+              R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ2 "==" [] [WHITESPACE(" ")]
             PAREN_EXPR
-              L_PAREN "("
+              L_PAREN "(" [] []
               BIN_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "_x"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
+                        IDENT "_x" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
                 LITERAL
-                  INT_NUMBER "0"
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                  INT_NUMBER "0" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
-            MUT_KW "mut"
-            WHITESPACE " "
+            MUT_KW "mut" [] [WHITESPACE(" ")]
             NAME
-              IDENT "_z"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "_z" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           BIN_EXPR
             PAREN_EXPR
-              L_PAREN "("
+              L_PAREN "(" [] []
               BIN_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "_x"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
+                        IDENT "_x" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
                 LITERAL
-                  INT_NUMBER "0"
-              R_PAREN ")"
-            WHITESPACE " "
-            L_ANGLE "<"
-            WHITESPACE " "
+                  INT_NUMBER "0" [] []
+              R_PAREN ")" [] [WHITESPACE(" ")]
+            L_ANGLE "<" [] [WHITESPACE(" ")]
             PAREN_EXPR
-              L_PAREN "("
+              L_PAREN "(" [] []
               BIN_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "_x"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
+                        IDENT "_x" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
                 LITERAL
-                  INT_NUMBER "0"
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                  INT_NUMBER "0" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "_a"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "_a" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           BIN_EXPR
             PAREN_EXPR
-              L_PAREN "("
+              L_PAREN "(" [] []
               BIN_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "_x"
-                WHITESPACE " "
-                PLUSEQ "+="
-                WHITESPACE " "
+                        IDENT "_x" [] [WHITESPACE(" ")]
+                PLUSEQ "+=" [] [WHITESPACE(" ")]
                 LITERAL
-                  INT_NUMBER "0"
-              R_PAREN ")"
-            WHITESPACE " "
-            EQ2 "=="
-            WHITESPACE " "
+                  INT_NUMBER "0" [] []
+              R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ2 "==" [] [WHITESPACE(" ")]
             PAREN_EXPR
-              L_PAREN "("
+              L_PAREN "(" [] []
               BIN_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "_x"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
+                        IDENT "_x" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
                 LITERAL
-                  INT_NUMBER "0"
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                  INT_NUMBER "0" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "_b"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "_b" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           BIN_EXPR
             CALL_EXPR
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "swap"
+                      IDENT "swap" [] []
               ARG_LIST
-                L_PAREN "("
+                L_PAREN "(" [] []
                 REF_EXPR
-                  AMP "&"
-                  MUT_KW "mut"
-                  WHITESPACE " "
+                  AMP "&" [] []
+                  MUT_KW "mut" [] [WHITESPACE(" ")]
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "_y"
-                COMMA ","
-                WHITESPACE " "
+                          IDENT "_y" [] []
+                COMMA "," [] [WHITESPACE(" ")]
                 REF_EXPR
-                  AMP "&"
-                  MUT_KW "mut"
-                  WHITESPACE " "
+                  AMP "&" [] []
+                  MUT_KW "mut" [] [WHITESPACE(" ")]
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "_z"
-                R_PAREN ")"
-            WHITESPACE " "
-            EQ2 "=="
-            WHITESPACE " "
+                          IDENT "_z" [] []
+                R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ2 "==" [] [WHITESPACE(" ")]
             CALL_EXPR
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "swap"
+                      IDENT "swap" [] []
               ARG_LIST
-                L_PAREN "("
+                L_PAREN "(" [] []
                 REF_EXPR
-                  AMP "&"
-                  MUT_KW "mut"
-                  WHITESPACE " "
+                  AMP "&" [] []
+                  MUT_KW "mut" [] [WHITESPACE(" ")]
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "_y"
-                COMMA ","
-                WHITESPACE " "
+                          IDENT "_y" [] []
+                COMMA "," [] [WHITESPACE(" ")]
                 REF_EXPR
-                  AMP "&"
-                  MUT_KW "mut"
-                  WHITESPACE " "
+                  AMP "&" [] []
+                  MUT_KW "mut" [] [WHITESPACE(" ")]
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "_z"
-                R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                          IDENT "_z" [] []
+                R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "canttouchthis"
+      IDENT "canttouchthis" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       PATH_TYPE
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "usize"
-    WHITESPACE " "
+              IDENT "usize" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         FN
-          FN_KW "fn"
-          WHITESPACE " "
+          FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
           NAME
-            IDENT "p"
+            IDENT "p" [] []
           PARAM_LIST
-            L_PAREN "("
-            R_PAREN ")"
-          WHITESPACE " "
+            L_PAREN "(" [] []
+            R_PAREN ")" [] [WHITESPACE(" ")]
           RET_TYPE
-            THIN_ARROW "->"
-            WHITESPACE " "
+            THIN_ARROW "->" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "bool"
-          WHITESPACE " "
+                    IDENT "bool" [] [WHITESPACE(" ")]
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE " "
+              L_CURLY "{" [] [WHITESPACE(" ")]
               LITERAL
-                TRUE_KW "true"
-              WHITESPACE " "
-              R_CURLY "}"
-        WHITESPACE "\n    "
+                TRUE_KW "true" [] [WHITESPACE(" ")]
+              R_CURLY "}" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "_a"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "_a" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           PAREN_EXPR
-            L_PAREN "("
+            L_PAREN "(" [] []
             BIN_EXPR
               MACRO_EXPR
                 MACRO_CALL
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "assert"
-                  BANG "!"
+                        IDENT "assert" [] []
+                  BANG "!" [] []
                   TOKEN_TREE
-                    L_PAREN "("
+                    L_PAREN "(" [] []
                     TOKEN_TREE
-                      L_PAREN "("
-                      TRUE_KW "true"
-                      R_PAREN ")"
-                    R_PAREN ")"
-              WHITESPACE " "
-              EQ2 "=="
-              WHITESPACE " "
+                      L_PAREN "(" [] []
+                      TRUE_KW "true" [] []
+                      R_PAREN ")" [] []
+                    R_PAREN ")" [] [WHITESPACE(" ")]
+              EQ2 "==" [] [WHITESPACE(" ")]
               PAREN_EXPR
-                L_PAREN "("
+                L_PAREN "(" [] []
                 MACRO_EXPR
                   MACRO_CALL
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "assert"
-                    BANG "!"
+                          IDENT "assert" [] []
+                    BANG "!" [] []
                     TOKEN_TREE
-                      L_PAREN "("
-                      IDENT "p"
+                      L_PAREN "(" [] []
+                      IDENT "p" [] []
                       TOKEN_TREE
-                        L_PAREN "("
-                        R_PAREN ")"
-                      R_PAREN ")"
-                R_PAREN ")"
-            R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                        L_PAREN "(" [] []
+                        R_PAREN ")" [] []
+                      R_PAREN ")" [] []
+                R_PAREN ")" [] []
+            R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "_c"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "_c" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           PAREN_EXPR
-            L_PAREN "("
+            L_PAREN "(" [] []
             BIN_EXPR
               MACRO_EXPR
                 MACRO_CALL
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "assert"
-                  BANG "!"
+                        IDENT "assert" [] []
+                  BANG "!" [] []
                   TOKEN_TREE
-                    L_PAREN "("
+                    L_PAREN "(" [] []
                     TOKEN_TREE
-                      L_PAREN "("
-                      IDENT "p"
+                      L_PAREN "(" [] []
+                      IDENT "p" [] []
                       TOKEN_TREE
-                        L_PAREN "("
-                        R_PAREN ")"
-                      R_PAREN ")"
-                    R_PAREN ")"
-              WHITESPACE " "
-              EQ2 "=="
-              WHITESPACE " "
+                        L_PAREN "(" [] []
+                        R_PAREN ")" [] []
+                      R_PAREN ")" [] []
+                    R_PAREN ")" [] [WHITESPACE(" ")]
+              EQ2 "==" [] [WHITESPACE(" ")]
               TUPLE_EXPR
-                L_PAREN "("
-                R_PAREN ")"
-            R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                L_PAREN "(" [] []
+                R_PAREN ")" [] []
+            R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "_b"
-          COLON ":"
-          WHITESPACE " "
+              IDENT "_b" [] []
+          COLON ":" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "bool"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+                  IDENT "bool" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           PAREN_EXPR
-            L_PAREN "("
+            L_PAREN "(" [] []
             BIN_EXPR
               MACRO_EXPR
                 MACRO_CALL
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "println"
-                  BANG "!"
+                        IDENT "println" [] []
+                  BANG "!" [] []
                   TOKEN_TREE
-                    L_PAREN "("
-                    STRING "\"{}\""
-                    COMMA ","
-                    WHITESPACE " "
-                    INT_NUMBER "0"
-                    R_PAREN ")"
-              WHITESPACE " "
-              EQ2 "=="
-              WHITESPACE " "
+                    L_PAREN "(" [] []
+                    STRING "\"{}\"" [] []
+                    COMMA "," [] [WHITESPACE(" ")]
+                    INT_NUMBER "0" [] []
+                    R_PAREN ")" [] [WHITESPACE(" ")]
+              EQ2 "==" [] [WHITESPACE(" ")]
               PAREN_EXPR
-                L_PAREN "("
+                L_PAREN "(" [] []
                 RETURN_EXPR
-                  RETURN_KW "return"
-                  WHITESPACE " "
+                  RETURN_KW "return" [] [WHITESPACE(" ")]
                   LITERAL
-                    INT_NUMBER "0"
-                R_PAREN ")"
-            R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                    INT_NUMBER "0" [] []
+                R_PAREN ")" [] []
+            R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "angrydome"
+      IDENT "angrydome" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           LOOP_EXPR
-            LOOP_KW "loop"
-            WHITESPACE " "
+            LOOP_KW "loop" [WHITESPACE("    ")] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
-                L_CURLY "{"
-                WHITESPACE " "
+                L_CURLY "{" [] [WHITESPACE(" ")]
                 IF_EXPR
-                  IF_KW "if"
-                  WHITESPACE " "
+                  IF_KW "if" [] [WHITESPACE(" ")]
                   BREAK_EXPR
-                    BREAK_KW "break"
-                  WHITESPACE " "
+                    BREAK_KW "break" [] [WHITESPACE(" ")]
                   BLOCK_EXPR
                     STMT_LIST
-                      L_CURLY "{"
-                      WHITESPACE " "
-                      R_CURLY "}"
-                WHITESPACE " "
-                R_CURLY "}"
-        WHITESPACE "\n    "
+                      L_CURLY "{" [] [WHITESPACE(" ")]
+                      R_CURLY "}" [] [WHITESPACE(" ")]
+                R_CURLY "}" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
-            MUT_KW "mut"
-            WHITESPACE " "
+            MUT_KW "mut" [] [WHITESPACE(" ")]
             NAME
-              IDENT "i"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "i" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            INT_NUMBER "0"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            INT_NUMBER "0" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LOOP_EXPR
-          LOOP_KW "loop"
-          WHITESPACE " "
+          LOOP_KW "loop" [WHITESPACE("    ")] [WHITESPACE(" ")]
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE " "
+              L_CURLY "{" [] [WHITESPACE(" ")]
               EXPR_STMT
                 BIN_EXPR
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "i"
-                  WHITESPACE " "
-                  PLUSEQ "+="
-                  WHITESPACE " "
+                          IDENT "i" [] [WHITESPACE(" ")]
+                  PLUSEQ "+=" [] [WHITESPACE(" ")]
                   LITERAL
-                    INT_NUMBER "1"
-                SEMICOLON ";"
-              WHITESPACE " "
+                    INT_NUMBER "1" [] []
+                SEMICOLON ";" [] [WHITESPACE(" ")]
               EXPR_STMT
                 IF_EXPR
-                  IF_KW "if"
-                  WHITESPACE " "
+                  IF_KW "if" [] [WHITESPACE(" ")]
                   BIN_EXPR
                     PATH_EXPR
                       PATH
                         PATH_SEGMENT
                           NAME_REF
-                            IDENT "i"
-                    WHITESPACE " "
-                    EQ2 "=="
-                    WHITESPACE " "
+                            IDENT "i" [] [WHITESPACE(" ")]
+                    EQ2 "==" [] [WHITESPACE(" ")]
                     LITERAL
-                      INT_NUMBER "1"
-                  WHITESPACE " "
+                      INT_NUMBER "1" [] [WHITESPACE(" ")]
                   BLOCK_EXPR
                     STMT_LIST
-                      L_CURLY "{"
-                      WHITESPACE " "
+                      L_CURLY "{" [] [WHITESPACE(" ")]
                       MATCH_EXPR
-                        MATCH_KW "match"
-                        WHITESPACE " "
+                        MATCH_KW "match" [] [WHITESPACE(" ")]
                         PAREN_EXPR
-                          L_PAREN "("
+                          L_PAREN "(" [] []
                           CONTINUE_EXPR
-                            CONTINUE_KW "continue"
-                          R_PAREN ")"
-                        WHITESPACE " "
+                            CONTINUE_KW "continue" [] []
+                          R_PAREN ")" [] [WHITESPACE(" ")]
                         MATCH_ARM_LIST
-                          L_CURLY "{"
-                          WHITESPACE " "
+                          L_CURLY "{" [] [WHITESPACE(" ")]
                           MATCH_ARM
                             LITERAL_PAT
                               LITERAL
-                                INT_NUMBER "1"
-                            WHITESPACE " "
-                            FAT_ARROW "=>"
-                            WHITESPACE " "
+                                INT_NUMBER "1" [] [WHITESPACE(" ")]
+                            FAT_ARROW "=>" [] [WHITESPACE(" ")]
                             BLOCK_EXPR
                               STMT_LIST
-                                L_CURLY "{"
-                                WHITESPACE " "
-                                R_CURLY "}"
-                            COMMA ","
-                          WHITESPACE " "
+                                L_CURLY "{" [] [WHITESPACE(" ")]
+                                R_CURLY "}" [] []
+                            COMMA "," [] [WHITESPACE(" ")]
                           MATCH_ARM
                             WILDCARD_PAT
-                              UNDERSCORE "_"
-                            WHITESPACE " "
-                            FAT_ARROW "=>"
-                            WHITESPACE " "
+                              UNDERSCORE "_" [] [WHITESPACE(" ")]
+                            FAT_ARROW "=>" [] [WHITESPACE(" ")]
                             MACRO_EXPR
                               MACRO_CALL
                                 PATH
                                   PATH_SEGMENT
                                     NAME_REF
-                                      IDENT "panic"
-                                BANG "!"
+                                      IDENT "panic" [] []
+                                BANG "!" [] []
                                 TOKEN_TREE
-                                  L_PAREN "("
-                                  STRING "\"wat\""
-                                  R_PAREN ")"
-                          WHITESPACE " "
-                          R_CURLY "}"
-                      WHITESPACE " "
-                      R_CURLY "}"
-              WHITESPACE "\n      "
+                                  L_PAREN "(" [] []
+                                  STRING "\"wat\"" [] []
+                                  R_PAREN ")" [] [WHITESPACE(" ")]
+                          R_CURLY "}" [] [WHITESPACE(" ")]
+                      R_CURLY "}" [] [NEWLINE("\n")]
               EXPR_STMT
                 BREAK_EXPR
-                  BREAK_KW "break"
-                SEMICOLON ";"
-              WHITESPACE " "
-              R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                  BREAK_KW "break" [WHITESPACE("      ")] []
+                SEMICOLON ";" [] [WHITESPACE(" ")]
+              R_CURLY "}" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "evil_lincoln"
+      IDENT "evil_lincoln" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "_evil"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "_evil" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           MACRO_EXPR
             MACRO_CALL
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "println"
-              BANG "!"
+                    IDENT "println" [] []
+              BANG "!" [] []
               TOKEN_TREE
-                L_PAREN "("
-                STRING "\"lincoln\""
-                R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                L_PAREN "(" [] []
+                STRING "\"lincoln\"" [] []
+                R_PAREN ")" [] []
+          SEMICOLON ";" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "dots"
+      IDENT "dots" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           MACRO_EXPR
             MACRO_CALL
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "assert_eq"
-              BANG "!"
+                    IDENT "assert_eq" [WHITESPACE("    ")] []
+              BANG "!" [] []
               TOKEN_TREE
-                L_PAREN "("
-                IDENT "String"
-                COLON ":"
-                COLON ":"
-                IDENT "from"
+                L_PAREN "(" [] []
+                IDENT "String" [] []
+                COLON ":" [] []
+                COLON ":" [] []
+                IDENT "from" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  STRING "\"..................................................\""
-                  R_PAREN ")"
-                COMMA ","
-                WHITESPACE "\n               "
-                IDENT "format"
-                BANG "!"
+                  L_PAREN "(" [] []
+                  STRING "\"..................................................\"" [] []
+                  R_PAREN ")" [] []
+                COMMA "," [] [NEWLINE("\n")]
+                IDENT "format" [WHITESPACE("               ")] []
+                BANG "!" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  STRING "\"{:?}\""
-                  COMMA ","
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE "\n                               "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  WHITESPACE " "
-                  DOT "."
-                  DOT "."
-                  R_PAREN ")"
-                R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                  L_PAREN "(" [] []
+                  STRING "\"{:?}\"" [] []
+                  COMMA "," [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [NEWLINE("\n")]
+                  DOT "." [WHITESPACE("                               ")] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] [WHITESPACE(" ")]
+                  DOT "." [] []
+                  DOT "." [] []
+                  R_PAREN ")" [] []
+                R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "u8"
+      IDENT "u8" [] []
     PARAM_LIST
-      L_PAREN "("
+      L_PAREN "(" [] []
       PARAM
         IDENT_PAT
           NAME
-            IDENT "u8"
-        COLON ":"
-        WHITESPACE " "
+            IDENT "u8" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "u8"
-      R_PAREN ")"
-    WHITESPACE " "
+                IDENT "u8" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         IF_EXPR
-          IF_KW "if"
-          WHITESPACE " "
+          IF_KW "if" [WHITESPACE("    ")] [WHITESPACE(" ")]
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "u8"
-            WHITESPACE " "
-            NEQ "!="
-            WHITESPACE " "
+                    IDENT "u8" [] [WHITESPACE(" ")]
+            NEQ "!=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "0u8"
-          WHITESPACE " "
+              INT_NUMBER "0u8" [] [WHITESPACE(" ")]
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE "\n        "
+              L_CURLY "{" [] [NEWLINE("\n")]
               EXPR_STMT
                 MACRO_EXPR
                   MACRO_CALL
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "assert_eq"
-                    BANG "!"
+                          IDENT "assert_eq" [WHITESPACE("        ")] []
+                    BANG "!" [] []
                     TOKEN_TREE
-                      L_PAREN "("
-                      INT_NUMBER "8u8"
-                      COMMA ","
-                      WHITESPACE " "
+                      L_PAREN "(" [] []
+                      INT_NUMBER "8u8" [] []
+                      COMMA "," [] [WHITESPACE(" ")]
                       TOKEN_TREE
-                        L_CURLY "{"
-                        WHITESPACE "\n            "
-                        IDENT "macro_rules"
-                        BANG "!"
-                        WHITESPACE " "
-                        IDENT "u8"
-                        WHITESPACE " "
+                        L_CURLY "{" [] [NEWLINE("\n")]
+                        IDENT "macro_rules" [WHITESPACE("            ")] []
+                        BANG "!" [] [WHITESPACE(" ")]
+                        IDENT "u8" [] [WHITESPACE(" ")]
                         TOKEN_TREE
-                          L_CURLY "{"
-                          WHITESPACE "\n                "
+                          L_CURLY "{" [] [NEWLINE("\n")]
                           TOKEN_TREE
-                            L_PAREN "("
-                            IDENT "u8"
-                            R_PAREN ")"
-                          WHITESPACE " "
-                          EQ "="
-                          R_ANGLE ">"
-                          WHITESPACE " "
+                            L_PAREN "(" [WHITESPACE("                ")] []
+                            IDENT "u8" [] []
+                            R_PAREN ")" [] [WHITESPACE(" ")]
+                          EQ "=" [] []
+                          R_ANGLE ">" [] [WHITESPACE(" ")]
                           TOKEN_TREE
-                            L_CURLY "{"
-                            WHITESPACE "\n                    "
-                            MOD_KW "mod"
-                            WHITESPACE " "
-                            IDENT "u8"
-                            WHITESPACE " "
+                            L_CURLY "{" [] [NEWLINE("\n")]
+                            MOD_KW "mod" [WHITESPACE("                    ")] [WHITESPACE(" ")]
+                            IDENT "u8" [] [WHITESPACE(" ")]
                             TOKEN_TREE
-                              L_CURLY "{"
-                              WHITESPACE "\n                        "
-                              PUB_KW "pub"
-                              WHITESPACE " "
-                              FN_KW "fn"
-                              WHITESPACE " "
-                              IDENT "u8"
-                              L_ANGLE "<"
-                              LIFETIME_IDENT "'u8"
-                              COLON ":"
-                              WHITESPACE " "
-                              LIFETIME_IDENT "'u8"
-                              WHITESPACE " "
-                              PLUS "+"
-                              WHITESPACE " "
-                              LIFETIME_IDENT "'u8"
-                              R_ANGLE ">"
+                              L_CURLY "{" [] [NEWLINE("\n")]
+                              PUB_KW "pub" [WHITESPACE("                        ")] [WHITESPACE(" ")]
+                              FN_KW "fn" [] [WHITESPACE(" ")]
+                              IDENT "u8" [] []
+                              L_ANGLE "<" [] []
+                              LIFETIME_IDENT "'u8" [] []
+                              COLON ":" [] [WHITESPACE(" ")]
+                              LIFETIME_IDENT "'u8" [] [WHITESPACE(" ")]
+                              PLUS "+" [] [WHITESPACE(" ")]
+                              LIFETIME_IDENT "'u8" [] []
+                              R_ANGLE ">" [] []
                               TOKEN_TREE
-                                L_PAREN "("
-                                IDENT "u8"
-                                COLON ":"
-                                WHITESPACE " "
-                                AMP "&"
-                                LIFETIME_IDENT "'u8"
-                                WHITESPACE " "
-                                IDENT "u8"
-                                R_PAREN ")"
-                              WHITESPACE " "
-                              MINUS "-"
-                              R_ANGLE ">"
-                              WHITESPACE " "
-                              AMP "&"
-                              LIFETIME_IDENT "'u8"
-                              WHITESPACE " "
-                              IDENT "u8"
-                              WHITESPACE " "
+                                L_PAREN "(" [] []
+                                IDENT "u8" [] []
+                                COLON ":" [] [WHITESPACE(" ")]
+                                AMP "&" [] []
+                                LIFETIME_IDENT "'u8" [] [WHITESPACE(" ")]
+                                IDENT "u8" [] []
+                                R_PAREN ")" [] [WHITESPACE(" ")]
+                              MINUS "-" [] []
+                              R_ANGLE ">" [] [WHITESPACE(" ")]
+                              AMP "&" [] []
+                              LIFETIME_IDENT "'u8" [] [WHITESPACE(" ")]
+                              IDENT "u8" [] [WHITESPACE(" ")]
                               TOKEN_TREE
-                                L_CURLY "{"
-                                WHITESPACE "\n                            "
-                                STRING "\"u8\""
-                                SEMICOLON ";"
-                                WHITESPACE "\n                            "
-                                IDENT "u8"
-                                WHITESPACE "\n                        "
-                                R_CURLY "}"
-                              WHITESPACE "\n                    "
-                              R_CURLY "}"
-                            WHITESPACE "\n                "
-                            R_CURLY "}"
-                          SEMICOLON ";"
-                          WHITESPACE "\n            "
-                          R_CURLY "}"
-                        WHITESPACE "\n\n            "
-                        IDENT "u8"
-                        BANG "!"
+                                L_CURLY "{" [] [NEWLINE("\n")]
+                                STRING "\"u8\"" [WHITESPACE("                            ")] []
+                                SEMICOLON ";" [] [NEWLINE("\n")]
+                                IDENT "u8" [WHITESPACE("                            ")] [NEWLINE("\n")]
+                                R_CURLY "}" [WHITESPACE("                        ")] [NEWLINE("\n")]
+                              R_CURLY "}" [WHITESPACE("                    ")] [NEWLINE("\n")]
+                            R_CURLY "}" [WHITESPACE("                ")] []
+                          SEMICOLON ";" [] [NEWLINE("\n")]
+                          R_CURLY "}" [WHITESPACE("            ")] [NEWLINE("\n")]
+                        IDENT "u8" [NEWLINE("\n"), WHITESPACE("            ")] []
+                        BANG "!" [] []
                         TOKEN_TREE
-                          L_PAREN "("
-                          IDENT "u8"
-                          R_PAREN ")"
-                        SEMICOLON ";"
-                        WHITESPACE "\n            "
-                        LET_KW "let"
-                        WHITESPACE " "
-                        AMP "&"
-                        IDENT "u8"
-                        COLON ":"
-                        WHITESPACE " "
-                        AMP "&"
-                        IDENT "u8"
-                        WHITESPACE " "
-                        EQ "="
-                        WHITESPACE " "
-                        IDENT "u8"
-                        COLON ":"
-                        COLON ":"
-                        IDENT "u8"
+                          L_PAREN "(" [] []
+                          IDENT "u8" [] []
+                          R_PAREN ")" [] []
+                        SEMICOLON ";" [] [NEWLINE("\n")]
+                        LET_KW "let" [WHITESPACE("            ")] [WHITESPACE(" ")]
+                        AMP "&" [] []
+                        IDENT "u8" [] []
+                        COLON ":" [] [WHITESPACE(" ")]
+                        AMP "&" [] []
+                        IDENT "u8" [] [WHITESPACE(" ")]
+                        EQ "=" [] [WHITESPACE(" ")]
+                        IDENT "u8" [] []
+                        COLON ":" [] []
+                        COLON ":" [] []
+                        IDENT "u8" [] []
                         TOKEN_TREE
-                          L_PAREN "("
-                          AMP "&"
-                          INT_NUMBER "8u8"
-                          R_PAREN ")"
-                        SEMICOLON ";"
-                        WHITESPACE "\n            "
-                        CRATE_KW "crate"
-                        COLON ":"
-                        COLON ":"
-                        IDENT "u8"
+                          L_PAREN "(" [] []
+                          AMP "&" [] []
+                          INT_NUMBER "8u8" [] []
+                          R_PAREN ")" [] []
+                        SEMICOLON ";" [] [NEWLINE("\n")]
+                        CRATE_KW "crate" [WHITESPACE("            ")] []
+                        COLON ":" [] []
+                        COLON ":" [] []
+                        IDENT "u8" [] []
                         TOKEN_TREE
-                          L_PAREN "("
-                          INT_NUMBER "0u8"
-                          R_PAREN ")"
-                        SEMICOLON ";"
-                        WHITESPACE "\n            "
-                        IDENT "u8"
-                        WHITESPACE "\n        "
-                        R_CURLY "}"
-                      R_PAREN ")"
-                SEMICOLON ";"
-              WHITESPACE "\n    "
-              R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                          L_PAREN "(" [] []
+                          INT_NUMBER "0u8" [] []
+                          R_PAREN ")" [] []
+                        SEMICOLON ";" [] [NEWLINE("\n")]
+                        IDENT "u8" [WHITESPACE("            ")] [NEWLINE("\n")]
+                        R_CURLY "}" [WHITESPACE("        ")] []
+                      R_PAREN ")" [] []
+                SEMICOLON ";" [] [NEWLINE("\n")]
+              R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "fishy"
+      IDENT "fishy" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           MACRO_EXPR
             MACRO_CALL
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "assert_eq"
-              BANG "!"
+                    IDENT "assert_eq" [WHITESPACE("    ")] []
+              BANG "!" [] []
               TOKEN_TREE
-                L_PAREN "("
-                IDENT "String"
-                COLON ":"
-                COLON ":"
-                IDENT "from"
+                L_PAREN "(" [] []
+                IDENT "String" [] []
+                COLON ":" [] []
+                COLON ":" [] []
+                IDENT "from" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  STRING "\"><>\""
-                  R_PAREN ")"
-                COMMA ","
-                WHITESPACE "\n               "
-                IDENT "String"
-                COLON ":"
-                COLON ":"
-                L_ANGLE "<"
-                R_ANGLE ">"
-                COLON ":"
-                COLON ":"
-                IDENT "from"
-                COLON ":"
-                COLON ":"
-                L_ANGLE "<"
-                R_ANGLE ">"
+                  L_PAREN "(" [] []
+                  STRING "\"><>\"" [] []
+                  R_PAREN ")" [] []
+                COMMA "," [] [NEWLINE("\n")]
+                IDENT "String" [WHITESPACE("               ")] []
+                COLON ":" [] []
+                COLON ":" [] []
+                L_ANGLE "<" [] []
+                R_ANGLE ">" [] []
+                COLON ":" [] []
+                COLON ":" [] []
+                IDENT "from" [] []
+                COLON ":" [] []
+                COLON ":" [] []
+                L_ANGLE "<" [] []
+                R_ANGLE ">" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  STRING "\"><>\""
-                  R_PAREN ")"
-                DOT "."
-                IDENT "chars"
-                COLON ":"
-                COLON ":"
-                L_ANGLE "<"
-                R_ANGLE ">"
+                  L_PAREN "(" [] []
+                  STRING "\"><>\"" [] []
+                  R_PAREN ")" [] []
+                DOT "." [] []
+                IDENT "chars" [] []
+                COLON ":" [] []
+                COLON ":" [] []
+                L_ANGLE "<" [] []
+                R_ANGLE ">" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  R_PAREN ")"
-                DOT "."
-                IDENT "rev"
-                COLON ":"
-                COLON ":"
-                L_ANGLE "<"
-                R_ANGLE ">"
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] []
+                DOT "." [] []
+                IDENT "rev" [] []
+                COLON ":" [] []
+                COLON ":" [] []
+                L_ANGLE "<" [] []
+                R_ANGLE ">" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  R_PAREN ")"
-                DOT "."
-                IDENT "collect"
-                COLON ":"
-                COLON ":"
-                L_ANGLE "<"
-                IDENT "String"
-                R_ANGLE ">"
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] []
+                DOT "." [] []
+                IDENT "collect" [] []
+                COLON ":" [] []
+                COLON ":" [] []
+                L_ANGLE "<" [] []
+                IDENT "String" [] []
+                R_ANGLE ">" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  R_PAREN ")"
-                R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] []
+                R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "union"
+      IDENT "union" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         UNION
-          UNION_KW "union"
-          WHITESPACE " "
+          UNION_KW "union" [WHITESPACE("    ")] [WHITESPACE(" ")]
           NAME
-            IDENT "union"
+            IDENT "union" [] []
           GENERIC_PARAM_LIST
-            L_ANGLE "<"
+            L_ANGLE "<" [] []
             LIFETIME_PARAM
               LIFETIME
-                LIFETIME_IDENT "'union"
-            R_ANGLE ">"
-          WHITESPACE " "
+                LIFETIME_IDENT "'union" [] []
+            R_ANGLE ">" [] [WHITESPACE(" ")]
           RECORD_FIELD_LIST
-            L_CURLY "{"
-            WHITESPACE " "
+            L_CURLY "{" [] [WHITESPACE(" ")]
             RECORD_FIELD
               NAME
-                IDENT "union"
-              COLON ":"
-              WHITESPACE " "
+                IDENT "union" [] []
+              COLON ":" [] [WHITESPACE(" ")]
               REF_TYPE
-                AMP "&"
+                AMP "&" [] []
                 LIFETIME
-                  LIFETIME_IDENT "'union"
-                WHITESPACE " "
+                  LIFETIME_IDENT "'union" [] [WHITESPACE(" ")]
                 PATH_TYPE
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "union"
+                        IDENT "union" [] []
                       GENERIC_ARG_LIST
-                        L_ANGLE "<"
+                        L_ANGLE "<" [] []
                         LIFETIME_ARG
                           LIFETIME
-                            LIFETIME_IDENT "'union"
-                        R_ANGLE ">"
-            COMMA ","
-            WHITESPACE " "
-            R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                            LIFETIME_IDENT "'union" [] []
+                        R_ANGLE ">" [] []
+            COMMA "," [] [WHITESPACE(" ")]
+            R_CURLY "}" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "special_characters"
+      IDENT "special_characters" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "val"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "val" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           PREFIX_EXPR
-            BANG "!"
+            BANG "!" [] []
             PAREN_EXPR
-              L_PAREN "("
+              L_PAREN "(" [] []
               BIN_EXPR
                 CALL_EXPR
                   PAREN_EXPR
-                    L_PAREN "("
+                    L_PAREN "(" [] []
                     CLOSURE_EXPR
                       PARAM_LIST
-                        PIPE "|"
+                        PIPE "|" [] []
                         PARAM
                           TUPLE_PAT
-                            L_PAREN "("
+                            L_PAREN "(" [] []
                             REST_PAT
-                              DOT2 ".."
-                            R_PAREN ")"
-                          COLON ":"
+                              DOT2 ".." [] []
+                            R_PAREN ")" [] []
+                          COLON ":" [] []
                           TUPLE_TYPE
-                            L_PAREN "("
+                            L_PAREN "(" [] []
                             INFER_TYPE
-                              UNDERSCORE "_"
-                            COMMA ","
+                              UNDERSCORE "_" [] []
+                            COMMA "," [] []
                             INFER_TYPE
-                              UNDERSCORE "_"
-                            R_PAREN ")"
-                        COMMA ","
+                              UNDERSCORE "_" [] []
+                            R_PAREN ")" [] []
+                        COMMA "," [] []
                         PARAM
                           IDENT_PAT
                             NAME
-                              IDENT "__"
-                            AT "@"
+                              IDENT "__" [] []
+                            AT "@" [] []
                             WILDCARD_PAT
-                              UNDERSCORE "_"
-                        PIPE "|"
+                              UNDERSCORE "_" [] []
+                        PIPE "|" [] []
                       PATH_EXPR
                         PATH
                           PATH_SEGMENT
                             NAME_REF
-                              IDENT "__"
-                    R_PAREN ")"
+                              IDENT "__" [] []
+                    R_PAREN ")" [] []
                   ARG_LIST
-                    L_PAREN "("
+                    L_PAREN "(" [] []
                     TUPLE_EXPR
-                      L_PAREN "("
+                      L_PAREN "(" [] []
                       REF_EXPR
-                        AMP "&"
+                        AMP "&" [] []
                         PREFIX_EXPR
-                          STAR "*"
+                          STAR "*" [] []
                           LITERAL
-                            STRING "\"\\\\\""
-                      COMMA ","
+                            STRING "\"\\\\\"" [] []
+                      COMMA "," [] []
                       LITERAL
-                        CHAR "'🤔'"
-                      R_PAREN ")"
-                    COMMENT "/**/"
-                    COMMA ","
+                        CHAR "'🤔'" [] []
+                      R_PAREN ")" [] [COMMENT("/**/")]
+                    COMMA "," [] []
                     BLOCK_EXPR
                       STMT_LIST
-                        L_CURLY "{"
-                        R_CURLY "}"
-                    R_PAREN ")"
-                EQ2 "=="
+                        L_CURLY "{" [] []
+                        R_CURLY "}" [] []
+                    R_PAREN ")" [] []
+                EQ2 "==" [] []
                 BLOCK_EXPR
                   STMT_LIST
-                    L_CURLY "{"
+                    L_CURLY "{" [] []
                     EXPR_STMT
                       REF_EXPR
-                        AMP "&"
+                        AMP "&" [] []
                         INDEX_EXPR
                           ARRAY_EXPR
-                            L_BRACK "["
+                            L_BRACK "[" [] []
                             RANGE_EXPR
-                              DOT2EQ "..="
+                              DOT2EQ "..=" [] []
                               RANGE_EXPR
-                                DOT2 ".."
-                            R_BRACK "]"
-                          L_BRACK "["
+                                DOT2 ".." [] []
+                            R_BRACK "]" [] []
+                          L_BRACK "[" [] []
                           RANGE_EXPR
-                            DOT2 ".."
-                          R_BRACK "]"
-                      SEMICOLON ";"
-                    R_CURLY "}"
-              R_PAREN ")"
-          COMMENT "//"
-          WHITESPACE "\n    "
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                            DOT2 ".." [] []
+                          R_BRACK "]" [] []
+                      SEMICOLON ";" [] []
+                    R_CURLY "}" [] []
+              R_PAREN ")" [] [COMMENT("//"), NEWLINE("\n")]
+          SEMICOLON ";" [WHITESPACE("    ")] [NEWLINE("\n")]
         EXPR_STMT
           MACRO_EXPR
             MACRO_CALL
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "assert"
-              BANG "!"
+                    IDENT "assert" [WHITESPACE("    ")] []
+              BANG "!" [] []
               TOKEN_TREE
-                L_PAREN "("
-                BANG "!"
-                IDENT "val"
-                R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                L_PAREN "(" [] []
+                BANG "!" [] []
+                IDENT "val" [] []
+                R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "punch_card"
+      IDENT "punch_card" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       IMPL_TRAIT_TYPE
-        IMPL_KW "impl"
-        WHITESPACE " "
+        IMPL_KW "impl" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -1790,550 +1427,451 @@ SOURCE_FILE
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "std"
-                  COLON2 "::"
+                        IDENT "std" [] []
+                  COLON2 "::" [] []
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "fmt"
-                COLON2 "::"
+                      IDENT "fmt" [] []
+                COLON2 "::" [] []
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "Debug"
-    WHITESPACE " "
+                    IDENT "Debug" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         RANGE_EXPR
-          DOT2EQ "..="
+          DOT2EQ "..=" [WHITESPACE("    ")] []
           RANGE_EXPR
-            DOT2EQ "..="
+            DOT2EQ "..=" [] []
             RANGE_EXPR
-              DOT2 ".."
-              WHITESPACE " "
+              DOT2 ".." [] [WHITESPACE(" ")]
               RANGE_EXPR
-                DOT2 ".."
-                WHITESPACE "    "
+                DOT2 ".." [] [WHITESPACE("    ")]
                 RANGE_EXPR
-                  DOT2 ".."
-                  WHITESPACE " "
+                  DOT2 ".." [] [WHITESPACE(" ")]
                   RANGE_EXPR
-                    DOT2 ".."
-                    WHITESPACE " "
+                    DOT2 ".." [] [WHITESPACE(" ")]
                     RANGE_EXPR
-                      DOT2 ".."
-                      WHITESPACE " "
+                      DOT2 ".." [] [WHITESPACE(" ")]
                       RANGE_EXPR
-                        DOT2 ".."
-                        WHITESPACE "    "
+                        DOT2 ".." [] [WHITESPACE("    ")]
                         RANGE_EXPR
-                          DOT2 ".."
-                          WHITESPACE " "
+                          DOT2 ".." [] [WHITESPACE(" ")]
                           RANGE_EXPR
-                            DOT2 ".."
-                            WHITESPACE " "
+                            DOT2 ".." [] [WHITESPACE(" ")]
                             RANGE_EXPR
-                              DOT2 ".."
-                              WHITESPACE " "
+                              DOT2 ".." [] [WHITESPACE(" ")]
                               RANGE_EXPR
-                                DOT2 ".."
-                                WHITESPACE "    "
+                                DOT2 ".." [] [WHITESPACE("    ")]
                                 RANGE_EXPR
-                                  DOT2 ".."
-                                  WHITESPACE " "
+                                  DOT2 ".." [] [WHITESPACE(" ")]
                                   RANGE_EXPR
-                                    DOT2EQ "..="
+                                    DOT2EQ "..=" [] []
                                     RANGE_EXPR
-                                      DOT2 ".."
-                                      WHITESPACE " "
+                                      DOT2 ".." [] [WHITESPACE(" ")]
                                       RANGE_EXPR
-                                        DOT2 ".."
-                                        WHITESPACE "\n    "
+                                        DOT2 ".." [] [NEWLINE("\n")]
                                         RANGE_EXPR
-                                          DOT2EQ "..="
+                                          DOT2EQ "..=" [WHITESPACE("    ")] []
                                           RANGE_EXPR
-                                            DOT2 ".."
-                                            WHITESPACE " "
+                                            DOT2 ".." [] [WHITESPACE(" ")]
                                             RANGE_EXPR
-                                              DOT2EQ "..="
+                                              DOT2EQ "..=" [] []
                                               RANGE_EXPR
-                                                DOT2 ".."
-                                                WHITESPACE "    "
+                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                 RANGE_EXPR
-                                                  DOT2 ".."
-                                                  WHITESPACE " "
+                                                  DOT2 ".." [] [WHITESPACE(" ")]
                                                   RANGE_EXPR
-                                                    DOT2 ".."
-                                                    WHITESPACE " "
+                                                    DOT2 ".." [] [WHITESPACE(" ")]
                                                     RANGE_EXPR
-                                                      DOT2 ".."
-                                                      WHITESPACE " "
+                                                      DOT2 ".." [] [WHITESPACE(" ")]
                                                       RANGE_EXPR
-                                                        DOT2 ".."
-                                                        WHITESPACE "    "
+                                                        DOT2 ".." [] [WHITESPACE("    ")]
                                                         RANGE_EXPR
-                                                          DOT2 ".."
-                                                          WHITESPACE " "
+                                                          DOT2 ".." [] [WHITESPACE(" ")]
                                                           RANGE_EXPR
-                                                            DOT2 ".."
-                                                            WHITESPACE " "
+                                                            DOT2 ".." [] [WHITESPACE(" ")]
                                                             RANGE_EXPR
-                                                              DOT2 ".."
-                                                              WHITESPACE " "
+                                                              DOT2 ".." [] [WHITESPACE(" ")]
                                                               RANGE_EXPR
-                                                                DOT2 ".."
-                                                                WHITESPACE "    "
+                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                 RANGE_EXPR
-                                                                  DOT2EQ "..="
+                                                                  DOT2EQ "..=" [] []
                                                                   RANGE_EXPR
-                                                                    DOT2EQ "..="
+                                                                    DOT2EQ "..=" [] []
                                                                     RANGE_EXPR
-                                                                      DOT2EQ "..="
+                                                                      DOT2EQ "..=" [] []
                                                                       RANGE_EXPR
-                                                                        DOT2 ".."
-                                                                        WHITESPACE "\n    "
+                                                                        DOT2 ".." [] [NEWLINE("\n")]
                                                                         RANGE_EXPR
-                                                                          DOT2EQ "..="
+                                                                          DOT2EQ "..=" [WHITESPACE("    ")] []
                                                                           RANGE_EXPR
-                                                                            DOT2 ".."
-                                                                            WHITESPACE " "
+                                                                            DOT2 ".." [] [WHITESPACE(" ")]
                                                                             RANGE_EXPR
-                                                                              DOT2EQ "..="
+                                                                              DOT2EQ "..=" [] []
                                                                               RANGE_EXPR
-                                                                                DOT2 ".."
-                                                                                WHITESPACE "    "
+                                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                                 RANGE_EXPR
-                                                                                  DOT2EQ "..="
+                                                                                  DOT2EQ "..=" [] []
                                                                                   RANGE_EXPR
-                                                                                    DOT2 ".."
-                                                                                    WHITESPACE " "
+                                                                                    DOT2 ".." [] [WHITESPACE(" ")]
                                                                                     RANGE_EXPR
-                                                                                      DOT2EQ "..="
+                                                                                      DOT2EQ "..=" [] []
                                                                                       RANGE_EXPR
-                                                                                        DOT2 ".."
-                                                                                        WHITESPACE "    "
+                                                                                        DOT2 ".." [] [WHITESPACE("    ")]
                                                                                         RANGE_EXPR
-                                                                                          DOT2 ".."
-                                                                                          WHITESPACE " "
+                                                                                          DOT2 ".." [] [WHITESPACE(" ")]
                                                                                           RANGE_EXPR
-                                                                                            DOT2EQ "..="
+                                                                                            DOT2EQ "..=" [] []
                                                                                             RANGE_EXPR
-                                                                                              DOT2EQ "..="
+                                                                                              DOT2EQ "..=" [] []
                                                                                               RANGE_EXPR
-                                                                                                DOT2 ".."
-                                                                                                WHITESPACE "    "
+                                                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                 RANGE_EXPR
-                                                                                                  DOT2 ".."
-                                                                                                  WHITESPACE " "
+                                                                                                  DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                   RANGE_EXPR
-                                                                                                    DOT2EQ "..="
+                                                                                                    DOT2EQ "..=" [] []
                                                                                                     RANGE_EXPR
-                                                                                                      DOT2 ".."
-                                                                                                      WHITESPACE " "
+                                                                                                      DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                       RANGE_EXPR
-                                                                                                        DOT2 ".."
-                                                                                                        WHITESPACE "\n    "
+                                                                                                        DOT2 ".." [] [NEWLINE("\n")]
                                                                                                         RANGE_EXPR
-                                                                                                          DOT2EQ "..="
+                                                                                                          DOT2EQ "..=" [WHITESPACE("    ")] []
                                                                                                           RANGE_EXPR
-                                                                                                            DOT2EQ "..="
+                                                                                                            DOT2EQ "..=" [] []
                                                                                                             RANGE_EXPR
-                                                                                                              DOT2 ".."
-                                                                                                              WHITESPACE " "
+                                                                                                              DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                               RANGE_EXPR
-                                                                                                                DOT2 ".."
-                                                                                                                WHITESPACE "    "
+                                                                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                 RANGE_EXPR
-                                                                                                                  DOT2EQ "..="
+                                                                                                                  DOT2EQ "..=" [] []
                                                                                                                   RANGE_EXPR
-                                                                                                                    DOT2 ".."
-                                                                                                                    WHITESPACE " "
+                                                                                                                    DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                     RANGE_EXPR
-                                                                                                                      DOT2EQ "..="
+                                                                                                                      DOT2EQ "..=" [] []
                                                                                                                       RANGE_EXPR
-                                                                                                                        DOT2 ".."
-                                                                                                                        WHITESPACE "    "
+                                                                                                                        DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                         RANGE_EXPR
-                                                                                                                          DOT2EQ "..="
+                                                                                                                          DOT2EQ "..=" [] []
                                                                                                                           RANGE_EXPR
-                                                                                                                            DOT2 ".."
-                                                                                                                            WHITESPACE " "
+                                                                                                                            DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                             RANGE_EXPR
-                                                                                                                              DOT2 ".."
-                                                                                                                              WHITESPACE " "
+                                                                                                                              DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                               RANGE_EXPR
-                                                                                                                                DOT2 ".."
-                                                                                                                                WHITESPACE "    "
+                                                                                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                                 RANGE_EXPR
-                                                                                                                                  DOT2 ".."
-                                                                                                                                  WHITESPACE " "
+                                                                                                                                  DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                   RANGE_EXPR
-                                                                                                                                    DOT2EQ "..="
+                                                                                                                                    DOT2EQ "..=" [] []
                                                                                                                                     RANGE_EXPR
-                                                                                                                                      DOT2 ".."
-                                                                                                                                      WHITESPACE " "
+                                                                                                                                      DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                       RANGE_EXPR
-                                                                                                                                        DOT2 ".."
-                                                                                                                                        WHITESPACE "\n    "
+                                                                                                                                        DOT2 ".." [] [NEWLINE("\n")]
                                                                                                                                         RANGE_EXPR
-                                                                                                                                          DOT2EQ "..="
+                                                                                                                                          DOT2EQ "..=" [WHITESPACE("    ")] []
                                                                                                                                           RANGE_EXPR
-                                                                                                                                            DOT2 ".."
-                                                                                                                                            WHITESPACE " "
+                                                                                                                                            DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                             RANGE_EXPR
-                                                                                                                                              DOT2EQ "..="
+                                                                                                                                              DOT2EQ "..=" [] []
                                                                                                                                               RANGE_EXPR
-                                                                                                                                                DOT2 ".."
-                                                                                                                                                WHITESPACE "    "
+                                                                                                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                                                 RANGE_EXPR
-                                                                                                                                                  DOT2EQ "..="
+                                                                                                                                                  DOT2EQ "..=" [] []
                                                                                                                                                   RANGE_EXPR
-                                                                                                                                                    DOT2 ".."
-                                                                                                                                                    WHITESPACE " "
+                                                                                                                                                    DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                     RANGE_EXPR
-                                                                                                                                                      DOT2EQ "..="
+                                                                                                                                                      DOT2EQ "..=" [] []
                                                                                                                                                       RANGE_EXPR
-                                                                                                                                                        DOT2 ".."
-                                                                                                                                                        WHITESPACE "    "
+                                                                                                                                                        DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                                                         RANGE_EXPR
-                                                                                                                                                          DOT2 ".."
-                                                                                                                                                          WHITESPACE " "
+                                                                                                                                                          DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                           RANGE_EXPR
-                                                                                                                                                            DOT2EQ "..="
+                                                                                                                                                            DOT2EQ "..=" [] []
                                                                                                                                                             RANGE_EXPR
-                                                                                                                                                              DOT2 ".."
-                                                                                                                                                              WHITESPACE " "
+                                                                                                                                                              DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                               RANGE_EXPR
-                                                                                                                                                                DOT2 ".."
-                                                                                                                                                                WHITESPACE "    "
+                                                                                                                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                                                                 RANGE_EXPR
-                                                                                                                                                                  DOT2 ".."
-                                                                                                                                                                  WHITESPACE " "
+                                                                                                                                                                  DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                   RANGE_EXPR
-                                                                                                                                                                    DOT2EQ "..="
+                                                                                                                                                                    DOT2EQ "..=" [] []
                                                                                                                                                                     RANGE_EXPR
-                                                                                                                                                                      DOT2 ".."
-                                                                                                                                                                      WHITESPACE " "
+                                                                                                                                                                      DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                       RANGE_EXPR
-                                                                                                                                                                        DOT2 ".."
-                                                                                                                                                                        WHITESPACE "\n    "
+                                                                                                                                                                        DOT2 ".." [] [NEWLINE("\n")]
                                                                                                                                                                         RANGE_EXPR
-                                                                                                                                                                          DOT2EQ "..="
+                                                                                                                                                                          DOT2EQ "..=" [WHITESPACE("    ")] []
                                                                                                                                                                           RANGE_EXPR
-                                                                                                                                                                            DOT2 ".."
-                                                                                                                                                                            WHITESPACE " "
+                                                                                                                                                                            DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                             RANGE_EXPR
-                                                                                                                                                                              DOT2EQ "..="
+                                                                                                                                                                              DOT2EQ "..=" [] []
                                                                                                                                                                               RANGE_EXPR
-                                                                                                                                                                                DOT2 ".."
-                                                                                                                                                                                WHITESPACE "    "
+                                                                                                                                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                                                                                 RANGE_EXPR
-                                                                                                                                                                                  DOT2EQ "..="
+                                                                                                                                                                                  DOT2EQ "..=" [] []
                                                                                                                                                                                   RANGE_EXPR
-                                                                                                                                                                                    DOT2 ".."
-                                                                                                                                                                                    WHITESPACE " "
+                                                                                                                                                                                    DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                                     RANGE_EXPR
-                                                                                                                                                                                      DOT2EQ "..="
+                                                                                                                                                                                      DOT2EQ "..=" [] []
                                                                                                                                                                                       RANGE_EXPR
-                                                                                                                                                                                        DOT2 ".."
-                                                                                                                                                                                        WHITESPACE "    "
+                                                                                                                                                                                        DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                                                                                         RANGE_EXPR
-                                                                                                                                                                                          DOT2 ".."
-                                                                                                                                                                                          WHITESPACE " "
+                                                                                                                                                                                          DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                                           RANGE_EXPR
-                                                                                                                                                                                            DOT2 ".."
-                                                                                                                                                                                            WHITESPACE " "
+                                                                                                                                                                                            DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                                             RANGE_EXPR
-                                                                                                                                                                                              DOT2EQ "..="
+                                                                                                                                                                                              DOT2EQ "..=" [] []
                                                                                                                                                                                               RANGE_EXPR
-                                                                                                                                                                                                DOT2 ".."
-                                                                                                                                                                                                WHITESPACE "    "
+                                                                                                                                                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                                                                                                 RANGE_EXPR
-                                                                                                                                                                                                  DOT2 ".."
-                                                                                                                                                                                                  WHITESPACE " "
+                                                                                                                                                                                                  DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                                                   RANGE_EXPR
-                                                                                                                                                                                                    DOT2EQ "..="
+                                                                                                                                                                                                    DOT2EQ "..=" [] []
                                                                                                                                                                                                     RANGE_EXPR
-                                                                                                                                                                                                      DOT2 ".."
-                                                                                                                                                                                                      WHITESPACE " "
+                                                                                                                                                                                                      DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                                                       RANGE_EXPR
-                                                                                                                                                                                                        DOT2 ".."
-                                                                                                                                                                                                        WHITESPACE "\n    "
+                                                                                                                                                                                                        DOT2 ".." [] [NEWLINE("\n")]
                                                                                                                                                                                                         RANGE_EXPR
-                                                                                                                                                                                                          DOT2EQ "..="
+                                                                                                                                                                                                          DOT2EQ "..=" [WHITESPACE("    ")] []
                                                                                                                                                                                                           RANGE_EXPR
-                                                                                                                                                                                                            DOT2 ".."
-                                                                                                                                                                                                            WHITESPACE " "
+                                                                                                                                                                                                            DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                                                             RANGE_EXPR
-                                                                                                                                                                                                              DOT2EQ "..="
+                                                                                                                                                                                                              DOT2EQ "..=" [] []
                                                                                                                                                                                                               RANGE_EXPR
-                                                                                                                                                                                                                DOT2 ".."
-                                                                                                                                                                                                                WHITESPACE "    "
+                                                                                                                                                                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                                                                                                                 RANGE_EXPR
-                                                                                                                                                                                                                  DOT2 ".."
-                                                                                                                                                                                                                  WHITESPACE " "
+                                                                                                                                                                                                                  DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                                                                   RANGE_EXPR
-                                                                                                                                                                                                                    DOT2EQ "..="
+                                                                                                                                                                                                                    DOT2EQ "..=" [] []
                                                                                                                                                                                                                     RANGE_EXPR
-                                                                                                                                                                                                                      DOT2EQ "..="
+                                                                                                                                                                                                                      DOT2EQ "..=" [] []
                                                                                                                                                                                                                       RANGE_EXPR
-                                                                                                                                                                                                                        DOT2 ".."
-                                                                                                                                                                                                                        WHITESPACE "    "
+                                                                                                                                                                                                                        DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                                                                                                                         RANGE_EXPR
-                                                                                                                                                                                                                          DOT2EQ "..="
+                                                                                                                                                                                                                          DOT2EQ "..=" [] []
                                                                                                                                                                                                                           RANGE_EXPR
-                                                                                                                                                                                                                            DOT2EQ "..="
+                                                                                                                                                                                                                            DOT2EQ "..=" [] []
                                                                                                                                                                                                                             RANGE_EXPR
-                                                                                                                                                                                                                              DOT2 ".."
-                                                                                                                                                                                                                              WHITESPACE " "
+                                                                                                                                                                                                                              DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                                                                               RANGE_EXPR
-                                                                                                                                                                                                                                DOT2 ".."
-                                                                                                                                                                                                                                WHITESPACE "    "
+                                                                                                                                                                                                                                DOT2 ".." [] [WHITESPACE("    ")]
                                                                                                                                                                                                                                 RANGE_EXPR
-                                                                                                                                                                                                                                  DOT2 ".."
-                                                                                                                                                                                                                                  WHITESPACE " "
+                                                                                                                                                                                                                                  DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                                                                                   RANGE_EXPR
-                                                                                                                                                                                                                                    DOT2EQ "..="
+                                                                                                                                                                                                                                    DOT2EQ "..=" [] []
                                                                                                                                                                                                                                     RANGE_EXPR
-                                                                                                                                                                                                                                      DOT2 ".."
-                                                                                                                                                                                                                                      WHITESPACE " "
+                                                                                                                                                                                                                                      DOT2 ".." [] [WHITESPACE(" ")]
                                                                                                                                                                                                                                       RANGE_EXPR
-                                                                                                                                                                                                                                        DOT2 ".."
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                                                                                                                                                                                                                                        DOT2 ".." [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "ktulhu"
+      IDENT "ktulhu" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
-        SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        SEMICOLON ";" [WHITESPACE("    ")] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
         EXPR_STMT
           TUPLE_EXPR
-            L_PAREN "("
-            R_PAREN ")"
-          SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
+            L_PAREN "(" [] []
+            R_PAREN ")" [] []
+          SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
         TUPLE_EXPR
-          L_PAREN "("
-          R_PAREN ")"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+          L_PAREN "(" [] []
+          R_PAREN ")" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
     VISIBILITY
-      PUB_KW "pub"
-    WHITESPACE " "
-    FN_KW "fn"
-    WHITESPACE " "
+      PUB_KW "pub" [NEWLINE("\n")] [WHITESPACE(" ")]
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "main"
+      IDENT "main" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "strange"
+                    IDENT "strange" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "funny"
+                    IDENT "funny" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "what"
+                    IDENT "what" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "zombiejesus"
+                    IDENT "zombiejesus" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "notsure"
+                    IDENT "notsure" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "canttouchthis"
+                    IDENT "canttouchthis" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "angrydome"
+                    IDENT "angrydome" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "evil_lincoln"
+                    IDENT "evil_lincoln" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "dots"
+                    IDENT "dots" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "u8"
+                    IDENT "u8" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
+              L_PAREN "(" [] []
               LITERAL
-                INT_NUMBER "8u8"
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "8u8" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "fishy"
+                    IDENT "fishy" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "union"
+                    IDENT "union" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "special_characters"
+                    IDENT "special_characters" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "punch_card"
+                    IDENT "punch_card" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "ktulhu"
+                    IDENT "ktulhu" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

@@ -4,6 +4,7 @@
 //! let _: &u32 = /* &* */ &mut 0;
 //! ```
 use std::ops::Not;
+use syntax::token_span;
 
 use either::Either;
 use hir::{
@@ -78,7 +79,7 @@ pub(super) fn hints(
     let (postfix, needs_outer_parens, needs_inner_parens) =
         mode_and_needs_parens_for_adjustment_hints(expr, config.adjustment_hints_mode);
 
-    let range = expr.syntax().text_range();
+    let range = token_span(expr.syntax());
     let mut pre = InlayHint {
         range,
         position: InlayHintPosition::Before,

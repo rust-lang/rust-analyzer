@@ -6,6 +6,7 @@
 
 use std::mem;
 use std::{cell::LazyCell, cmp::Reverse};
+use syntax::token_span;
 
 use base_db::{SourceDatabase, all_crates};
 use either::Either;
@@ -85,9 +86,9 @@ pub enum FileReferenceNode {
 impl FileReferenceNode {
     pub fn text_range(&self) -> TextRange {
         match self {
-            FileReferenceNode::Name(it) => it.syntax().text_range(),
-            FileReferenceNode::NameRef(it) => it.syntax().text_range(),
-            FileReferenceNode::Lifetime(it) => it.syntax().text_range(),
+            FileReferenceNode::Name(it) => token_span(it.syntax()),
+            FileReferenceNode::NameRef(it) => token_span(it.syntax()),
+            FileReferenceNode::Lifetime(it) => token_span(it.syntax()),
             FileReferenceNode::FormatStringEntry(_, range) => *range,
         }
     }
@@ -412,8 +413,8 @@ impl<'db> Definition<'db> {
         }
 
         let range = match module_source {
-            ModuleSource::Module(m) => Some(m.syntax().text_range()),
-            ModuleSource::BlockExpr(b) => Some(b.syntax().text_range()),
+            ModuleSource::Module(m) => Some(token_span(m.syntax())),
+            ModuleSource::BlockExpr(b) => Some(token_span(b.syntax())),
             ModuleSource::SourceFile(_) => None,
         };
         match range {
@@ -710,10 +711,9 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                                 let use_tree = ast::UseTree::cast(path.syntax().parent()?)?;
                                 use_tree.rename()?.name()
                             }) {
-                                if seen.insert(InFileWrapper::new(
-                                    file_id,
-                                    alias.syntax().text_range(),
-                                )) {
+                                if seen
+                                    .insert(InFileWrapper::new(file_id, token_span(alias.syntax())))
+                                {
                                     tracing::debug!("found alias: {alias}");
                                     cov_mark::hit!(container_use_rename);
                                     // FIXME: `use`s have no easy way to determine their search scope, but they are rare.
@@ -726,7 +726,7 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                                 usage.ancestors().find_map(ast::TypeAlias::cast)
                                 && let Some(name) = alias.name()
                                 && seen
-                                    .insert(InFileWrapper::new(file_id, name.syntax().text_range()))
+                                    .insert(InFileWrapper::new(file_id, token_span(name.syntax())))
                             {
                                 if let Some(def) = is_alias(&alias) {
                                     cov_mark::hit!(container_type_alias);
@@ -789,7 +789,7 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                                     }
                                     if seen.insert(InFileWrapper::new(
                                         file_id,
-                                        name.syntax().text_range(),
+                                        token_span(name.syntax()),
                                     )) {
                                         if let Some(def) = is_alias(&type_alias) {
                                             cov_mark::hit!(self_type_alias);
@@ -864,7 +864,7 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                             .map(|path_segment| {
                                 container_predicate(
                                     path_segment.parent_path().syntax(),
-                                    InFileWrapper::new(file_id, usage.syntax().text_range()),
+                                    InFileWrapper::new(file_id, token_span(usage.syntax())),
                                 )
                             })
                             .unwrap_or(false);
@@ -1088,8 +1088,8 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                 let src = module.definition_source(sema.db);
                 let file_id = src.file_id.original_file(sema.db);
                 let (file_id, search_range) = match src.value {
-                    ModuleSource::Module(m) => (file_id, Some(m.syntax().text_range())),
-                    ModuleSource::BlockExpr(b) => (file_id, Some(b.syntax().text_range())),
+                    ModuleSource::Module(m) => (file_id, Some(token_span(m.syntax()))),
+                    ModuleSource::BlockExpr(b) => (file_id, Some(token_span(b.syntax()))),
                     ModuleSource::SourceFile(_) => (file_id, None),
                 };
 
@@ -1407,24 +1407,28 @@ impl ReferenceCategory {
             return result;
         }
 
-        let mode = r.syntax().ancestors().find_map(|node| {
-            match_ast! {
-                match node {
-                    ast::BinExpr(expr) => {
-                        if matches!(expr.op_kind()?, ast::BinaryOp::Assignment { .. }) {
-                            // If the variable or field ends on the LHS's end then it's a Write
-                            // (covers fields and locals). FIXME: This is not terribly accurate.
-                            if let Some(lhs) = expr.lhs()
-                            && lhs.syntax().text_range().contains_range(r.syntax().text_range()) {
-                                    return Some(ReferenceCategory::WRITE)
-                                }
-                        }
-                        Some(ReferenceCategory::READ)
-                    },
-                    _ => None,
+        let mode = r
+            .syntax()
+            .ancestors()
+            .find_map(|node| {
+                match_ast! {
+                    match node {
+                        ast::BinExpr(expr) => {
+                            if matches!(expr.op_kind()?, ast::BinaryOp::Assignment { .. }) {
+                                // If the variable or field ends on the LHS's end then it's a Write
+                                // (covers fields and locals). FIXME: This is not terribly accurate.
+                                if let Some(lhs) = expr.lhs()
+                                && token_span(lhs.syntax()).contains_range(token_span(r.syntax())) {
+                                        return Some(ReferenceCategory::WRITE)
+                                    }
+                            }
+                            Some(ReferenceCategory::READ)
+                        },
+                        _ => None,
+                    }
                 }
-            }
-        }).unwrap_or(ReferenceCategory::READ);
+            })
+            .unwrap_or(ReferenceCategory::READ);
 
         result | mode
     }

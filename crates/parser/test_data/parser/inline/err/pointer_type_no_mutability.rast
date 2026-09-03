@@ -1,17 +1,14 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "T" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PTR_TYPE
-      STAR "*"
+      STAR "*" [] []
       TUPLE_TYPE
-        L_PAREN "("
-        R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+        L_PAREN "(" [] []
+        R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 10: expected mut or const in raw pointer type (use `*mut T` or `*const T` as appropriate)

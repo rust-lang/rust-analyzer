@@ -1,40 +1,37 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "std"
-      COLON2 "::"
+            IDENT "std" [] []
+      COLON2 "::" [] []
       USE_TREE_LIST
-        L_CURLY "{"
+        L_CURLY "{" [] []
         USE_TREE
           PATH
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "error"
-            COLON2 "::"
+                  IDENT "error" [] []
+            COLON2 "::" [] []
             PATH_SEGMENT
               NAME_REF
-                IDENT "Error"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                IDENT "Error" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "std"
-        COLON2 "::"
+              IDENT "std" [] []
+        COLON2 "::" [] []
         PATH_SEGMENT
           NAME_REF
-            IDENT "io"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+            IDENT "io" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 22: expected R_CURLY

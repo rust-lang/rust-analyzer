@@ -1,5 +1,6 @@
 use hir::ModuleDef;
 use ide_db::{assists::AssistId, famous_defs::FamousDefs};
+use syntax::token_span;
 use syntax::{
     AstNode, NodeOrToken, SyntaxKind, SyntaxNode, SyntaxToken, TextRange,
     ast::{self, HasGenericArgs, HasVisibility},
@@ -59,12 +60,12 @@ pub(crate) fn sugar_impl_future_into_async(
     acc.add(
         AssistId::refactor_rewrite("sugar_impl_future_into_async"),
         "Convert `impl Future` into async",
-        function.syntax().text_range(),
+        token_span(function.syntax()),
         |builder| {
             match future_output {
                 // Empty tuple
                 ast::Type::TupleType(t) if t.fields().next().is_none() => {
-                    let mut ret_type_range = ret_type.syntax().text_range();
+                    let mut ret_type_range = token_span(ret_type.syntax());
 
                     // find leftover whitespace
                     let whitespace_range = function
@@ -82,15 +83,15 @@ pub(crate) fn sugar_impl_future_into_async(
                 }
                 _ => {
                     builder.replace(
-                        return_impl_trait.syntax().text_range(),
+                        token_span(return_impl_trait.syntax()),
                         future_output.syntax().text(),
                     );
                 }
             }
 
             let (place_for_async, async_kw) = match function.visibility() {
-                Some(vis) => (vis.syntax().text_range().end(), " async"),
-                None => (function.syntax().text_range().start(), "async "),
+                Some(vis) => (token_span(vis.syntax()).end(), " async"),
+                None => (token_span(function.syntax()).start(), "async "),
             };
             builder.insert(place_for_async, async_kw);
         },
@@ -141,7 +142,7 @@ pub(crate) fn desugar_async_into_impl_future(
     acc.add(
         AssistId::refactor_rewrite("desugar_async_into_impl_future"),
         "Convert async into `impl Future`",
-        function.syntax().text_range(),
+        token_span(function.syntax()),
         |builder| {
             let mut async_range = async_token.text_range();
 
@@ -152,7 +153,7 @@ pub(crate) fn desugar_async_into_impl_future(
 
             match return_type {
                 Some(ret_type) => builder.replace(
-                    ret_type.syntax().text_range(),
+                    token_span(ret_type.syntax()),
                     format!("impl {trait_path}<Output = {ret_type}>"),
                 ),
                 None => builder.insert(
@@ -175,11 +176,12 @@ fn unwrap_future_output(path: ast::Path) -> Option<ast::Type> {
 }
 
 fn following_whitespace(nt: NodeOrToken<&SyntaxNode, SyntaxToken>) -> Option<TextRange> {
-    let next_token = match nt {
-        NodeOrToken::Node(node) => node.next_sibling_or_token(),
-        NodeOrToken::Token(token) => token.next_sibling_or_token(),
-    }?;
-    (next_token.kind() == SyntaxKind::WHITESPACE).then_some(next_token.text_range())
+    let last = match nt {
+        NodeOrToken::Node(node) => node.last_token()?,
+        NodeOrToken::Token(token) => token,
+    };
+    let piece = last.trailing_trivia().next()?;
+    (piece.kind() == SyntaxKind::WHITESPACE).then_some(piece.text_range())
 }
 
 #[cfg(test)]

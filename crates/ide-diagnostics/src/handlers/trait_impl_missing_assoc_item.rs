@@ -1,5 +1,6 @@
 use hir::InFile;
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{AstNode, ast};
 
 use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range};
@@ -26,7 +27,7 @@ pub(crate) fn trait_impl_missing_assoc_item(
         adjusted_display_range::<ast::Impl>(
             ctx,
             InFile { file_id: d.file_id, value: d.impl_ },
-            &|impl_| impl_.trait_().map(|t| t.syntax().text_range()),
+            &|impl_| impl_.trait_().map(|t| token_span(t.syntax())),
         ),
     )
     .stable()

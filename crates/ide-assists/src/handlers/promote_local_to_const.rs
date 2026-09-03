@@ -1,6 +1,7 @@
 use hir::HirDisplay;
 use ide_db::{assists::AssistId, defs::Definition};
 use stdx::to_upper_snake_case;
+use syntax::token_span;
 use syntax::{
     AstNode,
     ast::{self, HasName},
@@ -71,7 +72,7 @@ pub(crate) fn promote_local_to_const(acc: &mut Assists, ctx: &AssistContext<'_, 
     acc.add(
         AssistId::refactor("promote_local_to_const"),
         "Promote local to constant",
-        let_stmt.syntax().text_range(),
+        token_span(let_stmt.syntax()),
         |edit| {
             let editor = edit.make_editor(let_stmt.syntax());
             let make = editor.make();

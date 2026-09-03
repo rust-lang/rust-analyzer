@@ -357,7 +357,7 @@ fn is_leading_trivia_excluding_docs(token: &SyntaxToken) -> bool {
 }
 
 fn is_trailing_trivia(token: &SyntaxToken) -> bool {
-    matches!(token.kind(), SyntaxKind::WHITESPACE | SyntaxKind::COMMENT)
+    matches!(token.kind(), SyntaxKind::WHITESPACE | SyntaxKind::NEWLINE | SyntaxKind::COMMENT)
 }
 
 #[cfg(test)]

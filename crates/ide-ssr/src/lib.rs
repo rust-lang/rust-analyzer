@@ -348,7 +348,7 @@ impl SsrMatches {
 
 impl Match {
     pub fn matched_text(&self) -> String {
-        self.matched_node.text().to_string()
+        syntax::token_text(&self.matched_node)
     }
 }
 

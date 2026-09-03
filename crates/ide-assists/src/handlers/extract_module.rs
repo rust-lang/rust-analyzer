@@ -9,8 +9,9 @@ use ide_db::{
 };
 use itertools::Itertools;
 use smallvec::SmallVec;
+use syntax::token_span;
 use syntax::{
-    AstNode,
+    AstNode, NodeOrToken,
     SyntaxKind::{self, WHITESPACE},
     SyntaxNode, TextRange, TextSize,
     algo::find_node_at_range,
@@ -72,10 +73,10 @@ pub(crate) fn extract_module(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
     let selection_range = ctx.selection_trimmed();
     let (mut module, module_text_range) = if let Some(item) = ast::Item::cast(node.clone()) {
         let module = extract_single_target(&item);
-        (module, node.text_range())
+        (module, token_span(&node))
     } else {
         let (module, range) = extract_child_target(&node, selection_range)?;
-        let module_text_range = range.start().text_range().cover(range.end().text_range());
+        let module_text_range = token_span(range.start()).cover(token_span(range.end()));
         (module, module_text_range)
     };
     if module.body_items.is_empty() {
@@ -171,7 +172,7 @@ pub(crate) fn extract_module(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
                 }
 
                 builder.insert(
-                    impl_.syntax().text_range().end(),
+                    token_span(impl_.syntax()).end(),
                     format!("\n\n{old_item_indent}{module_def}"),
                 );
             } else {
@@ -262,7 +263,7 @@ fn extract_child_target(
 ) -> Option<(Module, RangeInclusive<SyntaxNode>)> {
     let selected_nodes = node
         .children()
-        .filter(|node| selection_range.contains_range(node.text_range()))
+        .filter(|node| selection_range.contains_range(token_span(node)))
         .filter_map(ast::Item::cast)
         .collect_vec();
     let start = selected_nodes.first()?.syntax().clone();
@@ -375,7 +376,7 @@ impl Module {
             syntax::NodeOrToken::Node(node) => node,
             syntax::NodeOrToken::Token(tok) => tok.parent().unwrap(), // won't panic
         };
-        let out_of_sel = |node: &SyntaxNode| !replace_range.contains_range(node.text_range());
+        let out_of_sel = |node: &SyntaxNode| !replace_range.contains_range(token_span(node));
         let mut use_stmts_set = FxHashSet::default();
 
         for (file_id, refs) in node_def.usages(&ctx.sema).all() {
@@ -391,9 +392,9 @@ impl Module {
                     // handle usages in use_stmts which is in_sel
                     // check if `use` is top stmt in selection
                     if use_.syntax().parent().is_some_and(|parent| parent == covering_node)
-                        && use_stmts_set.insert(use_.syntax().text_range().start())
+                        && use_stmts_set.insert(token_span(use_.syntax()).start())
                     {
-                        let key = use_.syntax().text_range().start();
+                        let key = token_span(use_.syntax()).start();
                         let entry =
                             use_stmts_to_be_inserted.entry(key).or_insert_with(|| use_.clone());
                         let (editor, edit_root) = SyntaxEditor::with_ast_node(&*entry);
@@ -481,12 +482,13 @@ impl Module {
 
             let (editor, _) = SyntaxEditor::new(body_item.syntax().clone());
             for target in insert_targets {
-                editor.insert_all(
+                let _first = match &target {
+                    NodeOrToken::Node(node) => node.first_token(),
+                    NodeOrToken::Token(token) => Some(token.clone()),
+                };
+                editor.insert(
                     Position::before(target),
-                    vec![
-                        make.visibility_pub_crate().syntax().clone().into(),
-                        make.whitespace(" ").into(),
-                    ],
+                    make.visibility_pub_crate().with_trailing_trivia(" ", make).syntax(),
                 );
             }
             *body_item = ast::Item::cast(editor.finish().new_root().clone()).unwrap();
@@ -559,7 +561,7 @@ impl Module {
                 .filter(|x| find_node_at_range::<ast::Use>(file.syntax(), x.range).is_none())
                 .filter_map(|x| find_node_at_range::<ast::Path>(file.syntax(), x.range))
             {
-                let in_selection = selection_range.contains_range(x.syntax().text_range());
+                let in_selection = selection_range.contains_range(token_span(x.syntax()));
                 uses_exist_in_sel |= in_selection;
                 uses_exist_out_sel |= !in_selection;
 
@@ -583,9 +585,9 @@ impl Module {
             .filter(|(use_file_id, _)| *use_file_id == file_id)
             .flat_map(|(_, refs)| refs.into_iter().rev())
             .find_map(|fref| find_node_at_range(file.syntax(), fref.range));
-        let use_stmt_not_in_sel = use_stmt.as_ref().is_some_and(|use_stmt| {
-            !selection_range.contains_range(use_stmt.syntax().text_range())
-        });
+        let use_stmt_not_in_sel = use_stmt
+            .as_ref()
+            .is_some_and(|use_stmt| !selection_range.contains_range(token_span(use_stmt.syntax())));
 
         let mut use_tree_paths: Option<Vec<ast::Path>> = None;
         //Exists inside and outside selection
@@ -753,7 +755,7 @@ fn check_def_in_mod_and_out_sel(
                     source.file_id.original_file(ctx.db()).file_id(ctx.db()) == curr_file_id
                 };
 
-                let in_sel = !selection_range.contains_range(source.value.syntax().text_range());
+                let in_sel = !selection_range.contains_range(token_span(source.value.syntax()));
                 return (have_same_parent, in_sel);
             }
         };
@@ -770,7 +772,7 @@ fn check_def_in_mod_and_out_sel(
             };
 
             if have_same_parent && let ModuleSource::Module(module_) = source.value {
-                let in_sel = !selection_range.contains_range(module_.syntax().text_range());
+                let in_sel = !selection_range.contains_range(token_span(module_.syntax()));
                 return (have_same_parent, in_sel);
             }
 
@@ -859,9 +861,8 @@ fn get_use_tree_paths_from_path(
 }
 
 fn indent_range_before_given_node(node: &SyntaxNode) -> Option<TextRange> {
-    node.siblings_with_tokens(syntax::Direction::Prev)
-        .find(|x| x.kind() == WHITESPACE)
-        .map(|x| x.text_range())
+    let piece = node.first_token()?.leading_trivia().next_back()?;
+    (piece.kind() == WHITESPACE).then_some(piece.text_range())
 }
 
 #[cfg(test)]

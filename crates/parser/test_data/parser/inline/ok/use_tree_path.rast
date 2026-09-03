@@ -1,72 +1,63 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
-          COLON2 "::"
+          COLON2 "::" [] []
           NAME_REF
-            IDENT "std"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+            IDENT "std" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "std"
-        COLON2 "::"
+              IDENT "std" [] []
+        COLON2 "::" [] []
         PATH_SEGMENT
           NAME_REF
-            IDENT "collections"
-    SEMICOLON ";"
-  WHITESPACE "\n\n"
+            IDENT "collections" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [NEWLINE("\n")] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
           PATH_SEGMENT
             NAME_REF
-              SELF_KW "self"
-        COLON2 "::"
+              SELF_KW "self" [] []
+        COLON2 "::" [] []
         PATH_SEGMENT
           NAME_REF
-            IDENT "m"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+            IDENT "m" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
           PATH_SEGMENT
             NAME_REF
-              SUPER_KW "super"
-        COLON2 "::"
+              SUPER_KW "super" [] []
+        COLON2 "::" [] []
         PATH_SEGMENT
           NAME_REF
-            IDENT "m"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+            IDENT "m" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
           PATH_SEGMENT
             NAME_REF
-              CRATE_KW "crate"
-        COLON2 "::"
+              CRATE_KW "crate" [] []
+        COLON2 "::" [] []
         PATH_SEGMENT
           NAME_REF
-            IDENT "m"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+            IDENT "m" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

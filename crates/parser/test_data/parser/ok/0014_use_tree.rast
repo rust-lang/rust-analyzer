@@ -1,95 +1,80 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
-      STAR "*"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      STAR "*" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
-      COLON2 "::"
-      STAR "*"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      COLON2 "::" [] []
+      STAR "*" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
-      COLON2 "::"
+      COLON2 "::" [] []
       USE_TREE_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       USE_TREE_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "foo"
-      COLON2 "::"
-      STAR "*"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+            IDENT "foo" [] []
+      COLON2 "::" [] []
+      STAR "*" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "foo"
-      COLON2 "::"
+            IDENT "foo" [] []
+      COLON2 "::" [] []
       USE_TREE_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
-          COLON2 "::"
+          COLON2 "::" [] []
           NAME_REF
-            IDENT "foo"
-      COLON2 "::"
+            IDENT "foo" [] []
+      COLON2 "::" [] []
       USE_TREE_LIST
-        L_CURLY "{"
+        L_CURLY "{" [] []
         USE_TREE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "a"
-        COMMA ","
-        WHITESPACE " "
+                IDENT "a" [] []
+        COMMA "," [] [WHITESPACE(" ")]
         USE_TREE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "b"
-        COMMA ","
-        WHITESPACE " "
+                IDENT "b" [] []
+        COMMA "," [] [WHITESPACE(" ")]
         USE_TREE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "c"
-        R_CURLY "}"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                IDENT "c" [] []
+        R_CURLY "}" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

@@ -1,4 +1,5 @@
 use ide_db::famous_defs::FamousDefs;
+use syntax::token_span;
 use syntax::{
     AstNode,
     ast::{
@@ -69,7 +70,7 @@ pub(crate) fn generate_default_from_new(
         return None;
     }
 
-    let target = impl_.syntax().text_range();
+    let target = token_span(impl_.syntax());
 
     acc.add(
         AssistId::generate("generate_default_from_new"),
@@ -80,15 +81,10 @@ pub(crate) fn generate_default_from_new(
             let make = editor.make();
             let default_impl = generate_default_impl(make, &impl_, self_ty);
             let indent = IndentLevel::from_node(impl_.syntax());
-            let default_impl = default_impl.indent(indent);
+            let default_impl =
+                default_impl.indent(indent).with_leading_trivia(&format!("\n\n{indent}"), make);
 
-            editor.insert_all(
-                Position::after(impl_.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                    default_impl.syntax().clone().into(),
-                ],
-            );
+            editor.insert(Position::after(impl_.syntax()), default_impl.syntax());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

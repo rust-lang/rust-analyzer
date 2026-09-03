@@ -1,29 +1,26 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       USE_TREE_LIST
-        L_CURLY "{"
+        L_CURLY "{" [] []
         USE_TREE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "a"
-        COMMA ","
-        WHITESPACE " "
+                IDENT "a" [] []
+        COMMA "," [] [WHITESPACE(" ")]
         USE_TREE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "b"
-        COMMA ","
-        WHITESPACE " "
+                IDENT "b" [] []
+        COMMA "," [] [WHITESPACE(" ")]
         USE_TREE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "c"
-        R_CURLY "}"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                IDENT "c" [] []
+        R_CURLY "}" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

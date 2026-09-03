@@ -1,6 +1,7 @@
 use ide_db::{assists::Assist, base_db::AnchoredPathBuf, source_change::FileSystemEdit};
 use itertools::Itertools;
 use syntax::AstNode;
+use syntax::token_span;
 
 use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, fix};
 
@@ -49,7 +50,7 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::UnresolvedModule) -> Option<
                         initial_contents: "".to_owned(),
                     }
                     .into(),
-                    unresolved_module.syntax().text_range(),
+                    token_span(unresolved_module.syntax()),
                 )
             })
             .collect(),

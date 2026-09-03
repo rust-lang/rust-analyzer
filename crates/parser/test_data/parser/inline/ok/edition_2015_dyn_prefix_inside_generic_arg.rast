@@ -1,32 +1,26 @@
 SOURCE_FILE
   TYPE_ALIAS
-    COMMENT "// 2015"
-    WHITESPACE "\n"
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [COMMENT("// 2015"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "A"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "A" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "Foo"
+            IDENT "Foo" [] []
           GENERIC_ARG_LIST
-            L_ANGLE "<"
+            L_ANGLE "<" [] []
             TYPE_ARG
               DYN_TRAIT_TYPE
-                DYN_KW "dyn"
-                WHITESPACE " "
+                DYN_KW "dyn" [] [WHITESPACE(" ")]
                 TYPE_BOUND_LIST
                   TYPE_BOUND
                     PATH_TYPE
                       PATH
                         PATH_SEGMENT
                           NAME_REF
-                            IDENT "T"
-            R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                            IDENT "T" [] []
+            R_ANGLE ">" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

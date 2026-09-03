@@ -1229,20 +1229,17 @@ impl MacroCallKind {
         let get_range = |kind: &_| match kind {
             MacroCallKind::FnLike { ast_id, .. } => {
                 let node = ast_id.to_node(db);
-                node.path()
-                    .unwrap()
-                    .syntax()
-                    .text_range()
+                syntax::token_span(node.path().unwrap().syntax())
                     .cover(node.excl_token().unwrap().text_range())
             }
             MacroCallKind::Derive { ast_id, derive_attr_index, .. } => {
                 // FIXME: should be the range of the macro name, not the whole derive
-                derive_attr_index.find_attr_range(db, krate, *ast_id).1.syntax().text_range()
+                syntax::token_span(derive_attr_index.find_attr_range(db, krate, *ast_id).1.syntax())
             }
             // FIXME: handle `cfg_attr`
-            MacroCallKind::Attr { ast_id, censored_attr_ids: attr_ids, .. } => {
-                attr_ids.invoc_attr().find_attr_range(db, krate, *ast_id).1.syntax().text_range()
-            }
+            MacroCallKind::Attr { ast_id, censored_attr_ids: attr_ids, .. } => syntax::token_span(
+                attr_ids.invoc_attr().find_attr_range(db, krate, *ast_id).1.syntax(),
+            ),
         };
 
         let mut range = get_range(self);

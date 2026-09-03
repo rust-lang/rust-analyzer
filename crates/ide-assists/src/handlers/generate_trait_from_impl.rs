@@ -1,9 +1,10 @@
 use crate::assist_context::{AssistContext, Assists};
 use ide_db::{assists::AssistId, defs::Definition, search::SearchScope};
+use syntax::token_span;
 use syntax::{
-    AstNode, AstToken, SyntaxKind, T,
+    AstNode, AstToken, T,
     ast::{
-        self, HasDocComments, HasGenericParams, HasName, HasVisibility, edit::AstNodeEdit,
+        self, HasGenericParams, HasName, HasVisibility, edit::AstNodeEdit,
         syntax_factory::SyntaxFactory,
     },
     syntax_editor::{Position, SyntaxEditor},
@@ -99,7 +100,7 @@ pub(crate) fn generate_trait_from_impl(
     acc.add(
         AssistId::generate("generate_trait_from_impl"),
         "Generate trait from impl",
-        impl_ast.syntax().text_range(),
+        token_span(impl_ast.syntax()),
         |builder| {
             let trait_items: ast::AssocItemList = {
                 let (trait_items_editor, trait_items) =
@@ -129,9 +130,7 @@ pub(crate) fn generate_trait_from_impl(
             // Change `impl Foo` to `impl NewTrait for Foo`
             let mut elements = vec![
                 trait_name_ref.syntax().clone().into(),
-                make.whitespace(" ").into(),
-                make.token(T![for]).into(),
-                make.whitespace(" ").into(),
+                make.token_trivia(T![for], " ", " ").into(),
             ];
 
             if let Some(params) = params {
@@ -147,12 +146,12 @@ pub(crate) fn generate_trait_from_impl(
             editor.insert_all(Position::before(impl_name.syntax()), elements);
 
             // Insert trait before TraitImpl
-            editor.insert_all(
+            let _first = impl_ast.syntax().first_token();
+            editor.insert(
                 Position::before(impl_ast.syntax()),
-                vec![
-                    trait_ast.syntax().clone().into(),
-                    make.whitespace(&format!("\n\n{}", impl_ast.indent_level())).into(),
-                ],
+                trait_ast
+                    .with_trailing_trivia(&format!("\n\n{}", impl_ast.indent_level()), make)
+                    .syntax(),
             );
 
             // Link the trait name & trait ref names together as a placeholder snippet group
@@ -181,7 +180,7 @@ fn used_params(
             ast::AssocItem::Fn(f) => Some(f.body()?.syntax().text_range()),
             _ => None,
         })
-        .chain(impl_ast.self_ty().map(|it| it.syntax().text_range()))
+        .chain(impl_ast.self_ty().map(|it| token_span(it.syntax())))
         .collect::<Vec<_>>();
     let used_in_impl = |param: &ast::GenericParam| {
         let Some(def) = ctx.sema.to_def(param) else { return true };
@@ -211,28 +210,49 @@ fn trait_name(items: &ast::AssocItemList, make: &SyntaxFactory) -> ast::Name {
 
 /// `E0449` Trait items always share the visibility of their trait
 fn remove_items_visibility(editor: &SyntaxEditor, item: &ast::AssocItem) {
-    if let Some(has_vis) = ast::AnyHasVisibility::cast(item.syntax().clone()) {
-        if let Some(vis) = has_vis.visibility()
-            && let Some(token) = vis.syntax().next_sibling_or_token()
-            && token.kind() == SyntaxKind::WHITESPACE
-        {
-            editor.delete(token);
+    let make = editor.make();
+    if let Some(has_vis) = ast::AnyHasVisibility::cast(item.syntax().clone())
+        && let Some(vis) = has_vis.visibility()
+    {
+        let leading: String = vis
+            .syntax()
+            .first_token()
+            .into_iter()
+            .flat_map(|token| token.leading_trivia())
+            .map(|piece| piece.text().to_owned())
+            .collect();
+        if let Some(next) = syntax::algo::next_non_trivia_token(vis.syntax().clone()) {
+            let trailing: String =
+                next.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+            let moved = make.token_with_trivia(next.kind(), next.text(), &leading, &trailing);
+            editor.replace(next, moved);
         }
-        if let Some(vis) = has_vis.visibility() {
-            editor.delete(vis.syntax());
-        }
+        editor.delete(vis.syntax());
     }
 }
 
 fn remove_doc_comments(editor: &SyntaxEditor, item: &ast::AssocItem) {
-    for doc in item.doc_comments() {
-        if let Some(next) = doc.syntax().next_token()
-            && next.kind() == SyntaxKind::WHITESPACE
-        {
-            editor.delete(next);
-        }
-        editor.delete(doc.syntax());
+    let make = editor.make();
+    let Some(first) = item.syntax().first_token() else { return };
+    let is_doc = |piece: &syntax::SyntaxToken| {
+        ast::Comment::cast(piece.clone()).is_some_and(|it| it.kind().doc.is_some())
+    };
+    if !first.leading_trivia().any(|piece| is_doc(&piece)) {
+        return;
     }
+
+    let mut leading = String::new();
+    for piece in first.leading_trivia() {
+        if is_doc(&piece) {
+            leading.clear();
+        } else {
+            leading.push_str(piece.text());
+        }
+    }
+
+    let trailing: String = first.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+    let stripped = make.token_with_trivia(first.kind(), first.text(), &leading, &trailing);
+    editor.replace(first, stripped);
 }
 
 fn strip_body(editor: &SyntaxEditor, item: &ast::AssocItem) {
@@ -242,10 +262,13 @@ fn strip_body(editor: &SyntaxEditor, item: &ast::AssocItem) {
     {
         // In contrast to function bodies, we want to see no ws before a semicolon.
         // So let's remove them if we see any.
-        if let Some(prev) = body.syntax().prev_sibling_or_token()
-            && prev.kind() == SyntaxKind::WHITESPACE
+        if let Some(prev) = syntax::algo::previous_non_trivia_token(body.syntax().clone())
+            && prev.trailing_trivia().len() != 0
         {
-            editor.delete(prev);
+            let leading: String =
+                prev.leading_trivia().map(|piece| piece.text().to_owned()).collect();
+            let trimmed = make.token_with_trivia(prev.kind(), prev.text(), &leading, "");
+            editor.replace_discard_trivia(prev, trimmed);
         }
 
         editor.replace(body.syntax(), make.token(T![;]));

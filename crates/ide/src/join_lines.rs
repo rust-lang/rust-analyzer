@@ -1,9 +1,12 @@
+use std::iter;
+use syntax::token_span;
+
 use ide_assists::utils::extract_trivial_expression;
 use ide_db::syntax_helpers::node_ext::expr_as_name_ref;
 use itertools::Itertools;
 use syntax::{
     NodeOrToken, SourceFile, SyntaxElement,
-    SyntaxKind::{self, USE_TREE, WHITESPACE},
+    SyntaxKind::{self, USE_TREE},
     SyntaxToken, T, TextRange, TextSize,
     ast::{self, AstNode, AstToken, IsString},
 };
@@ -46,14 +49,19 @@ pub(crate) fn join_lines(
     };
 
     let mut edit = TextEdit::builder();
-    match file.syntax().covering_element(range) {
+    let tokens = match file.syntax().covering_element(range) {
         NodeOrToken::Node(node) => {
-            for token in node.descendants_with_tokens().filter_map(|it| it.into_token()) {
-                remove_newlines(config, &mut edit, &token, range)
-            }
+            node.descendants_with_tokens().filter_map(|it| it.into_token()).collect()
         }
-        NodeOrToken::Token(token) => remove_newlines(config, &mut edit, &token, range),
+        NodeOrToken::Token(token) => vec![token],
     };
+    for token in tokens {
+        let pieces =
+            token.leading_trivia().chain(iter::once(token.clone())).chain(token.trailing_trivia());
+        for piece in pieces {
+            remove_newlines(config, &mut edit, &piece, range)
+        }
+    }
     edit.finish()
 }
 
@@ -79,13 +87,68 @@ fn remove_newlines(
     }
 }
 
+fn whitespace_run(piece: &SyntaxToken) -> (TextRange, bool) {
+    if !piece.kind().is_trivia() {
+        return (piece.text_range(), false);
+    }
+    let prev = syntax::algo::previous_non_trivia_token(piece.clone());
+    let next = syntax::algo::next_non_trivia_token(piece.clone());
+    let start = prev.as_ref().map_or(piece.text_range().start(), |it| it.text_range().end());
+    let end = next.as_ref().map_or(piece.text_range().end(), |it| it.text_range().start());
+
+    let mut newlines = 0;
+    let mut only_whitespace = true;
+    let pieces = prev
+        .into_iter()
+        .flat_map(|it| it.trailing_trivia())
+        .chain(next.into_iter().flat_map(|it| it.leading_trivia()));
+    for piece in pieces {
+        match piece.kind() {
+            SyntaxKind::NEWLINE => newlines += 1,
+            SyntaxKind::WHITESPACE => (),
+            _ => only_whitespace = false,
+        }
+    }
+    (TextRange::new(start, end), only_whitespace && newlines == 1)
+}
+
+fn token_span_of(element: &SyntaxElement) -> TextRange {
+    match element {
+        SyntaxElement::Node(node) => token_span(node),
+        SyntaxElement::Token(token) => token.text_range(),
+    }
+}
+
 fn remove_newline(
     config: &JoinLinesConfig,
     edit: &mut TextEditBuilder,
     token: &SyntaxToken,
     offset: TextSize,
 ) {
-    if token.kind() != WHITESPACE || token.text().bytes().filter(|&b| b == b'\n').count() != 1 {
+    let (ws_range, joinable) = whitespace_run(token);
+
+    if matches!(token.kind(), SyntaxKind::WHITESPACE | SyntaxKind::NEWLINE) {
+        let skip_ws = |mut token: SyntaxToken, forward: bool| loop {
+            if token.kind() != SyntaxKind::WHITESPACE {
+                break Some(token);
+            }
+            token = if forward { token.next_token()? } else { token.prev_token()? };
+        };
+        if let Some(prev) = token.prev_token().and_then(|it| skip_ws(it, false))
+            && let Some(next) = token.next_token().and_then(|it| skip_ws(it, true))
+            && ast::Comment::cast(prev).is_some()
+            && let Some(next) = ast::Comment::cast(next)
+        {
+            // Removes: newline (incl. surrounding whitespace), start of the next comment
+            edit.delete(TextRange::new(
+                offset,
+                next.syntax().text_range().start() + TextSize::of(next.prefix()),
+            ));
+            return;
+        }
+    }
+
+    if !joinable {
         let n_spaces_after_line_break = {
             let suff = &token.text()[TextRange::new(
                 offset - token.text_range().start() + TextSize::of('\n'),
@@ -116,8 +179,24 @@ fn remove_newline(
     }
 
     // The node is between two other nodes
-    let (prev, next) = match (token.prev_sibling_or_token(), token.next_sibling_or_token()) {
-        (Some(prev), Some(next)) => (prev, next),
+    let (start, end) = (ws_range.start(), ws_range.end());
+    let (prev, next) = match (
+        syntax::algo::previous_non_trivia_token(token.clone()),
+        syntax::algo::next_non_trivia_token(token.clone()),
+    ) {
+        (Some(prev), Some(next)) if next.kind() != SyntaxKind::EOF => {
+            let prev = prev
+                .parent_ancestors()
+                .take_while(|it| token_span(it).end() == start)
+                .last()
+                .map_or(SyntaxElement::Token(prev), SyntaxElement::Node);
+            let next = next
+                .parent_ancestors()
+                .take_while(|it| token_span(it).start() == end)
+                .last()
+                .map_or(SyntaxElement::Token(next), SyntaxElement::Node);
+            (prev, next)
+        }
         _ => return,
     };
 
@@ -125,7 +204,7 @@ fn remove_newline(
         match next.kind() {
             T![')'] | T![']'] => {
                 // Removes: trailing comma, newline (incl. surrounding whitespace)
-                edit.delete(TextRange::new(prev.text_range().start(), token.text_range().end()));
+                edit.delete(TextRange::new(token_span_of(&prev).start(), ws_range.end()));
                 return;
             }
             T!['}'] => {
@@ -135,7 +214,7 @@ fn remove_newline(
                     None => " ",
                 };
                 edit.replace(
-                    TextRange::new(prev.text_range().start(), token.text_range().end()),
+                    TextRange::new(token_span_of(&prev).start(), ws_range.end()),
                     space.to_owned(),
                 );
                 return;
@@ -151,7 +230,7 @@ fn remove_newline(
             Some(_) => cov_mark::hit!(join_two_ifs_with_existing_else),
             None => {
                 cov_mark::hit!(join_two_ifs);
-                edit.replace(token.text_range(), " else ".to_owned());
+                edit.replace(ws_range, " else ".to_owned());
                 return;
             }
         }
@@ -192,25 +271,25 @@ fn remove_newline(
     ) {
         // Removes: newline (incl. surrounding whitespace), start of the next comment
         edit.delete(TextRange::new(
-            token.text_range().start(),
+            ws_range.start(),
             next.syntax().text_range().start() + TextSize::of(next.prefix()),
         ));
         return;
     }
 
     // Remove newline but add a computed amount of whitespace characters
-    edit.replace(token.text_range(), compute_ws(prev.kind(), next.kind()).to_owned());
+    edit.replace(ws_range, compute_ws(prev.kind(), next.kind()).to_owned());
 }
 
 fn join_single_expr_block(edit: &mut TextEditBuilder, token: &SyntaxToken) -> Option<()> {
-    let block_expr = ast::BlockExpr::cast(token.parent_ancestors().nth(1)?)?;
+    let block_expr = token.next_token()?.parent_ancestors().find_map(ast::BlockExpr::cast)?;
     if !block_expr.is_standalone() {
         return None;
     }
     let expr = extract_trivial_expression(&block_expr)?;
 
-    let block_range = block_expr.syntax().text_range();
-    let mut buf = expr.syntax().text().to_string();
+    let block_range = token_span(block_expr.syntax());
+    let mut buf = syntax::token_text(expr.syntax());
 
     // Match block needs to have a comma after the block
     if let Some(match_arm) = block_expr.syntax().parent().and_then(ast::MatchArm::cast)
@@ -225,9 +304,9 @@ fn join_single_expr_block(edit: &mut TextEditBuilder, token: &SyntaxToken) -> Op
 }
 
 fn join_single_use_tree(edit: &mut TextEditBuilder, token: &SyntaxToken) -> Option<()> {
-    let use_tree_list = ast::UseTreeList::cast(token.parent()?)?;
+    let use_tree_list = token.next_token()?.parent_ancestors().find_map(ast::UseTreeList::cast)?;
     let (tree,) = use_tree_list.use_trees().collect_tuple()?;
-    edit.replace(use_tree_list.syntax().text_range(), tree.syntax().text().to_string());
+    edit.replace(token_span(use_tree_list.syntax()), syntax::token_text(tree.syntax()));
     Some(())
 }
 
@@ -262,7 +341,7 @@ fn join_assignments(
         return None;
     }
 
-    edit.delete(let_stmt.semicolon_token()?.text_range().cover(lhs.syntax().text_range()));
+    edit.delete(let_stmt.semicolon_token()?.text_range().cover(token_span(lhs.syntax())));
     Some(())
 }
 

@@ -1,46 +1,39 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "A"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "A" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     MACRO_TYPE
       MACRO_CALL
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "foo"
-        BANG "!"
+              IDENT "foo" [] []
+        BANG "!" [] []
         TOKEN_TREE
-          L_PAREN "("
-          R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+          L_PAREN "(" [] []
+          R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "B"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "B" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     MACRO_TYPE
       MACRO_CALL
         PATH
           PATH
             PATH_SEGMENT
               NAME_REF
-                CRATE_KW "crate"
-          COLON2 "::"
+                CRATE_KW "crate" [] []
+          COLON2 "::" [] []
           PATH_SEGMENT
             NAME_REF
-              IDENT "foo"
-        BANG "!"
+              IDENT "foo" [] []
+        BANG "!" [] []
         TOKEN_TREE
-          L_PAREN "("
-          R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+          L_PAREN "(" [] []
+          R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

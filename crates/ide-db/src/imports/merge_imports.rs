@@ -475,7 +475,8 @@ pub fn common_prefix(lhs: &ast::Path, rhs: &ast::Path) -> Option<(ast::Path, ast
     let mut rhs_curr = rhs.first_qualifier_or_self();
     loop {
         match (lhs_curr.segment(), rhs_curr.segment()) {
-            (Some(lhs), Some(rhs)) if lhs.syntax().text() == rhs.syntax().text() => (),
+            (Some(lhs), Some(rhs))
+                if syntax::token_text(lhs.syntax()) == syntax::token_text(rhs.syntax()) => {}
             _ => break res,
         }
         res = Some((lhs_curr.clone(), rhs_curr.clone()));
@@ -715,10 +716,12 @@ fn make_use_tree_list(
     let (editor, use_tree_list) = SyntaxEditor::with_ast_node(&use_tree_list);
     let make = editor.make();
 
+    let l_curly = use_tree_list.l_curly_token()?;
     if let Some(leading_ws) = leading_ws {
-        editor.insert(
-            Position::after(use_tree_list.l_curly_token()?),
-            make.whitespace(leading_ws.text()),
+        let leading: String = l_curly.leading_trivia().map(|it| it.text().to_owned()).collect();
+        editor.replace_discard_trivia(
+            l_curly.clone(),
+            make.token_with_trivia(l_curly.kind(), l_curly.text(), &leading, leading_ws.text()),
         );
     }
 
@@ -739,7 +742,17 @@ fn make_use_tree_list(
     }
 
     if let Some(trailing_ws) = trailing_ws {
-        trailing.push(make.whitespace(trailing_ws.text()).into());
+        let trailing_after: String =
+            r_curly.trailing_trivia().map(|it| it.text().to_owned()).collect();
+        editor.replace_discard_trivia(
+            r_curly.clone(),
+            make.token_with_trivia(
+                r_curly.kind(),
+                r_curly.text(),
+                trailing_ws.text(),
+                &trailing_after,
+            ),
+        );
     }
 
     if !trailing.is_empty() {

@@ -1,28 +1,18 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "main"
+      IDENT "main" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
-        ERROR
-          LABEL
-            LIFETIME
-              LIFETIME_IDENT "'loop"
-            COLON ":"
-        WHITESPACE " "
+        L_CURLY "{" [] [NEWLINE("\n")]
         IMPL
-          IMPL_KW "impl"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+          IMPL_KW "impl" [WHITESPACE("    "), !LIFETIME_IDENT("'loop"), !COLON(":"), WHITESPACE(" ")] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 22: expected a loop or block
-error 27: expected type
-error 27: expected `{`
+error 28: expected type
+error 28: expected `{`

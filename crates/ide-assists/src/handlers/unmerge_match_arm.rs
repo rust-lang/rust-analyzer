@@ -1,5 +1,6 @@
 use syntax::{
-    Direction, SyntaxKind, T,
+    Direction, T,
+    ast::edit::AstNodeEdit,
     ast::{self, AstNode, edit::IndentLevel},
     syntax_editor::{Element, Position},
 };
@@ -66,10 +67,7 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
             };
             let new_match_arm = make.match_arm(new_pat, match_arm.guard(), match_arm_body);
             let mut pipe_index = pipe_token.index();
-            if pipe_token
-                .prev_sibling_or_token()
-                .is_some_and(|it| it.kind() == SyntaxKind::WHITESPACE)
-            {
+            if pipe_token.prev_sibling_or_token().is_some_and(|it| it.kind().is_trivia()) {
                 pipe_index -= 1;
             }
             for child in or_pat
@@ -96,8 +94,7 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
             }
 
             let indent = IndentLevel::from_node(match_arm.syntax());
-            insert_after_old_arm.push(make.whitespace(&format!("\n{indent}")).into());
-
+            let new_match_arm = new_match_arm.with_leading_trivia(&format!("\n{indent}"), make);
             insert_after_old_arm.push(new_match_arm.syntax().clone().into());
 
             editor.insert_all(Position::after(match_arm.syntax()), insert_after_old_arm);

@@ -1,6 +1,8 @@
 use ide_db::syntax_helpers::node_ext::for_each_break_and_continue_expr;
+use syntax::token_span;
 use syntax::{
     SyntaxToken, T,
+    ast::edit::AstNodeEdit,
     ast::{self, AstNode, HasLoopBody},
     syntax_editor::{Position, SyntaxAnnotation, SyntaxEditor},
 };
@@ -38,17 +40,14 @@ pub(crate) fn add_label_to_loop(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
     acc.add(
         AssistId::generate("add_label_to_loop"),
         "Add Label",
-        loop_expr.syntax().text_range(),
+        token_span(loop_expr.syntax()),
         |builder| {
             let editor = builder.make_editor(loop_expr.syntax());
             let make = editor.make();
 
             let label = make.lifetime("'l");
-            let elements = vec![
-                label.syntax().clone().into(),
-                make.token(T![:]).into(),
-                make.whitespace(" ").into(),
-            ];
+            let elements =
+                vec![label.syntax().clone().into(), make.token_trivia(T![:], "", " ").into()];
             editor.insert_all(Position::before(&loop_kw), elements);
 
             let annotation =
@@ -91,9 +90,8 @@ fn insert_label_after_token(
     annotation: SyntaxAnnotation,
 ) {
     let make = editor.make();
-    let label = make.lifetime("'l");
-    let elements = vec![make.whitespace(" ").into(), label.syntax().clone().into()];
-    editor.insert_all(Position::after(token), elements);
+    let label = make.lifetime("'l").with_leading_trivia(" ", make);
+    editor.insert(Position::after(token), label.syntax());
 
     editor.add_annotation(label.syntax(), annotation);
 }

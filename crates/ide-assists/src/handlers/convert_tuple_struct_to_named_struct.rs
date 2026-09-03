@@ -3,9 +3,11 @@ use ide_db::{
     defs::{Definition, NameRefClass},
     search::FileReference,
 };
+use syntax::token_span;
 use syntax::{
     SyntaxKind, T,
     algo::{next_non_trivia_token, previous_non_trivia_token},
+    ast::edit::AstNodeEdit,
     ast::{
         self, AstNode, HasArgList, HasAttrs, HasGenericParams, HasVisibility,
         syntax_factory::SyntaxFactory,
@@ -67,7 +69,7 @@ pub(crate) fn convert_tuple_struct_to_named_struct(
         .or_else(|| ctx.find_node_at_offset::<ast::Variant>().map(Either::Right))?;
     let field_list = strukt_or_variant.as_ref().either(|s| s.field_list(), |v| v.field_list())?;
 
-    if ctx.offset() > field_list.syntax().text_range().start() {
+    if ctx.offset() > token_span(field_list.syntax()).start() {
         // Assist could be distracting after the braces
         return None;
     }
@@ -116,28 +118,37 @@ fn edit_struct_def(
     let record_fields = make.record_field_list(record_fields);
     let tuple_fields_before = Position::before(tuple_fields.syntax());
 
-    if let Either::Left(strukt) = strukt {
-        if let Some(w) = strukt.where_clause() {
-            editor.delete(w.syntax());
-            let mut insert_element = Vec::new();
-            insert_element.push(make.whitespace("\n").syntax_element());
-            insert_element.push(w.syntax().syntax_element());
-            if w.syntax().last_token().is_none_or(|t| t.kind() != SyntaxKind::COMMA) {
-                insert_element.push(make.token(T![,]).into());
+    let mut trailing = String::new();
+    let leading = if let Either::Left(strukt) = strukt {
+        let leading = match strukt.where_clause() {
+            Some(w) => {
+                editor.delete(w.syntax());
+                let w = w.with_leading_trivia("\n", make);
+                let mut insert_element = vec![w.syntax().syntax_element()];
+                if w.syntax().last_token().is_none_or(|t| t.kind() != SyntaxKind::COMMA) {
+                    insert_element.push(make.token(T![,]).into());
+                }
+                editor.insert_all(tuple_fields_before, insert_element);
+                "\n"
             }
-            insert_element.push(make.whitespace("\n").syntax_element());
-            editor.insert_all(tuple_fields_before, insert_element);
-        } else {
-            editor.insert(tuple_fields_before, make.whitespace(" "));
-        }
+            None => " ",
+        };
         if let Some(t) = strukt.semicolon_token() {
+            trailing = t.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
             editor.delete(t);
         }
+        leading
     } else {
-        editor.insert(tuple_fields_before, make.whitespace(" "));
-    }
+        " "
+    };
 
-    editor.replace(tuple_fields.syntax(), record_fields.syntax());
+    editor.replace_discard_trivia(
+        tuple_fields.syntax(),
+        record_fields
+            .with_leading_trivia(leading, make)
+            .with_trailing_trivia(&trailing, make)
+            .syntax(),
+    );
 }
 
 fn edit_struct_references(
@@ -195,8 +206,7 @@ fn process_struct_name_reference(
                     let place = cover_edit_range(source.syntax(), range);
                     let elements = vec![
                         make.name_ref(name.text()).syntax().clone().into(),
-                        make.token(T![:]).into(),
-                        make.whitespace(" ").into(),
+                        make.token_trivia(T![:], "", " ").into(),
                     ];
                     if first_insert.is_empty() {
                         // XXX: SyntaxEditor cannot insert after deleted element
@@ -211,8 +221,7 @@ fn process_struct_name_reference(
                 let mut trailing_insert = vec![];
                 if let Some(rest_pat) = rest_pat {
                     if !first_insert.is_empty() {
-                        trailing_insert.push(make.token(T![,]).into());
-                        trailing_insert.push(make.whitespace(" ").into());
+                        trailing_insert.push(make.token_trivia(T![,], "", " ").into());
                     }
                     trailing_insert.push(make.rest_pat().syntax().clone().into());
                     delete_rest_pat(ctx, source, editor, &rest_pat);
@@ -238,8 +247,7 @@ fn process_struct_name_reference(
                     let place = cover_edit_range(source.syntax(), range);
                     let elements = vec![
                         make.name_ref(name.text()).syntax().clone().into(),
-                        make.token(T![:]).into(),
-                        make.whitespace(" ").into(),
+                        make.token_trivia(T![:], "", " ").into(),
                     ];
                     if first_insert.is_empty() {
                         // XXX: SyntaxEditor cannot insert after deleted element
@@ -269,19 +277,17 @@ fn process_delimiter(
 ) {
     let make = editor.make();
     if l_paren.kind() == T!['('] {
-        let mut open_delim = vec![
-            make.whitespace(" ").into(),
-            make.token(T!['{']).into(),
-            make.whitespace(" ").into(),
-        ];
+        let leading: String = l_paren.leading_trivia().map(|it| it.text().to_owned()).collect();
+        let mut open_delim =
+            vec![make.token_with_trivia(T!['{'], "{", &format!("{leading} "), " ").into()];
         open_delim.extend(first_insert);
-        editor.replace_with_many(l_paren, open_delim);
+        editor.replace_with_many_discard_trivia(l_paren, open_delim);
     }
     if r_paren.kind() == T![')'] {
+        let trailing: String = r_paren.trailing_trivia().map(|it| it.text().to_owned()).collect();
         let mut close_delim = trailing_insert;
-        close_delim.push(make.whitespace(" ").into());
-        close_delim.push(make.token(T!['}']).into());
-        editor.replace_with_many(r_paren, close_delim);
+        close_delim.push(make.token_with_trivia(T!['}'], "}", " ", &trailing).into());
+        editor.replace_with_many_discard_trivia(r_paren, close_delim);
     }
 }
 

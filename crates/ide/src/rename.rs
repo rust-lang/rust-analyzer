@@ -14,6 +14,7 @@ use ide_db::{
 use itertools::Itertools;
 use std::fmt::Write;
 use stdx::{always, format_to, never};
+use syntax::token_span;
 use syntax::{
     AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize,
     ast::{self, HasArgList, prec::ExprPrecedence},
@@ -254,7 +255,7 @@ fn alias_fallback(
         .find_map(ast::UseTree::cast)?;
 
     let last_path_segment = use_tree.path()?.segments().last()?.name_ref()?;
-    if !last_path_segment.syntax().text_range().contains_inclusive(offset) {
+    if !token_span(last_path_segment.syntax()).contains_inclusive(offset) {
         return None;
     };
 
@@ -262,11 +263,11 @@ fn alias_fallback(
 
     match use_tree.rename() {
         Some(rename) => {
-            let offset = rename.syntax().text_range();
+            let offset = token_span(rename.syntax());
             builder.replace(offset, format!("as {new_name}"));
         }
         None => {
-            let offset = use_tree.syntax().text_range().end();
+            let offset = token_span(use_tree.syntax()).end();
             builder.insert(offset, format!(" as {new_name}"));
         }
     }
@@ -454,13 +455,13 @@ fn transform_assoc_fn_into_method_call(
             let self_needs_parens =
                 self_arg.precedence().needs_parentheses_in(ExprPrecedence::Postfix);
 
-            let replace_start = path.syntax().text_range().start();
+            let replace_start = token_span(path.syntax()).start();
             let replace_end = match second_arg {
-                Some(second_arg) => second_arg.syntax().text_range().start(),
+                Some(second_arg) => token_span(second_arg.syntax()).start(),
                 None => arg_list
                     .r_paren_token()
                     .map(|it| it.text_range().start())
-                    .unwrap_or_else(|| arg_list.syntax().text_range().end()),
+                    .unwrap_or_else(|| token_span(arg_list.syntax()).end()),
             };
             let replace_range = TextRange::new(replace_start, replace_end);
             let macro_file = sema.hir_file_for(fn_name.syntax());
@@ -568,7 +569,7 @@ fn rename_to_self<'db>(
     }));
     source_change.insert_source_edit(
         file_id.original_file(sema.db).file_id(sema.db),
-        TextEdit::replace(param_source.syntax().text_range(), String::from(self_param)),
+        TextEdit::replace(token_span(param_source.syntax()), String::from(self_param)),
     );
     transform_assoc_fn_into_method_call(sema, &mut source_change, fn_def);
     Ok(source_change)
@@ -660,12 +661,12 @@ fn transform_method_call_into_assoc_fn(
             let self_needs_parens = self_adjust != CallReceiverAdjust::None
                 && self_arg.precedence().needs_parentheses_in(ExprPrecedence::Prefix);
 
-            let replace_start = method_call.syntax().text_range().start();
+            let replace_start = token_span(method_call.syntax()).start();
             let replace_end = method_call
                 .arg_list()
                 .and_then(|it| it.l_paren_token())
                 .map(|it| it.text_range().end())
-                .unwrap_or_else(|| method_call.syntax().text_range().end());
+                .unwrap_or_else(|| token_span(method_call.syntax()).end());
             let replace_range = TextRange::new(replace_start, replace_end);
             let macro_file = sema.hir_file_for(fn_name.syntax());
             let Some((replace_range, _)) =
@@ -816,7 +817,7 @@ fn text_edit_from_self_param(self_param: &ast::SelfParam, new_name: String) -> O
 
     replacement_text.push_str("Self");
 
-    Some(TextEdit::replace(self_param.syntax().text_range(), replacement_text))
+    Some(TextEdit::replace(token_span(self_param.syntax()), replacement_text))
 }
 
 fn rename_elided_lifetime(

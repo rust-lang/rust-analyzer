@@ -1,6 +1,7 @@
 //! See [`NavigationTarget`].
 
 use std::fmt;
+use syntax::token_span;
 
 use arrayvec::ArrayVec;
 use either::Either;
@@ -444,9 +445,7 @@ where
                 src.map(|(full_range, node)| {
                     (
                         full_range,
-                        node.and_then(|node| {
-                            Some(ast::HasName::name(&node)?.syntax().text_range())
-                        }),
+                        node.and_then(|node| Some(token_span(ast::HasName::name(&node)?.syntax()))),
                     )
                 }),
                 self.name(db),
@@ -468,7 +467,23 @@ impl ToNav for hir::Module {
 
         let name = self.name(db).map(|it| it.symbol().clone()).unwrap_or_else(|| sym::underscore);
         let (syntax, focus) = match &value {
-            ModuleSource::SourceFile(node) => (node.syntax(), None),
+            ModuleSource::SourceFile(node) => {
+                return orig_range_with_focus_r(db, file_id, node.syntax().text_range(), None).map(
+                    |(FileRange { file_id, range: full_range }, focus_range)| {
+                        NavigationTarget::from_syntax(
+                            file_id,
+                            name.clone(),
+                            focus_range,
+                            full_range,
+                            if self.is_crate_root(db) {
+                                SymbolKind::CrateRoot
+                            } else {
+                                SymbolKind::Module
+                            },
+                        )
+                    },
+                );
+            }
             ModuleSource::Module(node) => (node.syntax(), node.name()),
             ModuleSource::BlockExpr(node) => (node.syntax(), None),
         };
@@ -501,7 +516,7 @@ impl TryToNav for hir::Impl {
                 db,
                 file_id,
                 full_range,
-                source.and_then(|source| Some(source.self_ty()?.syntax().text_range())),
+                source.and_then(|source| Some(token_span(source.self_ty()?.syntax()))),
             )
             .map(|(FileRange { file_id, range: full_range }, focus_range)| {
                 NavigationTarget::from_syntax(
@@ -901,12 +916,14 @@ fn orig_range_with_focus(
     value: &SyntaxNode,
     name: Option<impl AstNode>,
 ) -> UpmappingResult<(FileRange, Option<TextRange>)> {
-    orig_range_with_focus_r(
-        db,
-        hir_file,
-        value.text_range(),
-        name.map(|it| it.syntax().text_range()),
-    )
+    let range = syntax::token_span(value);
+    let range = match value.first_token().and_then(|it| {
+        it.leading_trivia().find(|piece| piece.kind() == syntax::SyntaxKind::COMMENT)
+    }) {
+        Some(comment) => TextRange::new(comment.text_range().start(), range.end()),
+        None => range,
+    };
+    orig_range_with_focus_r(db, hir_file, range, name.map(|it| token_span(it.syntax())))
 }
 
 pub(crate) fn orig_range_with_focus_r(

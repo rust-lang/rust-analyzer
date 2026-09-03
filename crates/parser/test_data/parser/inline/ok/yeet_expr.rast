@@ -1,31 +1,23 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           YEET_EXPR
-            DO_KW "do"
-            WHITESPACE " "
-            YEET_KW "yeet"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            DO_KW "do" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            YEET_KW "yeet" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         YEET_EXPR
-          DO_KW "do"
-          WHITESPACE " "
-          YEET_KW "yeet"
-          WHITESPACE " "
+          DO_KW "do" [WHITESPACE("    ")] [WHITESPACE(" ")]
+          YEET_KW "yeet" [] [WHITESPACE(" ")]
           LITERAL
-            INT_NUMBER "1"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+            INT_NUMBER "1" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

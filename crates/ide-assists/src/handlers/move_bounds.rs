@@ -1,4 +1,5 @@
 use either::Either;
+use syntax::token_span;
 use syntax::{
     ast::{self, AstNode, HasName, HasTypeBounds, syntax_factory::SyntaxFactory},
     match_ast,
@@ -39,7 +40,7 @@ pub(crate) fn move_bounds_to_where_clause(
 
     let parent = type_param_list.syntax().parent()?;
 
-    let target = type_param_list.syntax().text_range();
+    let target = token_span(type_param_list.syntax());
     acc.add(
         AssistId::refactor_rewrite("move_bounds_to_where_clause"),
         "Move to where clause",

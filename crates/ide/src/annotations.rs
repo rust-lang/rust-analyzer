@@ -4,6 +4,7 @@ use ide_db::{
     helpers::visit_file_defs, ra_fixture::RaFixtureConfig,
 };
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{AstNode, TextRange, ast::HasName};
 
 use crate::{
@@ -153,14 +154,14 @@ pub(crate) fn annotations(
             node: InFile<T>,
             source_file_id: FileId,
         ) -> Option<(TextRange, Option<TextRange>)> {
-            if let Some(name) = node.value.name().map(|name| name.syntax().text_range()) {
+            if let Some(name) = node.value.name().map(|name| token_span(name.syntax())) {
                 // if we have a name, try mapping that out of the macro expansion as we can put the
                 // annotation on that name token
                 // See `test_no_annotations_macro_struct_def` vs `test_annotations_macro_struct_def_call_site`
                 let res = navigation_target::orig_range_with_focus_r(
                     db,
                     node.file_id,
-                    node.value.syntax().text_range(),
+                    token_span(node.value.syntax()),
                     Some(name),
                 );
                 if res.call_site.0.file_id == source_file_id
@@ -173,8 +174,8 @@ pub(crate) fn annotations(
             let InRealFile { file_id, value } = node.original_ast_node_rooted(db)?;
             if file_id.file_id(db) == source_file_id {
                 Some((
-                    value.syntax().text_range(),
-                    value.name().map(|name| name.syntax().text_range()),
+                    token_span(value.syntax()),
+                    value.name().map(|name| token_span(name.syntax())),
                 ))
             } else {
                 None

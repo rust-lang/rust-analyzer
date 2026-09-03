@@ -4,6 +4,7 @@
 use hir::Semantics;
 use ide_assists::utils::test_related_attribute_syn;
 use ide_db::RootDatabase;
+use syntax::token_span;
 use syntax::{AstNode, SyntaxNode, TextRange, ast, ast::HasName};
 
 use crate::FileId;
@@ -22,10 +23,7 @@ fn method_range(item: SyntaxNode) -> Option<(TextRange, Option<TextRange>)> {
         if test_related_attribute_syn(&fn_def).is_some() {
             None
         } else {
-            Some((
-                fn_def.syntax().text_range(),
-                fn_def.name().map(|name| name.syntax().text_range()),
-            ))
+            Some((token_span(fn_def.syntax()), fn_def.name().map(|name| token_span(name.syntax()))))
         }
     })
 }

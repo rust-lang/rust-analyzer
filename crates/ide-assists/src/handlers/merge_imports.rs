@@ -2,10 +2,14 @@ use ide_db::imports::{
     insert_use::{ImportGranularity, InsertUseConfig},
     merge_imports::{MergeBehavior, try_merge_imports, try_merge_trees},
 };
+use std::iter;
+use syntax::token_span;
+
 use syntax::{
     AstNode, SyntaxElement,
     algo::neighbor,
-    ast, match_ast,
+    ast::{self, edit::AstNodeEdit},
+    match_ast,
     syntax_editor::{Removable, SyntaxEditor},
 };
 
@@ -32,7 +36,7 @@ pub(crate) fn merge_imports(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
         // Merge a neighbor
         cov_mark::hit!(merge_with_use_item_neighbors);
         let tree = ctx.find_node_at_offset::<ast::UseTree>()?.top_use_tree();
-        let target = tree.syntax().text_range();
+        let target = token_span(tree.syntax());
 
         let use_item = tree.syntax().parent().and_then(ast::Use::cast)?;
         let neighbor = next_prev().find_map(|dir| neighbor(&use_item, dir))?;
@@ -100,10 +104,33 @@ fn merge_uses(
     for item in &rest {
         merged = try_merge_imports(editor.make(), &merged, item, mb)?;
     }
+    let leading: String = rest
+        .iter()
+        .map(|it| it.syntax().clone())
+        .chain(iter::once(first.syntax().clone()))
+        .min_by_key(|it| it.text_range().start())
+        .and_then(|it| it.first_token())
+        .into_iter()
+        .flat_map(|token| token.leading_trivia())
+        .map(|piece| piece.text().to_owned())
+        .collect();
     for item in rest {
         item.remove(editor);
     }
-    editor.replace(first.syntax(), merged.syntax());
+    let trailing: String = first
+        .syntax()
+        .last_token()
+        .into_iter()
+        .flat_map(|token| token.trailing_trivia())
+        .map(|piece| piece.text().to_owned())
+        .collect();
+    editor.replace_discard_trivia(
+        first.syntax(),
+        merged
+            .with_leading_trivia(&leading, editor.make())
+            .with_trailing_trivia(&trailing, editor.make())
+            .syntax(),
+    );
     Some(())
 }
 
@@ -120,10 +147,33 @@ fn merge_use_trees(
     for item in &rest {
         merged = try_merge_trees(editor.make(), &merged, item, MergeBehavior::Crate)?;
     }
+    let leading: String = rest
+        .iter()
+        .map(|it| it.syntax().clone())
+        .chain(iter::once(first.syntax().clone()))
+        .min_by_key(|it| it.text_range().start())
+        .and_then(|it| it.first_token())
+        .into_iter()
+        .flat_map(|token| token.leading_trivia())
+        .map(|piece| piece.text().to_owned())
+        .collect();
     for item in rest {
         item.remove(editor);
     }
-    editor.replace(first.syntax(), merged.syntax());
+    let trailing: String = first
+        .syntax()
+        .last_token()
+        .into_iter()
+        .flat_map(|token| token.trailing_trivia())
+        .map(|piece| piece.text().to_owned())
+        .collect();
+    editor.replace_discard_trivia(
+        first.syntax(),
+        merged
+            .with_leading_trivia(&leading, editor.make())
+            .with_trailing_trivia(&trailing, editor.make())
+            .syntax(),
+    );
     Some(())
 }
 

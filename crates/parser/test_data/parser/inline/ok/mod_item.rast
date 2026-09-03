@@ -1,8 +1,7 @@
 SOURCE_FILE
   MODULE
-    MOD_KW "mod"
-    WHITESPACE " "
+    MOD_KW "mod" [] [WHITESPACE(" ")]
     NAME
-      IDENT "a"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      IDENT "a" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []
