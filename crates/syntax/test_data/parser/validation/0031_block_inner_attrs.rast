@@ -40,7 +40,8 @@ SOURCE_FILE@0..611
                     R_PAREN@81..82 ")"
                 R_BRACK@82..83 "]"
               WHITESPACE@83..92 "\n        "
-              COMMENT@92..122 "//! Nor are ModuleDoc ..."
+              DOC_COMMENT@92..122
+                INNER_DOC_COMMENT@92..122 "//! Nor are ModuleDoc ..."
               WHITESPACE@122..127 "\n    "
               R_CURLY@127..128 "}"
           SEMICOLON@128..129 ";"
@@ -86,7 +87,8 @@ SOURCE_FILE@0..611
                       R_PAREN@210..211 ")"
                   R_BRACK@211..212 "]"
                 WHITESPACE@212..221 "\n        "
-                COMMENT@221..251 "//! Nor are ModuleDoc ..."
+                DOC_COMMENT@221..251
+                  INNER_DOC_COMMENT@221..251 "//! Nor are ModuleDoc ..."
                 WHITESPACE@251..256 "\n    "
                 R_CURLY@256..257 "}"
         WHITESPACE@257..262 "\n    "
@@ -116,7 +118,8 @@ SOURCE_FILE@0..611
                       R_PAREN@300..301 ")"
                   R_BRACK@301..302 "]"
                 WHITESPACE@302..311 "\n        "
-                COMMENT@311..341 "//! Nor are ModuleDoc ..."
+                DOC_COMMENT@311..341
+                  INNER_DOC_COMMENT@311..341 "//! Nor are ModuleDoc ..."
                 WHITESPACE@341..346 "\n    "
                 R_CURLY@346..347 "}"
         WHITESPACE@347..353 "\n     "
@@ -143,7 +146,8 @@ SOURCE_FILE@0..611
                       R_PAREN@428..429 ")"
                   R_BRACK@429..430 "]"
                 WHITESPACE@430..439 "\n        "
-                COMMENT@439..468 "//! So are ModuleDoc  ..."
+                DOC_COMMENT@439..468
+                  INNER_DOC_COMMENT@439..468 "//! So are ModuleDoc  ..."
                 WHITESPACE@468..473 "\n    "
                 R_CURLY@473..474 "}"
         WHITESPACE@474..479 "\n    "
@@ -181,7 +185,8 @@ SOURCE_FILE@0..611
                     R_PAREN@562..563 ")"
                 R_BRACK@563..564 "]"
               WHITESPACE@564..573 "\n        "
-              COMMENT@573..602 "//! So are ModuleDoc  ..."
+              DOC_COMMENT@573..602
+                INNER_DOC_COMMENT@573..602 "//! So are ModuleDoc  ..."
               WHITESPACE@602..607 "\n    "
               R_CURLY@607..608 "}"
         WHITESPACE@608..609 "\n"
