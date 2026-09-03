@@ -35,7 +35,7 @@ use crate::{
         HygieneId,
         path::{GenericArgs, Path},
     },
-    type_ref::{Mutability, Rawness},
+    type_ref::{ConstRef, Mutability, Rawness},
 };
 
 pub use syntax::ast::{ArithOp, BinaryOp, CmpOp, LogicOp, Ordering, RangeOp, UnaryOp};
@@ -150,6 +150,115 @@ impl From<PatId> for ExprOrPatIdPacked {
         // virtually impossible to have IDs that high
         debug_assert_eq!(value & Self::PAT_BIT, 0);
         Self(value | Self::PAT_BIT)
+    }
+}
+
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum TypeRefIdOrConstRef {
+    TypeRefId(TypeRefId),
+    ConstRef(ConstRef),
+}
+
+impl TypeRefIdOrConstRef {
+    pub fn as_type_ref_id(self) -> Option<TypeRefId> {
+        match self {
+            Self::TypeRefId(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn is_type_ref_id(&self) -> bool {
+        matches!(self, Self::TypeRefId(_))
+    }
+
+    pub fn at_const_ref(self) -> Option<ConstRef> {
+        match self {
+            Self::ConstRef(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn is_const_ref(&self) -> bool {
+        matches!(self, Self::ConstRef(_))
+    }
+}
+
+#[derive(Copy, Clone, Hash, PartialEq, Eq, salsa::SalsaValue)]
+pub struct TypeRefIdOrConstRefPacked(u32);
+
+const _: () = assert!(mem::size_of::<TypeRefIdOrConstRefPacked>() == mem::size_of::<u32>());
+
+impl TypeRefIdOrConstRefPacked {
+    const CONST_REF_BIT: u32 = 1 << (u32::BITS - 1);
+    const INDEX_MASK: u32 = !Self::CONST_REF_BIT;
+
+    pub fn unpack(self) -> TypeRefIdOrConstRef {
+        match self.is_type_ref_id() {
+            true => TypeRefIdOrConstRef::TypeRefId(TypeRefId::from_raw(RawIdx::from_u32(self.0))),
+            false => TypeRefIdOrConstRef::ConstRef(ConstRef {
+                expr: ExprId::from_raw(RawIdx::from_u32(self.0 & Self::INDEX_MASK)),
+            }),
+        }
+    }
+
+    #[inline]
+    pub fn as_type_ref_id(self) -> Option<TypeRefId> {
+        self.is_type_ref_id().then(|| TypeRefId::from_raw(RawIdx::from_u32(self.0)))
+    }
+
+    #[inline]
+    pub fn is_type_ref_id(&self) -> bool {
+        self.0 & Self::CONST_REF_BIT == 0
+    }
+
+    #[inline]
+    pub fn as_const_ref(self) -> Option<ConstRef> {
+        self.is_const_ref_id().then(|| ConstRef {
+            expr: ExprId::from_raw(RawIdx::from_u32(self.0 & Self::INDEX_MASK)),
+        })
+    }
+
+    #[inline]
+    pub fn is_const_ref_id(&self) -> bool {
+        self.0 & Self::CONST_REF_BIT != 0
+    }
+}
+
+impl fmt::Debug for TypeRefIdOrConstRefPacked {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.unpack() {
+            TypeRefIdOrConstRef::TypeRefId(id) => f.debug_tuple("TypeRefId").field(&id).finish(),
+            TypeRefIdOrConstRef::ConstRef(id) => f.debug_tuple("ConstRef").field(&id).finish(),
+        }
+    }
+}
+
+impl From<TypeRefId> for TypeRefIdOrConstRefPacked {
+    fn from(value: TypeRefId) -> Self {
+        let value = value.into_raw().into_u32();
+        // virtually impossible to have IDs that high
+        debug_assert_eq!(value & Self::CONST_REF_BIT, 0);
+        Self(value)
+    }
+}
+
+impl From<ConstRef> for TypeRefIdOrConstRef {
+    fn from(value: ConstRef) -> Self {
+        TypeRefIdOrConstRef::ConstRef(value)
+    }
+}
+impl From<TypeRefId> for TypeRefIdOrConstRef {
+    fn from(value: TypeRefId) -> Self {
+        TypeRefIdOrConstRef::TypeRefId(value)
+    }
+}
+
+impl From<ConstRef> for TypeRefIdOrConstRefPacked {
+    fn from(value: ConstRef) -> Self {
+        let value = value.expr.into_raw().into_u32();
+        // virtually impossible to have IDs that high
+        debug_assert_eq!(value & Self::CONST_REF_BIT, 0);
+        Self(value | Self::CONST_REF_BIT)
     }
 }
 
