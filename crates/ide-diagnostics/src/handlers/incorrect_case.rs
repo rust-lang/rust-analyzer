@@ -61,7 +61,7 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::IncorrectCase) -> Option<Vec
 
 #[cfg(test)]
 mod change_case {
-    use crate::tests::{check_diagnostics, check_diagnostics_with_disabled, check_fix};
+    use crate::tests::{check_diagnostics, check_fix};
 
     #[test]
     fn test_rename_incorrect_case() {
@@ -617,7 +617,7 @@ trait BAD_TRAIT {
         cov_mark::check!(trait_impl_assoc_const_incorrect_case_ignored);
         cov_mark::check!(trait_impl_assoc_type_incorrect_case_ignored);
         cov_mark::check_count!(trait_impl_assoc_func_name_incorrect_case_ignored, 2);
-        check_diagnostics_with_disabled(
+        check_diagnostics(
             r#"
 trait BAD_TRAIT {
    // ^^^^^^^^^ 💡 warn: Trait `BAD_TRAIT` should have UpperCamelCase name, e.g. `BadTrait`
@@ -643,7 +643,6 @@ impl BAD_TRAIT for () {
     fn BadFunction() {}
 }
     "#,
-            &["unused_variables"],
         );
     }
 
@@ -1006,7 +1005,6 @@ fn func() {
     fn override_lint_level() {
         check_diagnostics(
             r#"
-#![allow(unused_variables)]
 #[warn(nonstandard_style)]
 fn foo() {
     let BAR: i32;
