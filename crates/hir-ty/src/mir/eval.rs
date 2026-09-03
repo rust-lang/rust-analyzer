@@ -814,8 +814,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         self.read_memory(locals.ptr[*op].addr, self.ptr_size())?
                     );
                     metadata = None; // Result of index is always sized
-                    let ty_size =
-                        self.size_of_sized(ty.ty, locals, "array inner type should be sized")?;
+                    let ty_size = self.size_of_sized(ty.ty, locals, "array inner type")?;
                     addr = addr.offset(ty_size * offset);
                 }
                 &ProjectionElem::ConstantIndex { from_end, offset } => {
@@ -838,8 +837,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         offset as usize
                     };
                     metadata = None; // Result of index is always sized
-                    let ty_size =
-                        self.size_of_sized(ty.ty, locals, "array inner type should be sized")?;
+                    let ty_size = self.size_of_sized(ty.ty, locals, "array inner type")?;
                     addr = addr.offset(ty_size * offset);
                 }
                 &ProjectionElem::Subslice { from, to } => {
@@ -856,8 +854,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         }
                         None => None,
                     };
-                    let ty_size =
-                        self.size_of_sized(inner_ty, locals, "array inner type should be sized")?;
+                    let ty_size = self.size_of_sized(inner_ty, locals, "array inner type")?;
                     addr = addr.offset(ty_size * (from as usize));
                 }
                 ProjectionElem::Field(f) => {
