@@ -335,3 +335,16 @@ fn minicore_smoke_test() {
     eprintln!("Checking all minicore flags");
     check(MiniCore::from_flags(MiniCore::available_flags(MiniCore::RAW_SOURCE)))
 }
+
+#[test]
+fn doc_comment_on_literal_expr_no_panic() {
+    // Regression test for https://github.com/rust-lang/rust-analyzer/issues/23293
+    check_diagnostics(
+        r#"
+fn f() {
+    ///
+    0..0;
+}
+"#,
+    );
+}
