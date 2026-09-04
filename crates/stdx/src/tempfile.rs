@@ -91,7 +91,7 @@ mod general_imp {
                 INTERNAL_COUNTER.fetch_add(1, Ordering::AcqRel),
             ));
             let mut open_options = OpenOptions::new();
-            open_options.create_new(true);
+            open_options.write(true).create_new(true);
             match create(open_options, &path) {
                 Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
                 Err(e) => {
@@ -164,6 +164,7 @@ mod imp {
     pub(super) fn create(prefix: &str) -> io::Result<NamedTempFile> {
         let (file, path) = general_imp::create(prefix, |mut options, path| {
             options
+                .write(true)
                 .attributes(FILE_ATTRIBUTE_TEMPORARY)
                 .custom_flags(FILE_FLAG_DELETE_ON_CLOSE)
                 .open(path)
