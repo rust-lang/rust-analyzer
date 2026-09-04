@@ -869,6 +869,14 @@ impl TtTreeSink<'_> {
     /// Parses a float literal as if it was a one to two name ref nodes with a dot inbetween.
     /// This occurs when a float literal is used as a field access.
     fn float_split(&mut self, has_pseudo_dot: bool) {
+        self.do_float_split(has_pseudo_dot, true);
+    }
+
+    fn float_split_offset_of(&mut self, has_pseudo_dot: bool) {
+        self.do_float_split(has_pseudo_dot, false);
+    }
+
+    fn do_float_split(&mut self, has_pseudo_dot: bool, in_field_expr: bool) {
         let token_tree = self.cursor.token_tree();
         let (text, span) = match &token_tree {
             Some(tt::TokenTree::Leaf(tt::Leaf::Literal(
@@ -886,8 +894,10 @@ impl TtTreeSink<'_> {
                 self.inner.finish_node();
                 self.token_map.push(self.text_pos + TextSize::of(left), span);
 
-                // here we move the exit up, the original exit has been deleted in process
-                self.inner.finish_node();
+                if in_field_expr {
+                    // here we move the exit up, the original exit has been deleted in process
+                    self.inner.finish_node();
+                }
 
                 self.inner.token(SyntaxKind::DOT, ".");
                 self.token_map.push(self.text_pos + TextSize::of(left) + TextSize::of("."), span);
@@ -901,8 +911,10 @@ impl TtTreeSink<'_> {
                     self.token_map.push(self.text_pos + TextSize::of(text), span);
                     self.inner.finish_node();
 
-                    // the parser creates an unbalanced start node, we are required to close it here
-                    self.inner.finish_node();
+                    if in_field_expr {
+                        // the parser creates an unbalanced start node, we are required to close it here
+                        self.inner.finish_node();
+                    }
                 }
                 self.text_pos += TextSize::of(text);
             }
@@ -912,55 +924,13 @@ impl TtTreeSink<'_> {
                 self.inner.token(SyntaxKind::FLOAT_NUMBER, text);
                 self.token_map.push(self.text_pos + TextSize::of(text), span);
                 self.inner.finish_node();
-                self.inner.finish_node();
 
-                if !has_pseudo_dot {
+                if in_field_expr {
                     self.inner.finish_node();
+                    if !has_pseudo_dot {
+                        self.inner.finish_node();
+                    }
                 }
-
-                self.text_pos += TextSize::of(text);
-            }
-        }
-        self.cursor.bump();
-    }
-
-    fn float_split_offset_of(&mut self, has_pseudo_dot: bool) {
-        let token_tree = self.cursor.token_tree();
-        let (text, span) = match &token_tree {
-            Some(tt::TokenTree::Leaf(tt::Leaf::Literal(
-                lit @ tt::Literal { span, kind: tt::LitKind::Float, .. },
-            ))) => (lit.text(), *span),
-            tt => unreachable!("{tt:?}"),
-        };
-        match text.split_once('.') {
-            Some((left, right)) => {
-                assert!(!left.is_empty());
-
-                self.inner.start_node(SyntaxKind::NAME_REF);
-                self.inner.token(SyntaxKind::INT_NUMBER, left);
-                self.inner.finish_node();
-                self.token_map.push(self.text_pos + TextSize::of(left), span);
-
-                self.inner.token(SyntaxKind::DOT, ".");
-                self.token_map.push(self.text_pos + TextSize::of(left) + TextSize::of("."), span);
-
-                if has_pseudo_dot {
-                    assert!(right.is_empty(), "{left}.{right}");
-                } else {
-                    assert!(!right.is_empty(), "{left}.{right}");
-                    self.inner.start_node(SyntaxKind::NAME_REF);
-                    self.inner.token(SyntaxKind::INT_NUMBER, right);
-                    self.token_map.push(self.text_pos + TextSize::of(text), span);
-                    self.inner.finish_node();
-                }
-                self.text_pos += TextSize::of(text);
-            }
-            None => {
-                self.error("illegal float literal".to_owned());
-                self.inner.start_node(SyntaxKind::ERROR);
-                self.inner.token(SyntaxKind::FLOAT_NUMBER, text);
-                self.token_map.push(self.text_pos + TextSize::of(text), span);
-                self.inner.finish_node();
 
                 self.text_pos += TextSize::of(text);
             }

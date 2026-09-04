@@ -269,12 +269,13 @@ fn builtin_expr(p: &mut Parser<'_>) -> Option<CompletedMarker> {
         // fn foo() {
         //     builtin#offset_of(Foo, (bar.baz.0));
         // }
+
+        // test offset_of_nested_tuple
+        // fn foo() {
+        //     builtin#offset_of(ComplexTup, 0.1.1.1);
+        // }
         while !p.at(EOF) && !p.at(T![')']) {
             if p.at(FLOAT_NUMBER) {
-                // test offset_of_nested_tuple
-                // fn foo() {
-                //     builtin#offset_of(ComplexTup, 0.1.1.1);
-                // }
                 let ends_in_dot = p.split_float_offset_of();
                 if ends_in_dot {
                     continue;

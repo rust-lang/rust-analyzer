@@ -128,23 +128,21 @@ impl Builder<'_, '_> {
     }
 
     fn float_split(&mut self, has_pseudo_dot: bool) {
-        match mem::replace(&mut self.state, State::Normal) {
-            State::PendingEnter => unreachable!(),
-            State::PendingExit => (self.sink)(StrStep::Exit),
-            State::Normal => (),
-        }
-        self.eat_trivias();
-        self.do_float_split(has_pseudo_dot);
+        self.split_float_impl(has_pseudo_dot, true);
     }
 
     fn float_split_offset_of(&mut self, has_pseudo_dot: bool) {
+        self.split_float_impl(has_pseudo_dot, false);
+    }
+
+    fn split_float_impl(&mut self, has_pseudo_dot: bool, in_field_expr: bool) {
         match mem::replace(&mut self.state, State::Normal) {
             State::PendingEnter => unreachable!(),
             State::PendingExit => (self.sink)(StrStep::Exit),
             State::Normal => (),
         }
         self.eat_trivias();
-        self.do_float_split_offset_of(has_pseudo_dot);
+        self.do_float_split(has_pseudo_dot, in_field_expr);
     }
 
     fn enter(&mut self, kind: SyntaxKind) {
@@ -203,7 +201,7 @@ impl Builder<'_, '_> {
         (self.sink)(StrStep::Token { kind, text });
     }
 
-    fn do_float_split(&mut self, has_pseudo_dot: bool) {
+    fn do_float_split(&mut self, has_pseudo_dot: bool, in_field_expr: bool) {
         let text = &self.lexed.range_text(self.pos..self.pos + 1);
 
         match text.split_once('.') {
@@ -213,22 +211,28 @@ impl Builder<'_, '_> {
                 (self.sink)(StrStep::Token { kind: SyntaxKind::INT_NUMBER, text: left });
                 (self.sink)(StrStep::Exit);
 
-                // here we move the exit up, the original exit has been deleted in process
-                (self.sink)(StrStep::Exit);
+                if in_field_expr {
+                    // here we move the exit up, the original exit has been deleted in process
+                    (self.sink)(StrStep::Exit);
+                }
 
                 (self.sink)(StrStep::Token { kind: SyntaxKind::DOT, text: "." });
 
                 if has_pseudo_dot {
                     assert!(right.is_empty(), "{left}.{right}");
-                    self.state = State::Normal;
+                    if in_field_expr {
+                        self.state = State::Normal;
+                    }
                 } else {
                     assert!(!right.is_empty(), "{left}.{right}");
                     (self.sink)(StrStep::Enter { kind: SyntaxKind::NAME_REF });
                     (self.sink)(StrStep::Token { kind: SyntaxKind::INT_NUMBER, text: right });
                     (self.sink)(StrStep::Exit);
 
-                    // the parser creates an unbalanced start node, we are required to close it here
-                    self.state = State::PendingExit;
+                    if in_field_expr {
+                        // the parser creates an unbalanced start node, we are required to close it here
+                        self.state = State::PendingExit;
+                    }
                 }
             }
             None => {
@@ -239,42 +243,11 @@ impl Builder<'_, '_> {
                 (self.sink)(StrStep::Token { kind: SyntaxKind::FLOAT_NUMBER, text });
                 (self.sink)(StrStep::Exit);
 
-                // move up
-                (self.sink)(StrStep::Exit);
-
-                self.state = if has_pseudo_dot { State::Normal } else { State::PendingExit };
-            }
-        }
-
-        self.pos += 1;
-    }
-
-    fn do_float_split_offset_of(&mut self, has_pseudo_dot: bool) {
-        let text = &self.lexed.range_text(self.pos..self.pos + 1);
-
-        match text.split_once('.') {
-            Some((left, right)) => {
-                assert!(!left.is_empty());
-                (self.sink)(StrStep::Enter { kind: SyntaxKind::NAME_REF });
-                (self.sink)(StrStep::Token { kind: SyntaxKind::INT_NUMBER, text: left });
-                (self.sink)(StrStep::Exit);
-
-                (self.sink)(StrStep::Token { kind: SyntaxKind::DOT, text: "." });
-
-                if has_pseudo_dot {
-                    assert!(right.is_empty(), "{left}.{right}");
-                } else {
-                    assert!(!right.is_empty(), "{left}.{right}");
-                    (self.sink)(StrStep::Enter { kind: SyntaxKind::NAME_REF });
-                    (self.sink)(StrStep::Token { kind: SyntaxKind::INT_NUMBER, text: right });
+                if in_field_expr {
+                    // move up
                     (self.sink)(StrStep::Exit);
+                    self.state = if has_pseudo_dot { State::Normal } else { State::PendingExit };
                 }
-            }
-            None => {
-                (self.sink)(StrStep::Error { msg: "illegal float literal", pos: self.pos });
-                (self.sink)(StrStep::Enter { kind: SyntaxKind::ERROR });
-                (self.sink)(StrStep::Token { kind: SyntaxKind::FLOAT_NUMBER, text });
-                (self.sink)(StrStep::Exit);
             }
         }
 
