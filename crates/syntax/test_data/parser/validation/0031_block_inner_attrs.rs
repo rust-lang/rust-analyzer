@@ -26,4 +26,18 @@ fn block() {
             //! So are ModuleDoc comments
         },
     );
+    let a = [
+        {
+            #![doc("This is fine, array elements accept inner attributes")]
+            //! So are ModuleDoc comments
+        },
+    ];
+    g({
+        #![doc("This is fine, call arguments accept inner attributes")]
+        //! So are ModuleDoc comments
+    });
+    s.m({
+        #![doc("This is fine, method call arguments accept attributes")]
+        //! So are ModuleDoc comments
+    });
 }
