@@ -114,6 +114,7 @@ fn add_or_fix_reference(
     expr_ptr: &InFile<AstPtr<ast::Expr>>,
     acc: &mut Vec<Assist>,
 ) -> Option<()> {
+    let range = ctx.sema.diagnostics_display_range((*expr_ptr).map(|it| it.into()));
     let (expected_with_ref_removed, expected_mutability) = d.expected.as_reference()?;
 
     if let Some((actual_with_ref_removed, hir::Mutability::Shared)) = d.actual.as_reference()
@@ -129,11 +130,10 @@ fn add_or_fix_reference(
         // as the suggestion would overwrite the macro _definition_ position
         let expr = ctx.sema.original_ast_node(expr)?;
         let expr_without_ref = RefExpr::cast(expr.syntax().clone())?.expr()?;
-        let range = ctx.sema.original_range_opt(expr.syntax())?;
 
         let pos = expr_without_ref.syntax().text_range().start();
         let edit = TextEdit::insert(pos, expected_mutability.as_keyword_for_ref().to_owned());
-        let source_change = SourceChange::from_text_edit(range.file_id.file_id(ctx.db()), edit);
+        let source_change = SourceChange::from_text_edit(range.file_id, edit);
         acc.push(fix(
             "make_reference_mutable",
             "Make reference mutable",
