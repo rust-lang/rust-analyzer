@@ -1034,11 +1034,11 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
             }
             Expr::BinaryOp { lhs, rhs, op } => {
                 let op: BinaryOp = op.ok_or(MirLowerError::IncompleteExpr)?;
+                // Without adjust here is a hack. We assume that we know every possible adjustment
+                // for binary operator, and use without adjust to simplify our conditions.
+                let lhs_ty = self.expr_ty_without_adjust(*lhs);
+                let rhs_ty = self.expr_ty_without_adjust(*rhs);
                 let is_builtin = 'b: {
-                    // Without adjust here is a hack. We assume that we know every possible adjustment
-                    // for binary operator, and use without adjust to simplify our conditions.
-                    let lhs_ty = self.expr_ty_without_adjust(*lhs);
-                    let rhs_ty = self.expr_ty_without_adjust(*rhs);
                     if matches!(op, BinaryOp::CmpOp(syntax::ast::CmpOp::Eq { .. }))
                         && matches!(lhs_ty.kind(), TyKind::RawPtr(..))
                         && matches!(rhs_ty.kind(), TyKind::RawPtr(..))
@@ -1066,18 +1066,27 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
                             | TyKind::Float(_)
                     ) && (lhs_ty == rhs_ty || builtin_inequal_impls)
                 };
-                if !is_builtin
-                    && let Some((func_id, generic_args)) = self.infer.method_resolution(expr_id)
-                {
-                    let func = Operand::from_fn(self.db, func_id, generic_args);
-                    return self.lower_call_and_args(
-                        func,
-                        [*lhs, *rhs].into_iter(),
-                        place,
-                        current,
-                        self.is_uninhabited(expr_id),
-                        expr_id.into(),
-                    );
+                if !is_builtin {
+                    if let Some((func_id, generic_args)) = self.infer.method_resolution(expr_id) {
+                        let func = Operand::from_fn(self.db, func_id, generic_args);
+                        return self.lower_call_and_args(
+                            func,
+                            [*lhs, *rhs].into_iter(),
+                            place,
+                            current,
+                            self.is_uninhabited(expr_id),
+                            expr_id.into(),
+                        );
+                    }
+                    // When PartialEq is unavailable, inference cannot record a method resolution.
+                    // Keep the existing direct equality lowering for same-typed values in that case.
+                    if !matches!(op, BinaryOp::CmpOp(syntax::ast::CmpOp::Eq { .. }))
+                        || lhs_ty != rhs_ty
+                    {
+                        return Err(MirLowerError::TypeError(
+                            "binary operation was neither builtin nor overloaded",
+                        ));
+                    }
                 }
                 if let hir_def::hir::BinaryOp::Assignment { op: Some(op) } = op {
                     // last adjustment is `&mut` which we don't want it.
