@@ -91,7 +91,7 @@ mod general_imp {
                 INTERNAL_COUNTER.fetch_add(1, Ordering::AcqRel),
             ));
             let mut open_options = OpenOptions::new();
-            open_options.create_new(true);
+            open_options.write(true).create_new(true);
             match create(open_options, &path) {
                 Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
                 Err(e) => {
@@ -164,6 +164,7 @@ mod imp {
     pub(super) fn create(prefix: &str) -> io::Result<NamedTempFile> {
         let (file, path) = general_imp::create(prefix, |mut options, path| {
             options
+                .write(true)
                 .attributes(FILE_ATTRIBUTE_TEMPORARY)
                 .custom_flags(FILE_FLAG_DELETE_ON_CLOSE)
                 .open(path)
@@ -185,5 +186,37 @@ mod imp {
     pub(super) fn create(prefix: &str) -> io::Result<NamedTempFile> {
         let (file, path) = general_imp::create(prefix, |options, path| options.open(path))?;
         Ok(NamedTempFile { _file: Some(file), path, delete_on_drop: true })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static TEST_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    fn unique_path(prefix: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "{prefix}-{}-{}",
+            std::process::id(),
+            TEST_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ))
+    }
+
+    #[test]
+    fn named_temp_file_new_creates_file() {
+        let file = NamedTempFile::new("test-").unwrap();
+        assert!(file.path().exists());
+    }
+
+    #[test]
+    fn named_temp_file_new_from_existing_copies_contents() {
+        let source = unique_path("named-temp-file-source");
+        std::fs::write(&source, b"test contents").unwrap();
+        let file = NamedTempFile::new_from_existing("test-", &source).unwrap();
+        assert_eq!(std::fs::read(file.path()).unwrap(), b"test contents");
+        drop(file);
+        std::fs::remove_file(source).unwrap();
     }
 }
