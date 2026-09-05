@@ -1,20 +1,19 @@
 import * as os from "os";
-import * as vscode from "vscode";
 import * as path from "path";
-import type * as ra from "./lsp_ext";
-
-import { Cargo } from "./toolchain";
+import * as vscode from "vscode";
+import type { Config } from "./config";
 import type { Ctx } from "./ctx";
+import type * as ra from "./lsp_ext";
 import { createTaskFromRunnable, prepareEnv } from "./run";
+import { Cargo } from "./toolchain";
 import {
+    Env,
     execute,
     isCargoRunnableArgs,
-    unwrapUndefinable,
     log,
     normalizeDriveLetter,
-    Env,
+    unwrapUndefinable,
 } from "./util";
-import type { Config } from "./config";
 
 // Here we want to keep track on everything that's currently running
 const activeDebugSessionIds: string[] = [];
@@ -27,7 +26,7 @@ export async function makeDebugConfig(ctx: Ctx, runnable: ra.Runnable): Promise<
     if (!debugConfig) return;
 
     const wsLaunchSection = vscode.workspace.getConfiguration("launch", scope);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: todo
     const configurations = wsLaunchSection.get<any[]>("configurations") || [];
 
     const index = configurations.findIndex((c) => c.name === debugConfig.name);
@@ -52,7 +51,7 @@ export async function startDebugSession(ctx: Ctx, runnable: ra.Runnable): Promis
     let message = "";
 
     const wsLaunchSection = vscode.workspace.getConfiguration("launch");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: todo
     const configurations = wsLaunchSection.get<any[]>("configurations") || [];
 
     // The runnable label is the name of the test with the "test prefix"
@@ -185,7 +184,7 @@ async function getDebugConfiguration(
         sourceFileMap,
     );
     if (debugConfig.type in debugOptions.engineSettings) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // biome-ignore lint/suspicious/noExplicitAny: todo
         const settingsMap = (debugOptions.engineSettings as any)[debugConfig.type];
         for (const key in settingsMap) {
             debugConfig[key] = settingsMap[key];

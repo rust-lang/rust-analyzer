@@ -3,8 +3,8 @@ import * as os from "os";
 import * as path from "path";
 import * as readline from "readline";
 import * as vscode from "vscode";
-import { Env, isWindows, log, memoizeAsync, unwrapUndefinable } from "./util";
 import type { CargoRunnableArgs } from "./lsp_ext";
+import { Env, isWindows, log, memoizeAsync, unwrapUndefinable } from "./util";
 
 interface CompilationArtifact {
     fileName: string;
