@@ -409,11 +409,26 @@ fn hover_ranged(
     display_target: DisplayTarget,
 ) -> Option<RangeInfo<HoverResult>> {
     // FIXME: make this work in attributes
-    let expr_or_pat = file
+    let mut expr_or_pat = file
         .covering_element(range)
         .ancestors()
         .take_while(|it| ast::MacroCall::can_cast(it.kind()) || !ast::Item::can_cast(it.kind()))
         .find_map(Either::<ast::Expr, ast::Pat>::cast)?;
+    if let Either::Left(ast::Expr::MacroExpr(macro_expr)) = &expr_or_pat
+        && let Some(macro_call) = macro_expr.macro_call()
+        && let Some(token_tree) = macro_call.token_tree()
+        && token_tree.syntax().text_range().contains_range(range)
+    {
+        // XXX: Maybe checking range.end() and use kmerge is a good idea?
+        expr_or_pat = sema.find_nodes_at_offset_with_descend(&file, range.start()).find(
+            |it: &Either<ast::Expr, ast::Pat>| {
+                let origin = sema.original_range_opt(it.syntax());
+                origin.is_some_and(|it| {
+                    it.range.contains_range(range) && it.file_id.file_id(sema.db) == file_id
+                })
+            },
+        )?
+    }
     let res = match &expr_or_pat {
         Either::Left(ast::Expr::TryExpr(try_expr)) => {
             render::try_expr(sema, config, try_expr, edition, display_target)
