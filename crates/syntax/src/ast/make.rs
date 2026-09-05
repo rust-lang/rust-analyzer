@@ -167,6 +167,10 @@ pub fn lifetime(text: &str) -> ast::Lifetime {
     }
 }
 
+pub fn label(lifetime: ast::Lifetime) -> ast::Label {
+    ast_from_text(&format!("fn f() {{ {lifetime}: loop {{}} }}"))
+}
+
 // FIXME: replace stringly-typed constructor with a family of typed ctors, a-la
 // `expr_xxx`.
 pub fn ty(text: &str) -> ast::Type {
