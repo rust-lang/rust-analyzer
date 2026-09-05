@@ -209,7 +209,7 @@ trait Bar: Sized {
     fn bar<T>(&self, t: T);
 }
 "#,
-        [("Bar", vec![SizedSelf])],
+        [("Bar", vec![SizedSelf, Method(Generic)])],
     );
 
     check_dyn_compatibility(
@@ -221,7 +221,7 @@ trait Bar
     fn bar<T>(&self, t: T);
 }
 "#,
-        [("Bar", vec![SizedSelf])],
+        [("Bar", vec![SizedSelf, Method(Generic)])],
     );
 }
 
