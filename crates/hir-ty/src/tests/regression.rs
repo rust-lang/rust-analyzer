@@ -3232,3 +3232,25 @@ fn main() {
     "#,
     );
 }
+
+#[test]
+fn regression_22821() {
+    check_no_mismatches(
+        r#"
+fn test(temp: usize) {
+    async |b, b| { temp };
+}
+    "#,
+    );
+}
+
+#[test]
+fn regression_22821_complex_param_pattern() {
+    check_no_mismatches(
+        r#"
+fn test(temp: usize) {
+    async |(b, c), b| { temp };
+}
+    "#,
+    );
+}
