@@ -272,6 +272,13 @@ impl<'db> std::fmt::Debug for Clauses<'db> {
     }
 }
 
+impl<'db> Default for Clauses<'db> {
+    #[inline]
+    fn default() -> Self {
+        Clauses::empty(DbInterner::conjure())
+    }
+}
+
 impl<'db> Clauses<'db> {
     #[inline]
     pub fn empty(interner: DbInterner<'db>) -> Self {
