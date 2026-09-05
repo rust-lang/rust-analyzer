@@ -3232,3 +3232,98 @@ fn main() {
     "#,
     );
 }
+
+#[test]
+fn nested_associated_type_bound_independent_hrtb_does_not_panic() {
+    check_no_mismatches(
+        r#"
+trait TraitA<'a> {
+    type Assoc;
+}
+
+trait TraitB<'b> {}
+trait TraitC<'c, 'd> {}
+
+fn foo<T>()
+where
+    for<'a> T: TraitA<
+        'a,
+        Assoc: for<'b> TraitB<'b> + for<'c, 'd> TraitC<'c, 'd>,
+    >,
+{
+    foo::<T>();
+}
+"#,
+    );
+}
+
+#[test]
+fn nested_associated_type_bound_hrtb_does_not_panic() {
+    check_no_mismatches(
+        r#"
+trait TraitA<'a> {
+    type Assoc;
+}
+
+trait TraitB<'b> {
+    type Assoc;
+}
+
+trait TraitC<'a, 'b, 'c> {}
+
+fn one_level<T>()
+where
+    for<'a> T: TraitA<'a, Assoc: for<'b> TraitB<'a>>,
+{
+    one_level::<T>();
+}
+
+fn two_levels<T>()
+where
+    for<'a> T: TraitA<
+        'a,
+        Assoc: for<'b> TraitB<'a, Assoc: for<'c> TraitC<'a, 'b, 'c>>,
+    >,
+{
+    two_levels::<T>();
+}
+"#,
+    );
+}
+
+#[test]
+fn issue_23064() {
+    check_no_mismatches(
+        r#"
+trait TraitA<'a> {
+    type AsA;
+}
+
+trait TraitB<'b> {
+    type AsB;
+}
+
+trait TraitC {}
+
+fn foo()
+where
+    for<'a> T: TraitA<'a, AsA: for<'b> TraitB<'a, AsB: TraitC>>,
+{
+    foo();
+}
+"#,
+    );
+}
+
+#[test]
+fn issue_23063() {
+    check_no_mismatches(
+        r#"
+trait TraitA<'a, 'b, 'c> { type AsA; }
+trait TraitB<'a, 'b> { type AsB; }
+trait TraitC<'a, 'b, 'c> {}
+
+fn foo<T>() where for<const N: u8 = { T::<0>::A as u8 + TraitB<'a, 'b, AsB: for<'c> TraitC<'a, 'b, 'c>>::B as u8 }> T: TraitA<'a, AsA: for<'b> TraitB<'a, 'b, AsB: for<'c> TraitC<'a, 'b, 'c>>> { div(()) }
+"#,
+    );
+}
