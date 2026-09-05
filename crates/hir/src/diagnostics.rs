@@ -147,7 +147,7 @@ diagnostics![AnyDiagnostic<'db> ->
     InactiveCode,
     IncoherentImpl,
     IncorrectCase,
-    IncorrectGenericsLen,
+    IncorrectGenericsLen<'db>,
     IncorrectGenericsOrder,
     InferVarsNotAllowed,
     InvalidCast<'db>,
@@ -173,16 +173,16 @@ diagnostics![AnyDiagnostic<'db> ->
     MismatchedArrayPatLen,
     DuplicateField,
     PatternArgInExternFn,
-    PrivateAssocItem,
+    PrivateAssocItem<'db>,
     PrivateField,
     RemoveTrailingReturn,
     RemoveUnnecessaryElse,
     UnusedMustUse<'db>,
     ReplaceFilterMapNextWithFindMap,
     TraitImplIncorrectSafety,
-    TraitImplMissingAssocItems,
+    TraitImplMissingAssocItems<'db>,
     TraitImplOrphan,
-    TraitImplRedundantAssocItems,
+    TraitImplRedundantAssocItems<'db>,
     TypedHole<'db>,
     TypeMismatch<'db>,
     UndeclaredLabel,
@@ -199,8 +199,8 @@ diagnostics![AnyDiagnostic<'db> ->
     GenericArgsProhibited,
     ParenthesizedGenericArgsWithoutFnTrait,
     BadRtn,
-    MissingLifetime,
-    ElidedLifetimesInPath,
+    MissingLifetime<'db>,
+    ElidedLifetimesInPath<'db>,
     TypeMustBeKnown<'db>,
     UnionExprMustHaveExactlyOneField,
     UnionPatMustHaveExactlyOneField,
@@ -320,9 +320,9 @@ pub struct DuplicateField {
 }
 
 #[derive(Debug)]
-pub struct PrivateAssocItem {
+pub struct PrivateAssocItem<'db> {
     pub expr_or_pat: InFile<ExprOrPatPtr>,
-    pub item: AssocItem,
+    pub item: AssocItem<'db>,
 }
 
 #[derive(Debug)]
@@ -427,7 +427,7 @@ pub struct UnresolvedMethodCall<'db> {
     pub receiver: Type<'db>,
     pub name: Name,
     pub field_with_same_name: Option<Type<'db>>,
-    pub assoc_func_with_same_name: Option<Function>,
+    pub assoc_func_with_same_name: Option<Function<'db>>,
 }
 
 #[derive(Debug)]
@@ -536,18 +536,18 @@ pub struct TraitImplIncorrectSafety {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct TraitImplMissingAssocItems {
+pub struct TraitImplMissingAssocItems<'db> {
     pub file_id: HirFileId,
     pub impl_: AstPtr<ast::Impl>,
-    pub missing: Vec<(Name, AssocItem)>,
+    pub missing: Vec<(Name, AssocItem<'db>)>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct TraitImplRedundantAssocItems {
+pub struct TraitImplRedundantAssocItems<'db> {
     pub file_id: HirFileId,
     pub trait_: Trait,
     pub impl_: AstPtr<ast::Impl>,
-    pub assoc_item: (Name, AssocItem),
+    pub assoc_item: (Name, AssocItem<'db>),
 }
 
 #[derive(Debug)]
@@ -602,29 +602,29 @@ pub struct InferVarsNotAllowed {
 }
 
 #[derive(Debug)]
-pub struct IncorrectGenericsLen {
+pub struct IncorrectGenericsLen<'db> {
     /// Points at the name if there are no generics.
     pub generics_or_segment: InFile<AstPtr<Either<ast::GenericArgList, ast::NameRef>>>,
     pub kind: IncorrectGenericsLenKind,
     pub provided: u32,
     pub expected: u32,
-    pub def: GenericDef,
+    pub def: GenericDef<'db>,
 }
 
 #[derive(Debug)]
-pub struct MissingLifetime {
+pub struct MissingLifetime<'db> {
     /// Points at the name if there are no generics.
     pub generics_or_segment: InFile<AstPtr<Either<ast::GenericArgList, ast::NameRef>>>,
     pub expected: u32,
-    pub def: GenericDef,
+    pub def: GenericDef<'db>,
 }
 
 #[derive(Debug)]
-pub struct ElidedLifetimesInPath {
+pub struct ElidedLifetimesInPath<'db> {
     /// Points at the name if there are no generics.
     pub generics_or_segment: InFile<AstPtr<Either<ast::GenericArgList, ast::NameRef>>>,
     pub expected: u32,
-    pub def: GenericDef,
+    pub def: GenericDef<'db>,
     pub hard_error: bool,
 }
 
@@ -905,13 +905,13 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
         }
     }
 
-    fn collect_assoc_items(&mut self, defs: &[(Name, AssocItemId)], def_map: &DefMap) {
+    fn collect_assoc_items(&mut self, defs: &[(Name, AssocItemId)], def_map: &DefMap<'_>) {
         for &(_, def) in defs {
             self.collect_module_def(def.into(), def_map);
         }
     }
 
-    fn collect_trait(&mut self, def: TraitId, def_map: &DefMap) {
+    fn collect_trait(&mut self, def: TraitId, def_map: &DefMap<'_>) {
         let (signature, source_map) = TraitSignature::with_source_map(self.db, def);
         let items = TraitItems::query_with_diagnostics(self.db, def);
 
@@ -925,7 +925,7 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
         &mut self,
         def: ImplId,
         infcx: &InferCtxt<'db>,
-        def_map: &'db DefMap,
+        def_map: &'db DefMap<'_>,
         impl_assoc_items_scratch: &mut Vec<(Name, AssocItemId)>,
     ) {
         let (impl_signature, source_map) = ImplSignature::with_source_map(self.db, def);
@@ -1338,7 +1338,7 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
         self.collect_generic_def(store, source_map, generic_def);
     }
 
-    fn collect_module_def(&mut self, def: ModuleDefId, def_map: &DefMap) {
+    fn collect_module_def(&mut self, def: ModuleDefId, def_map: &DefMap<'_>) {
         self.emit_case_diagnostics(def);
 
         match def {
