@@ -18,7 +18,7 @@ use rustc_type_ir::{
 use crate::{
     ParamEnvAndCrate,
     next_solver::{
-        AllocationData, ClauseKind, ParamEnv, impl_foldable_for_interned_slice,
+        AllocationData, ClauseKind, ParamEnv, default_types, impl_foldable_for_interned_slice,
         impl_stored_interned, interned_slice,
     },
 };
@@ -69,8 +69,8 @@ impl<'db> Const<'db> {
         }
     }
 
-    pub fn error(interner: DbInterner<'db>) -> Self {
-        interner.default_types().consts.error
+    pub fn error(_interner: DbInterner<'db>) -> Self {
+        default_types().consts.error
     }
 
     pub fn new_param(interner: DbInterner<'db>, param: ParamConst) -> Self {
@@ -114,7 +114,7 @@ impl<'db> Const<'db> {
     #[inline]
     /// Creates an interned usize constant.
     pub fn from_target_usize(interner: DbInterner<'db>, n: u64) -> Self {
-        let usize_ty = interner.default_types().types.usize;
+        let usize_ty = default_types().types.usize;
         let data_layout = interner.db.target_data_layout_or_default(interner.expect_crate());
         Const::new_value(
             interner,
