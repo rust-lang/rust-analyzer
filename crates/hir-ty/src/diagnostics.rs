@@ -7,7 +7,8 @@ mod unsafe_check;
 pub use crate::diagnostics::{
     decl_check::{CaseType, IncorrectCase, incorrect_case},
     expr::{
-        BodyValidationDiagnostic, record_literal_missing_fields, record_pattern_missing_fields,
+        BodyValidationDiagnostic, UncoveredPattern, missing_match_arm_patterns,
+        record_literal_missing_fields, record_pattern_missing_fields,
     },
     unsafe_check::{
         InsideUnsafeBlock, UnsafetyReason, missing_unsafe, unsafe_operations,
