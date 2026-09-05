@@ -335,7 +335,7 @@ impl ast::Literal {
     pub fn token(&self) -> SyntaxToken {
         self.syntax()
             .children_with_tokens()
-            .find(|e| e.kind() != ATTR && !e.kind().is_trivia())
+            .find(|e| !matches!(e.kind(), ATTR | DOC_COMMENT) && !e.kind().is_trivia())
             .and_then(|e| e.into_token())
             .unwrap()
     }
