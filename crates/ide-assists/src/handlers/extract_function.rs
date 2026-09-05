@@ -204,6 +204,7 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
 
                     if let Some(mod_path) = mod_path {
                         insert_use_with_editor(
+                            &ctx.sema,
                             &scope,
                             mod_path_to_ast_with_factory(make, &mod_path, edition),
                             &ctx.config.insert_use,

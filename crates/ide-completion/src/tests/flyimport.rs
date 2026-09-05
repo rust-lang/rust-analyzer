@@ -101,6 +101,98 @@ fn main() {
 }
 
 #[test]
+fn flyimport_preserves_value_namespace_when_merging() {
+    check_edit(
+        "Baz",
+        r#"
+//- /lib.rs crate:dep
+pub mod bar {
+    pub struct Baz;
+}
+pub fn bar() {}
+
+//- /main.rs crate:main deps:dep
+use dep::bar;
+
+fn main() {
+    Ba$0;
+    bar();
+}
+"#,
+        r#"
+use dep::{bar, bar::Baz};
+
+fn main() {
+    Baz;
+    bar();
+}
+"#,
+    );
+}
+
+#[test]
+fn flyimport_preserves_macro_namespace_when_merging() {
+    check_edit(
+        "vec!",
+        r#"
+//- /lib.rs crate:dep
+pub mod vec {
+    pub struct Vec;
+}
+#[macro_export]
+macro_rules! vec {
+    () => {};
+}
+
+//- /main.rs crate:main deps:dep
+use dep::vec::Vec;
+
+fn main() {
+    ve$0
+}
+"#,
+        r#"
+use dep::{vec, vec::Vec};
+
+fn main() {
+    vec!($0)
+}
+"#,
+    );
+}
+
+#[test]
+fn flyimport_preserves_macro_namespace_with_existing_self() {
+    check_edit(
+        "vec!",
+        r#"
+//- /lib.rs crate:dep
+pub mod vec {
+    pub struct Vec;
+}
+#[macro_export]
+macro_rules! vec {
+    () => {};
+}
+
+//- /main.rs crate:main deps:dep
+use dep::vec::{self, Vec};
+
+fn main() {
+    ve$0
+}
+"#,
+        r#"
+use dep::{vec, vec::Vec};
+
+fn main() {
+    vec!($0)
+}
+"#,
+    );
+}
+
+#[test]
 fn struct_fuzzy_completion() {
     check_edit(
         "ThirdStruct",

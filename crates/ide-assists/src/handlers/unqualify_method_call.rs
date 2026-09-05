@@ -106,6 +106,7 @@ fn add_import(
 
         if let Some(scope) = scope {
             ide_db::imports::insert_use::insert_use_with_editor(
+                &ctx.sema,
                 &scope,
                 import,
                 &ctx.config.insert_use,
