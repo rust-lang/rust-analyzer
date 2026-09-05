@@ -28,7 +28,7 @@ use span::{Edition, FileId};
 use syntax::TextRange;
 
 use crate::{
-    Adjust, Adjustment, AutoBorrow, CallableDefId, InferBodyId, ParamEnvAndCrate,
+    Adjust, Adjustment, AutoBorrow, CallableDefId, InferBodyId, ParamEnvAndCrate, ThinFxHashMap,
     consteval::ConstEvalError,
     db::{GeneralConstId, HirDatabase, InternedClosure, InternedClosureId},
     display::{DisplayTarget, HirDisplay, hir_display_with_store},
@@ -307,7 +307,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
             locals,
             start_block,
             binding_locals,
-            upvar_locals: FxHashMap::default(),
+            upvar_locals: ThinFxHashMap::default(),
             param_locals: vec![],
             owner,
             closures: vec![],
