@@ -295,7 +295,7 @@ fn parse_adt_from_syntax(
                             it.syntax(),
                             tm,
                             call_site,
-                            DocCommentDesugarMode::ProcMacro,
+                            DocCommentDesugarMode::Keep,
                         )
                     }
                     None => {
@@ -309,7 +309,7 @@ fn parse_adt_from_syntax(
                         it.syntax(),
                         tm,
                         call_site,
-                        DocCommentDesugarMode::ProcMacro,
+                        DocCommentDesugarMode::Keep,
                     )
                 }),
                 ast::TypeOrConstParam::Const(_) => None,
@@ -322,7 +322,7 @@ fn parse_adt_from_syntax(
                             ty.syntax(),
                             tm,
                             call_site,
-                            DocCommentDesugarMode::ProcMacro,
+                            DocCommentDesugarMode::Keep,
                         )
                     })
                     .unwrap_or_else(|| {
@@ -343,7 +343,7 @@ fn parse_adt_from_syntax(
                     it.syntax(),
                     tm,
                     call_site,
-                    DocCommentDesugarMode::ProcMacro,
+                    DocCommentDesugarMode::Keep,
                 )
             })
             .collect()
@@ -380,7 +380,7 @@ fn parse_adt_from_syntax(
                 it.syntax(),
                 tm,
                 call_site,
-                DocCommentDesugarMode::ProcMacro,
+                DocCommentDesugarMode::Keep,
             )
         })
         .collect();
@@ -664,7 +664,7 @@ fn coerce_shared_target(
         FxHashMap::default(),
         remove,
         span,
-        DocCommentDesugarMode::ProcMacro,
+        DocCommentDesugarMode::Keep,
         |_, _| (true, Vec::new()),
     );
 
@@ -1464,7 +1464,7 @@ fn coerce_pointee_expand(
         self_for_traits.syntax(),
         &span_map,
         span,
-        DocCommentDesugarMode::ProcMacro,
+        DocCommentDesugarMode::Keep,
     );
     let info = match parse_adt_from_syntax(&adt, &span_map, span) {
         Ok(it) => it,

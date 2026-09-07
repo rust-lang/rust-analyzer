@@ -39,16 +39,17 @@ mod proc_macro_srv_side;
 #[cfg(feature = "in-ra")]
 mod ra_side;
 
-use std::{borrow::Borrow, collections::VecDeque, marker::PhantomData};
+use std::{borrow::Borrow, cell::Cell, collections::VecDeque, marker::PhantomData};
 
-use intern::Symbol;
+use intern::{Symbol, sym};
 use rustc_hash::FxHashMap;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use span::{EditionedFileId, ErasedFileAstId, Span, SpanAnchor, SyntaxContext, TextRange};
+use stdx::always;
 
 use crate::{
     legacy_protocol::SpanId,
-    version::{ENCODE_CLOSE_SPAN_VERSION, EXTENDED_LEAF_DATA},
+    version::{DOC_COMMENT_LEAF, ENCODE_CLOSE_SPAN_VERSION, EXTENDED_LEAF_DATA},
 };
 
 pub type SpanDataIndexMap =
@@ -89,14 +90,115 @@ pub fn deserialize_span_data_index_map(map: &[u32]) -> SpanDataIndexMap {
         .collect()
 }
 
+fn tag_bit_width(version: u32) -> u32 {
+    if version >= DOC_COMMENT_LEAF { 3 } else { 2 }
+}
+
+/// [`FlatTree`] when `version < DOC_COMMENT_LEAF`, because `postcard` is non-self-describing and does not support `skip_serializing_if`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FlatTree {
+struct FlatTreePreDocCommentLeafParts {
     subtree: Vec<u32>,
     literal: Vec<u32>,
     punct: Vec<u32>,
     ident: Vec<u32>,
     token_tree: Vec<u32>,
     text: Vec<String>,
+}
+
+/// [`FlatTree`] when `version >= DOC_COMMENT_LEAF`.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FlatTreePostDocCommentLeafParts {
+    pre_doc_comment_leaf: FlatTreePreDocCommentLeafParts,
+    doc_comments: Vec<u32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FlatTree(pub FlatTreePostDocCommentLeafParts);
+
+impl FlatTree {
+    fn from_pre_doc_comments(value: FlatTreePreDocCommentLeafParts) -> Self {
+        Self(FlatTreePostDocCommentLeafParts {
+            pre_doc_comment_leaf: value,
+            doc_comments: Vec::new(),
+        })
+    }
+
+    fn from_post_doc_comments(value: FlatTreePostDocCommentLeafParts) -> Self {
+        Self(value)
+    }
+
+    fn as_pre_doc_comments(&self) -> &FlatTreePreDocCommentLeafParts {
+        let FlatTreePostDocCommentLeafParts { pre_doc_comment_leaf: _, doc_comments } = &self.0;
+        always!(doc_comments.is_empty());
+        &self.0.pre_doc_comment_leaf
+    }
+
+    fn as_post_doc_comments(&self) -> &FlatTreePostDocCommentLeafParts {
+        &self.0
+    }
+}
+
+thread_local! {
+    static IN_FLIGHT_SERIALIZATION_VERSION: Cell<Option<u32>> = const { Cell::new(None) };
+}
+
+/// We need to see the version during serialization, because it impacts the shape of the `FlatTree`
+/// and postcard is non-self-describing.
+///
+/// `serde` provides `DeserializeSeed` to pass data to deserializers, but not to serializers and there is no derive for
+/// it (external crates have but we don't want to import them just for this). So we smuggle it in a thread local instead.
+///
+/// Note: while the proc macro server side always has the same version, the r-a side might handle multiple servers with
+/// different versions.
+pub fn with_serialization_version<T>(version: u32, f: impl FnOnce() -> T) -> T {
+    struct Guard;
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            IN_FLIGHT_SERIALIZATION_VERSION.set(None);
+        }
+    }
+
+    let _guard = Guard;
+
+    std::assert_matches!(
+        IN_FLIGHT_SERIALIZATION_VERSION.replace(Some(version)),
+        None,
+        "cannot set serialization version mid-[de]serialization",
+    );
+
+    f()
+}
+
+fn serialization_version() -> u32 {
+    IN_FLIGHT_SERIALIZATION_VERSION
+        .get()
+        .expect("`FlatTree` serialization version must be set during [de]serialization")
+}
+
+impl Serialize for FlatTree {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match serialization_version() {
+            (..DOC_COMMENT_LEAF) => self.as_pre_doc_comments().serialize(serializer),
+            (DOC_COMMENT_LEAF..) => self.as_post_doc_comments().serialize(serializer),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for FlatTree {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        match serialization_version() {
+            (..DOC_COMMENT_LEAF) => FlatTreePreDocCommentLeafParts::deserialize(deserializer)
+                .map(Self::from_pre_doc_comments),
+            (DOC_COMMENT_LEAF..) => FlatTreePostDocCommentLeafParts::deserialize(deserializer)
+                .map(Self::from_post_doc_comments),
+        }
+    }
 }
 
 impl FlatTree {
@@ -109,37 +211,42 @@ impl FlatTree {
             string_table: FxHashMap::default(),
             work: VecDeque::new(),
             span_data_table,
+            tag_bit_width: tag_bit_width(version),
 
             subtree: Vec::new(),
             literal: Vec::new(),
             punct: Vec::new(),
             ident: Vec::new(),
+            doc_comment: Vec::new(),
             token_tree: Vec::new(),
             text: Vec::new(),
             version,
         };
         w.write_subtree(top_subtree);
 
-        FlatTree {
-            subtree: if version >= ENCODE_CLOSE_SPAN_VERSION {
-                write_vec(w.subtree, SubtreeRepr::write_with_close_span)
-            } else {
-                write_vec(w.subtree, SubtreeRepr::write)
+        FlatTree(FlatTreePostDocCommentLeafParts {
+            pre_doc_comment_leaf: FlatTreePreDocCommentLeafParts {
+                subtree: if version >= ENCODE_CLOSE_SPAN_VERSION {
+                    write_vec(w.subtree, SubtreeRepr::write_with_close_span)
+                } else {
+                    write_vec(w.subtree, SubtreeRepr::write)
+                },
+                literal: if version >= EXTENDED_LEAF_DATA {
+                    write_vec(w.literal, LiteralRepr::write_with_kind)
+                } else {
+                    write_vec(w.literal, LiteralRepr::write)
+                },
+                punct: write_vec(w.punct, PunctRepr::write),
+                ident: if version >= EXTENDED_LEAF_DATA {
+                    write_vec(w.ident, IdentRepr::write_with_rawness)
+                } else {
+                    write_vec(w.ident, IdentRepr::write)
+                },
+                token_tree: w.token_tree,
+                text: w.text,
             },
-            literal: if version >= EXTENDED_LEAF_DATA {
-                write_vec(w.literal, LiteralRepr::write_with_kind)
-            } else {
-                write_vec(w.literal, LiteralRepr::write)
-            },
-            punct: write_vec(w.punct, PunctRepr::write),
-            ident: if version >= EXTENDED_LEAF_DATA {
-                write_vec(w.ident, IdentRepr::write_with_rawness)
-            } else {
-                write_vec(w.ident, IdentRepr::write)
-            },
-            token_tree: w.token_tree,
-            text: w.text,
-        }
+            doc_comments: write_vec(w.doc_comment, DocCommentRepr::write),
+        })
     }
 
     fn serialize<ST: SpanTransformer, R: ReaderTrait<ST::Span>>(
@@ -147,27 +254,31 @@ impl FlatTree {
         version: u32,
         span_data_table: &ST::Table,
     ) -> (tt::Delimiter<ST::Span>, Vec<R::TokenTree>) {
+        let tag_bit_width = tag_bit_width(version);
         Reader::<ST, R> {
             subtree: if version >= ENCODE_CLOSE_SPAN_VERSION {
-                read_vec(self.subtree, SubtreeRepr::read_with_close_span)
+                read_vec(self.0.pre_doc_comment_leaf.subtree, SubtreeRepr::read_with_close_span)
             } else {
-                read_vec(self.subtree, SubtreeRepr::read)
+                read_vec(self.0.pre_doc_comment_leaf.subtree, SubtreeRepr::read)
             },
             literal: if version >= EXTENDED_LEAF_DATA {
-                read_vec(self.literal, LiteralRepr::read_with_kind)
+                read_vec(self.0.pre_doc_comment_leaf.literal, LiteralRepr::read_with_kind)
             } else {
-                read_vec(self.literal, LiteralRepr::read)
+                read_vec(self.0.pre_doc_comment_leaf.literal, LiteralRepr::read)
             },
-            punct: read_vec(self.punct, PunctRepr::read),
+            punct: read_vec(self.0.pre_doc_comment_leaf.punct, PunctRepr::read),
             ident: if version >= EXTENDED_LEAF_DATA {
-                read_vec(self.ident, IdentRepr::read_with_rawness)
+                read_vec(self.0.pre_doc_comment_leaf.ident, IdentRepr::read_with_rawness)
             } else {
-                read_vec(self.ident, IdentRepr::read)
+                read_vec(self.0.pre_doc_comment_leaf.ident, IdentRepr::read)
             },
-            token_tree: self.token_tree,
-            text: self.text,
+            doc_comment: read_vec(self.0.doc_comments, DocCommentRepr::read),
+            token_tree: self.0.pre_doc_comment_leaf.token_tree,
+            text: self.0.pre_doc_comment_leaf.text,
             span_data_table,
             version,
+            tag_bit_width,
+            tag_mask: (1 << tag_bit_width) - 1,
             _marker: PhantomData,
         }
         .read()
@@ -202,6 +313,14 @@ struct IdentRepr {
     id: SpanId,
     text: u32,
     is_raw: bool,
+}
+
+#[derive(Debug)]
+struct DocCommentRepr {
+    id: SpanId,
+    text_with_comment_signs: u32,
+    is_inner: bool,
+    is_block: bool,
 }
 
 fn read_vec<T, F: Fn([u32; N]) -> T, const N: usize>(xs: Vec<u32>, f: F) -> Vec<T> {
@@ -303,6 +422,26 @@ impl IdentRepr {
     }
 }
 
+impl DocCommentRepr {
+    fn write(self) -> [u32; 3] {
+        [
+            self.id.0,
+            self.text_with_comment_signs,
+            u16::from_le_bytes([self.is_inner.into(), self.is_block.into()]).into(),
+        ]
+    }
+
+    fn read([id, text_with_comment_signs, is_inner_and_is_block]: [u32; 3]) -> DocCommentRepr {
+        let [is_inner, is_block] = (is_inner_and_is_block as u16).to_le_bytes();
+        DocCommentRepr {
+            id: SpanId(id),
+            text_with_comment_signs,
+            is_inner: is_inner != 0,
+            is_block: is_block != 0,
+        }
+    }
+}
+
 pub trait SpanTransformer {
     type Table;
     type Span: Copy + 'static;
@@ -336,27 +475,35 @@ enum SubtreeOrLeafRef<'a, Span, W: WriterTrait<'a, Span>> {
     Leaf(W::Leaf),
 }
 
+enum WorkItem<'a, Span, W: WriterTrait<'a, Span>> {
+    Subtree(W::SubtreeIter),
+    DesugaredDocCommentSubtree(tt::DocComment<Span>),
+}
+
 trait WriterTrait<'a, Span>: Sized {
     type Subtree;
     type Leaf: Borrow<tt::Leaf<Span>>;
 
-    type SubtreeIter;
+    type SubtreeIter: Clone;
 
-    fn subtree_data(subtree: Self::Subtree) -> (usize, tt::Delimiter<Span>, Self::SubtreeIter);
+    fn subtree_data(subtree: &Self::Subtree) -> (tt::Delimiter<Span>, Self::SubtreeIter);
+    fn subtree_len(subtree: &Self::Subtree) -> usize;
 
     fn subtree_iter_next(iter: &mut Self::SubtreeIter) -> Option<SubtreeOrLeafRef<'a, Span, Self>>;
 }
 
 struct Writer<'a, 'span, ST: SpanTransformer, W: WriterTrait<'a, ST::Span>> {
-    work: VecDeque<(usize, usize, W::SubtreeIter)>,
+    work: VecDeque<(usize, usize, WorkItem<'a, ST::Span, W>)>,
     string_table: FxHashMap<std::borrow::Cow<'a, str>, u32>,
     span_data_table: &'span mut ST::Table,
     version: u32,
+    tag_bit_width: u32,
 
     subtree: Vec<SubtreeRepr>,
     literal: Vec<LiteralRepr>,
     punct: Vec<PunctRepr>,
     ident: Vec<IdentRepr>,
+    doc_comment: Vec<DocCommentRepr>,
     token_tree: Vec<u32>,
     text: Vec<String>,
 }
@@ -369,99 +516,196 @@ impl<'a, ST: SpanTransformer, W: WriterTrait<'a, ST::Span>> Writer<'a, '_, ST, W
         }
     }
 
-    fn subtree(&mut self, idx: usize, n_tt: usize, mut subtree: W::SubtreeIter) {
+    fn subtree(&mut self, idx: usize, n_tt: usize, subtree: WorkItem<'a, ST::Span, W>) {
         let mut first_tt = self.token_tree.len();
         self.token_tree.resize(first_tt + n_tt, !0);
 
         self.subtree[idx].tt = [first_tt as u32, (first_tt + n_tt) as u32];
 
+        let mut push_tt = |this: &mut Self, idx_tag| {
+            this.token_tree[first_tt] = idx_tag;
+            first_tt += 1;
+        };
+
+        let mut subtree = match subtree {
+            WorkItem::Subtree(it) => it,
+            WorkItem::DesugaredDocCommentSubtree(doc_comment) => {
+                let doc_ident = self.ident(&tt::Ident {
+                    sym: sym::doc,
+                    span: doc_comment.span,
+                    is_raw: tt::IdentIsRaw::No,
+                });
+                push_tt(self, doc_ident);
+                let eq_punct = self.punct(&tt::Punct {
+                    char: '=',
+                    spacing: tt::Spacing::Alone,
+                    span: doc_comment.span,
+                });
+                push_tt(self, eq_punct);
+                let doc_literal = self.literal(&doc_comment.literal_for_proc_macros());
+                push_tt(self, doc_literal);
+                return;
+            }
+        };
+
         while let Some(child) = W::subtree_iter_next(&mut subtree) {
             let idx_tag = match child {
                 SubtreeOrLeafRef::Subtree(subtree) => {
                     let idx = self.enqueue(subtree);
-                    idx << 2
+                    idx << self.tag_bit_width
                 }
                 SubtreeOrLeafRef::Leaf(leaf) => match leaf.borrow() {
-                    tt::Leaf::Literal(lit) => {
-                        let idx = self.literal.len() as u32;
-                        let id = self.token_id_of(lit.span);
-                        let (text, suffix) = if self.version >= EXTENDED_LEAF_DATA {
-                            let (text, suffix) = lit.text_and_suffix();
-                            (
-                                self.intern_owned(text.to_owned()),
-                                if suffix.is_empty() {
-                                    !0
-                                } else {
-                                    self.intern_owned(suffix.to_owned())
-                                },
-                            )
+                    tt::Leaf::Literal(lit) => self.literal(lit),
+                    tt::Leaf::Punct(punct) => self.punct(punct),
+                    tt::Leaf::Ident(ident) => self.ident(ident),
+                    tt::Leaf::DocComment(doc_comment) => {
+                        if self.version >= DOC_COMMENT_LEAF {
+                            let idx = self.doc_comment.len() as u32;
+                            let id = self.token_id_of(doc_comment.span);
+                            let text = self.intern_owned(
+                                doc_comment.text_with_comment_signs.as_str().to_owned(),
+                            );
+                            let is_inner = doc_comment.doc_style == tt::DocCommentStyle::Inner;
+                            let is_block = doc_comment.comment_style == tt::CommentStyle::Block;
+                            self.doc_comment.push(DocCommentRepr {
+                                id,
+                                text_with_comment_signs: text,
+                                is_inner,
+                                is_block,
+                            });
+                            (idx << self.tag_bit_width) | 0b100
                         } else {
-                            (self.intern_owned(format!("{lit}")), !0)
-                        };
-                        self.literal.push(LiteralRepr {
-                            id,
-                            text,
-                            kind: u16::from_le_bytes(match lit.kind {
-                                tt::LitKind::Err(_) => [0, 0],
-                                tt::LitKind::Byte => [1, 0],
-                                tt::LitKind::Char => [2, 0],
-                                tt::LitKind::Integer => [3, 0],
-                                tt::LitKind::Float => [4, 0],
-                                tt::LitKind::Str => [5, 0],
-                                tt::LitKind::StrRaw(r) => [6, r],
-                                tt::LitKind::ByteStr => [7, 0],
-                                tt::LitKind::ByteStrRaw(r) => [8, r],
-                                tt::LitKind::CStr => [9, 0],
-                                tt::LitKind::CStrRaw(r) => [10, r],
-                            }),
-                            suffix,
-                        });
-                        (idx << 2) | 0b01
-                    }
-                    tt::Leaf::Punct(punct) => {
-                        let idx = self.punct.len() as u32;
-                        let id = self.token_id_of(punct.span);
-                        self.punct.push(PunctRepr { char: punct.char, spacing: punct.spacing, id });
-                        (idx << 2) | 0b10
-                    }
-                    tt::Leaf::Ident(ident) => {
-                        let idx = self.ident.len() as u32;
-                        let id = self.token_id_of(ident.span);
-                        let text = if self.version >= EXTENDED_LEAF_DATA {
-                            self.intern_owned(ident.sym.as_str().to_owned())
-                        } else if ident.is_raw.yes() {
-                            self.intern_owned(format!("r#{}", ident.sym.as_str(),))
-                        } else {
-                            self.intern_owned(ident.sym.as_str().to_owned())
-                        };
-                        self.ident.push(IdentRepr { id, text, is_raw: ident.is_raw.yes() });
-                        (idx << 2) | 0b11
+                            let hash_punct = self.punct(&tt::Punct {
+                                char: '#',
+                                spacing: tt::Spacing::Alone,
+                                span: doc_comment.span,
+                            });
+                            push_tt(self, hash_punct);
+                            if doc_comment.doc_style == tt::DocCommentStyle::Inner {
+                                let bang_punct = self.punct(&tt::Punct {
+                                    char: '!',
+                                    spacing: tt::Spacing::Alone,
+                                    span: doc_comment.span,
+                                });
+                                push_tt(self, bang_punct);
+                            }
+
+                            /// `doc`, `=`, and the literal.
+                            const DESUGARED_DOC_COMMENT_SUBTREE_LEN: usize = 3;
+                            let idx = self.subtree.len();
+                            let kind = tt::DelimiterKind::Bracket;
+                            let span = self.token_id_of(doc_comment.span);
+                            self.subtree.push(SubtreeRepr {
+                                open: span,
+                                close: span,
+                                kind,
+                                tt: [!0, !0],
+                            });
+                            self.work.push_back((
+                                idx,
+                                DESUGARED_DOC_COMMENT_SUBTREE_LEN,
+                                WorkItem::DesugaredDocCommentSubtree(doc_comment.clone()),
+                            ));
+                            push_tt(self, idx as u32);
+
+                            return;
+                        }
                     }
                 },
             };
-            self.token_tree[first_tt] = idx_tag;
-            first_tt += 1;
+            push_tt(self, idx_tag);
         }
+    }
+
+    fn ident(&mut self, ident: &tt::Ident<ST::Span>) -> u32 {
+        let idx = self.ident.len() as u32;
+        let id = self.token_id_of(ident.span);
+        let text = if self.version >= EXTENDED_LEAF_DATA {
+            self.intern_owned(ident.sym.as_str().to_owned())
+        } else if ident.is_raw.yes() {
+            self.intern_owned(format!("r#{}", ident.sym.as_str(),))
+        } else {
+            self.intern_owned(ident.sym.as_str().to_owned())
+        };
+        self.ident.push(IdentRepr { id, text, is_raw: ident.is_raw.yes() });
+        (idx << self.tag_bit_width) | 0b011
+    }
+
+    fn punct(&mut self, punct: &tt::Punct<ST::Span>) -> u32 {
+        let idx = self.punct.len() as u32;
+        let id = self.token_id_of(punct.span);
+        self.punct.push(PunctRepr { char: punct.char, spacing: punct.spacing, id });
+        (idx << self.tag_bit_width) | 0b010
+    }
+
+    fn literal(&mut self, lit: &tt::Literal<ST::Span>) -> u32 {
+        let idx = self.literal.len() as u32;
+        let id = self.token_id_of(lit.span);
+        let (text, suffix) = if self.version >= EXTENDED_LEAF_DATA {
+            let (text, suffix) = lit.text_and_suffix();
+            (
+                self.intern_owned(text.to_owned()),
+                if suffix.is_empty() { !0 } else { self.intern_owned(suffix.to_owned()) },
+            )
+        } else {
+            (self.intern_owned(format!("{lit}")), !0)
+        };
+        self.literal.push(LiteralRepr {
+            id,
+            text,
+            kind: u16::from_le_bytes(match lit.kind {
+                tt::LitKind::Err(_) => [0, 0],
+                tt::LitKind::Byte => [1, 0],
+                tt::LitKind::Char => [2, 0],
+                tt::LitKind::Integer => [3, 0],
+                tt::LitKind::Float => [4, 0],
+                tt::LitKind::Str => [5, 0],
+                tt::LitKind::StrRaw(r) => [6, r],
+                tt::LitKind::ByteStr => [7, 0],
+                tt::LitKind::ByteStrRaw(r) => [8, r],
+                tt::LitKind::CStr => [9, 0],
+                tt::LitKind::CStrRaw(r) => [10, r],
+            }),
+            suffix,
+        });
+        (idx << self.tag_bit_width) | 0b001
     }
 
     fn enqueue(&mut self, subtree: W::Subtree) -> u32 {
         let idx = self.subtree.len();
-        let (len, delimiter, contents) = W::subtree_data(subtree);
+        let (delimiter, contents) = W::subtree_data(&subtree);
+        let len = if self.version >= DOC_COMMENT_LEAF {
+            W::subtree_len(&subtree)
+        } else {
+            // We need to count doc comments as multiple items.
+            let mut contents = contents.clone();
+            let contents = std::iter::from_fn(move || W::subtree_iter_next(&mut contents));
+            contents
+                .map(|item| {
+                    if let SubtreeOrLeafRef::Leaf(leaf) = item
+                        && let tt::Leaf::DocComment(doc_comment) = leaf.borrow()
+                    {
+                        // `#`, `!` if inner, and `[...]`.
+                        2 + usize::from(doc_comment.doc_style == tt::DocCommentStyle::Inner)
+                    } else {
+                        1
+                    }
+                })
+                .sum()
+        };
         let open = self.token_id_of(delimiter.open);
         let close = self.token_id_of(delimiter.close);
         let delimiter_kind = delimiter.kind;
         self.subtree.push(SubtreeRepr { open, close, kind: delimiter_kind, tt: [!0, !0] });
-        self.work.push_back((idx, len, contents));
+        self.work.push_back((idx, len, WorkItem::Subtree(contents)));
         idx as u32
     }
-}
 
-impl<'a, ST: SpanTransformer, W: WriterTrait<'a, ST::Span>> Writer<'a, '_, ST, W> {
     fn token_id_of(&mut self, span: ST::Span) -> SpanId {
         ST::token_id_of(self.span_data_table, span)
     }
 
-    pub(crate) fn intern_owned(&mut self, text: String) -> u32 {
+    fn intern_owned(&mut self, text: String) -> u32 {
         let table = &mut self.text;
         *self.string_table.entry(text.clone().into()).or_insert_with(|| {
             let idx = table.len();
@@ -485,10 +729,13 @@ trait ReaderTrait<Span> {
 
 struct Reader<'span, ST: SpanTransformer, R: ReaderTrait<ST::Span>> {
     version: u32,
+    tag_bit_width: u32,
+    tag_mask: u32,
     subtree: Vec<SubtreeRepr>,
     literal: Vec<LiteralRepr>,
     punct: Vec<PunctRepr>,
     ident: Vec<IdentRepr>,
+    doc_comment: Vec<DocCommentRepr>,
     token_tree: Vec<u32>,
     text: Vec<String>,
     span_data_table: &'span ST::Table,
@@ -510,16 +757,16 @@ impl<ST: SpanTransformer, R: ReaderTrait<ST::Span>> Reader<'_, ST, R> {
             };
             let mut s = Vec::new();
             for &idx_tag in token_trees {
-                let tag = idx_tag & 0b11;
-                let idx = (idx_tag >> 2) as usize;
+                let tag = idx_tag & self.tag_mask;
+                let idx = (idx_tag >> self.tag_bit_width) as usize;
                 match tag {
                     // XXX: we iterate subtrees in reverse to guarantee
                     // that this unwrap doesn't fire.
-                    0b00 => {
+                    0b000 => {
                         let (delimiter, subtree) = res[idx].take().unwrap();
                         R::append_subtree(delimiter, subtree, &mut s);
                     }
-                    0b01 => {
+                    0b001 => {
                         use tt::LitKind::*;
                         let repr = &self.literal[idx];
                         let text = self.text[repr.text as usize].as_str();
@@ -552,7 +799,7 @@ impl<ST: SpanTransformer, R: ReaderTrait<ST::Span>> Reader<'_, ST, R> {
                             tt::literal_from_str_or_err(text, span)
                         })))
                     }
-                    0b10 => {
+                    0b010 => {
                         let repr = &self.punct[idx];
                         s.push(R::leaf(tt::Leaf::Punct(tt::Punct {
                             char: repr.char,
@@ -560,7 +807,7 @@ impl<ST: SpanTransformer, R: ReaderTrait<ST::Span>> Reader<'_, ST, R> {
                             span: read_span(repr.id),
                         })))
                     }
-                    0b11 => {
+                    0b011 => {
                         let repr = &self.ident[idx];
                         let text = self.text[repr.text as usize].as_str();
                         let (is_raw, text) = if self.version >= EXTENDED_LEAF_DATA {
@@ -575,6 +822,27 @@ impl<ST: SpanTransformer, R: ReaderTrait<ST::Span>> Reader<'_, ST, R> {
                             sym: Symbol::intern(text),
                             span: read_span(repr.id),
                             is_raw,
+                        })))
+                    }
+                    0b100 => {
+                        let repr = &self.doc_comment[idx];
+                        let text_with_comment_signs =
+                            self.text[repr.text_with_comment_signs as usize].as_str();
+                        let doc_style = if repr.is_inner {
+                            tt::DocCommentStyle::Inner
+                        } else {
+                            tt::DocCommentStyle::Outer
+                        };
+                        let comment_style = if repr.is_block {
+                            tt::CommentStyle::Block
+                        } else {
+                            tt::CommentStyle::Line
+                        };
+                        s.push(R::leaf(tt::Leaf::DocComment(tt::DocComment {
+                            text_with_comment_signs: Symbol::intern(text_with_comment_signs),
+                            span: read_span(repr.id),
+                            doc_style,
+                            comment_style,
                         })))
                     }
                     other => panic!("bad tag: {other}"),

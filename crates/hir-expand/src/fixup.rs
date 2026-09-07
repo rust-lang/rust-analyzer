@@ -446,7 +446,7 @@ mod tests {
             span_map,
             &parsed.syntax_node(),
             span_map.span_for_range(TextRange::empty(0.into())),
-            DocCommentDesugarMode::Mbe,
+            DocCommentDesugarMode::Keep,
         );
         let mut tt = syntax_bridge::syntax_node_to_token_tree_modified(
             &parsed.syntax_node(),
@@ -454,7 +454,7 @@ mod tests {
             fixups.append,
             fixups.remove,
             span_map.span_for_range(TextRange::empty(0.into())),
-            DocCommentDesugarMode::Mbe,
+            DocCommentDesugarMode::Keep,
             |_, _| (true, Vec::new()),
         );
 
@@ -494,7 +494,7 @@ mod tests {
             &parsed.syntax_node(),
             span_map,
             span_map.span_for_range(TextRange::empty(0.into())),
-            DocCommentDesugarMode::Mbe,
+            DocCommentDesugarMode::Keep,
         );
         assert!(
             check_subtree_eq(&tt, &original_as_tt),

@@ -44,9 +44,10 @@ pub mod version {
     /// Whether literals encode their kind as an additional u32 field and idents their rawness as a u32 field.
     pub const EXTENDED_LEAF_DATA: u32 = 5;
     pub const HASHED_AST_ID: u32 = 6;
+    pub const DOC_COMMENT_LEAF: u32 = 7;
 
     /// Current API version of the proc-macro protocol.
-    pub const CURRENT_API_VERSION: u32 = HASHED_AST_ID;
+    pub const CURRENT_API_VERSION: u32 = DOC_COMMENT_LEAF;
 }
 
 /// Protocol format for communication between client and server.

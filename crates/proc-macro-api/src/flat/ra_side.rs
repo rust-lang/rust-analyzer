@@ -12,9 +12,13 @@ impl<'a> WriterTrait<'a, Span> for Writer {
 
     type SubtreeIter = tt::TtIter<'a>;
 
-    fn subtree_data((subtree, iter): Self::Subtree) -> (usize, tt::Delimiter, Self::SubtreeIter) {
+    fn subtree_data((subtree, iter): &Self::Subtree) -> (tt::Delimiter, Self::SubtreeIter) {
+        (subtree.delimiter, iter.clone())
+    }
+
+    fn subtree_len((_subtree, iter): &Self::Subtree) -> usize {
         // FIXME: `count()` walks over the iterator.
-        (iter.clone().count(), subtree.delimiter, iter)
+        iter.clone().count()
     }
 
     fn subtree_iter_next(iter: &mut Self::SubtreeIter) -> Option<SubtreeOrLeafRef<'a, Span, Self>> {

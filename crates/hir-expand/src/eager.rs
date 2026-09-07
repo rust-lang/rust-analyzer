@@ -96,7 +96,7 @@ pub fn expand_eager_macro_input(
         &expanded_eager_input,
         arg_map,
         *span,
-        DocCommentDesugarMode::Mbe,
+        DocCommentDesugarMode::Keep,
     );
 
     subtree.set_top_subtree_delimiter_kind(crate::tt::DelimiterKind::Invisible);

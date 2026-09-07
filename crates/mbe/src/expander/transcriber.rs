@@ -173,16 +173,11 @@ fn expand_subtree(
     let mut err = None;
     'ops: for op in template.iter() {
         match op {
-            Op::Literal(it) => builder.push(tt::Leaf::from({
+            Op::Leaf(it) => builder.push({
                 let mut it = it.clone();
-                marker(&mut it.span);
+                marker(it.span_mut());
                 it
-            })),
-            Op::Ident(it) => builder.push(tt::Leaf::from({
-                let mut it = it.clone();
-                marker(&mut it.span);
-                it
-            })),
+            }),
             Op::Punct(puncts) => {
                 builder.extend(puncts.iter().map(|punct| {
                     tt::Leaf::from({
@@ -508,8 +503,7 @@ fn expand_repeat(
 
         if let Some(sep) = separator {
             match sep {
-                Separator::Ident(ident) => builder.push(tt::Leaf::from(ident.clone())),
-                Separator::Literal(lit) => builder.push(tt::Leaf::from(lit.clone())),
+                Separator::Leaf(leaf) => builder.push(leaf.clone()),
                 Separator::Puncts(puncts) => {
                     for &punct in puncts {
                         builder.push(tt::Leaf::from(punct));

@@ -55,11 +55,99 @@ pub enum LitKind {
     Err(()),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+// The discriminants are important for decoding for `storage.rs`.
+pub enum DocCommentStyle {
+    Inner = 0,
+    Outer = 1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+// The discriminants are important for decoding for `storage.rs`.
+pub enum CommentStyle {
+    Line = 0,
+    Block = 1,
+}
+
+impl DocCommentStyle {
+    #[inline]
+    pub fn from_lexer(style: rustc_lexer::DocStyle) -> DocCommentStyle {
+        match style {
+            rustc_lexer::DocStyle::Outer => DocCommentStyle::Outer,
+            rustc_lexer::DocStyle::Inner => DocCommentStyle::Inner,
+        }
+    }
+}
+
+/// We need a specific kind for doc comments and can't just desugar them since declarative macros ignore doc comments
+/// in their matcher. Furthermore when the declarative macro is created from another macro they are not ignored, but
+/// if the creating macro is a proc macro and it never touches the doc comment then they *are* ignored (in other words,
+/// they are ignored while staying in the compiler's original representation, but not ignored when converted to the lossy
+/// representation of the proc macro bridge). This means that they must be a property of the token tree and not just of
+/// the AST (in rustc, the AST and the token tree and are the same, which is why this messy situation was created).
+///
+/// See also <https://github.com/rust-lang/rust/blob/93c9086fdd5b80d286480a19ac047746ecc5fa1f/compiler/rustc_expand/src/mbe/macro_parser.rs#L512-L514>.
+///
+/// Note: not all doc comments are represented via this, in particular when passed to proc macros they are desugared
+/// into `#[doc = "..."]`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DocComment<Span = DefaultSpan> {
+    /// Includes the `///` or `//!` or `/** */` or `/*! */`.
+    ///
+    /// We don't really need that information (as well as [`Self::comment_style`]), but it makes it easier to interoperate
+    /// with the parser (`syntax_bridge::to_parser_input`) and so we keep it. Therefore we also need to keep the [`CommentStyle`],
+    /// so we can strip them properly.
+    pub text_with_comment_signs: Symbol,
+    pub span: Span,
+    pub doc_style: DocCommentStyle,
+    pub comment_style: CommentStyle,
+}
+
+impl<Span> DocComment<Span> {
+    #[inline]
+    pub fn new(
+        text: &str,
+        span: Span,
+        doc_style: DocCommentStyle,
+        comment_style: CommentStyle,
+    ) -> Self {
+        let text_with_comment_signs =
+            if comment_style == CommentStyle::Block && !text.ends_with("*/") {
+                // Fixup broken block comment, so it won't cause panics or errors later. This can happen from parser recovery.
+                Symbol::intern(&format!("{text}*/"))
+            } else {
+                Symbol::intern(text)
+            };
+        Self { text_with_comment_signs, span, doc_style, comment_style }
+    }
+
+    #[inline]
+    pub fn text(&self) -> &str {
+        let text_with_comment_signs = self.text_with_comment_signs.as_str();
+        let strip_end = match self.comment_style {
+            CommentStyle::Block => 2,
+            CommentStyle::Line => 0,
+        };
+        &text_with_comment_signs[3..text_with_comment_signs.len() - strip_end]
+    }
+
+    /// The literal for `#[doc = "..."]` desugaring, as should be seen by proc macros.
+    pub fn literal_for_proc_macros(&self) -> Literal<Span>
+    where
+        Span: Copy,
+    {
+        Literal::new_no_suffix(&self.text().escape_debug().to_string(), self.span, LitKind::Str)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Leaf<Span = DefaultSpan> {
     Literal(Literal<Span>),
     Punct(Punct<Span>),
     Ident(Ident<Span>),
+    DocComment(DocComment<Span>),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -248,6 +336,7 @@ impl<Span> fmt::Display for Leaf<Span> {
             Leaf::Ident(it) => fmt::Display::fmt(it, f),
             Leaf::Literal(it) => fmt::Display::fmt(it, f),
             Leaf::Punct(it) => fmt::Display::fmt(it, f),
+            Leaf::DocComment(it) => fmt::Display::fmt(it, f),
         }
     }
 }
@@ -287,6 +376,18 @@ impl<Span> fmt::Display for Literal<Span> {
     }
 }
 
+impl<Span> fmt::Display for DocComment<Span> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}{}",
+            self.text_with_comment_signs,
+            // Print a newline after line comments so they can roundtrip (which is important for the proc macro server).
+            if self.comment_style == CommentStyle::Line { "\n" } else { "" },
+        )
+    }
+}
+
 impl<Span> fmt::Display for Punct<Span> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.char, f)
@@ -297,8 +398,7 @@ impl<Span: fmt::Debug> Leaf<Span> {
     pub fn print_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Leaf::Literal(lit) => {
-                let (text, suffix) = lit.text_and_suffix();
-                write!(f, "LITERAL {:?} {}{} {:#?}", lit.kind, text, suffix, lit.span)?;
+                write!(f, "LITERAL {:?} {} {:#?}", lit.kind, lit.text_and_suffix, lit.span)?;
             }
             Leaf::Punct(punct) => {
                 write!(
@@ -311,6 +411,13 @@ impl<Span: fmt::Debug> Leaf<Span> {
             }
             Leaf::Ident(ident) => {
                 write!(f, "IDENT   {}{} {:#?}", ident.is_raw.as_str(), ident.sym, ident.span)?;
+            }
+            Leaf::DocComment(doc) => {
+                write!(
+                    f,
+                    "DOC_COMMENT {:?} {:?} {} {:#?}",
+                    doc.doc_style, doc.comment_style, doc.text_with_comment_signs, doc.span,
+                )?;
             }
         }
 

@@ -134,7 +134,9 @@ fn send_task(srv: &ProcMacroServerProcess, req: Request) -> Result<Response, Ser
         return Err(server_error.clone());
     }
 
-    srv.send_task_legacy::<_, _>(send_request, req)
+    crate::flat::with_serialization_version(srv.version(), || {
+        srv.send_task_legacy::<_, _>(send_request, req)
+    })
 }
 
 /// Sends a request to the server and reads the response.

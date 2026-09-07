@@ -84,6 +84,13 @@ pub fn to_parser_input(
                             res.was_joint();
                         }
                     }
+                    tt::Leaf::DocComment(doc_comment) => {
+                        let kind = match doc_comment.doc_style {
+                            tt::DocCommentStyle::Inner => INNER_DOC_COMMENT,
+                            tt::DocCommentStyle::Outer => OUTER_DOC_COMMENT,
+                        };
+                        res.push(kind, ctx_edition(doc_comment.span.ctx));
+                    }
                 }
                 current.bump();
             }

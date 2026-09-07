@@ -1,11 +1,13 @@
 //! Conversions between proc_macro bridge types and tt types.
 
+use intern::sym;
 use proc_macro_api::token_stream::SpanLike;
 
 pub(super) mod ours {
     pub(crate) type Literal<Span> = tt::Literal<Span>;
     pub(crate) type Punct<Span> = tt::Punct<Span>;
     pub(crate) type Ident<Span> = tt::Ident<Span>;
+    pub(crate) type DocComment<Span> = tt::DocComment<Span>;
     pub(crate) type Leaf<Span> = tt::Leaf<Span>;
     pub(crate) type Group<Span> = proc_macro_api::token_stream::Group<Span>;
     pub(crate) type TokenTree<Span> = proc_macro_api::token_stream::TokenTree<Span>;
@@ -46,7 +48,7 @@ pub(super) fn literal_into_bridge<Span>(literal: ours::Literal<Span>) -> bridge:
     bridge::Literal { kind, symbol, suffix, span: literal.span }
 }
 
-pub(super) fn punct_into_bridge<Span>(punct: ours::Punct<Span>) -> bridge::Punct<Span> {
+fn punct_into_bridge<Span>(punct: ours::Punct<Span>) -> bridge::Punct<Span> {
     bridge::Punct {
         // FIXME: Is `as u8` correct here?
         ch: punct.char as u8,
@@ -55,11 +57,11 @@ pub(super) fn punct_into_bridge<Span>(punct: ours::Punct<Span>) -> bridge::Punct
     }
 }
 
-pub(super) fn ident_into_bridge<Span>(ident: ours::Ident<Span>) -> bridge::Ident<Span> {
+fn ident_into_bridge<Span>(ident: ours::Ident<Span>) -> bridge::Ident<Span> {
     bridge::Ident { sym: ident.sym, is_raw: ident.is_raw.yes(), span: ident.span }
 }
 
-pub(super) fn group_into_bridge<Span: SpanLike>(group: ours::Group<Span>) -> bridge::Group<Span> {
+fn group_into_bridge<Span: SpanLike>(group: ours::Group<Span>) -> bridge::Group<Span> {
     let delimiter = match group.delimiter.kind {
         tt::DelimiterKind::Parenthesis => rustc_proc_macro::Delimiter::Parenthesis,
         tt::DelimiterKind::Brace => rustc_proc_macro::Delimiter::Brace,
@@ -74,10 +76,49 @@ pub(super) fn group_into_bridge<Span: SpanLike>(group: ours::Group<Span>) -> bri
     bridge::Group { delimiter, stream: group.stream, span }
 }
 
-pub(super) fn token_tree_into_bridge<Span: SpanLike>(
+fn doc_comment_into_bridge<Span: Copy>(
+    doc_comment: ours::DocComment<Span>,
+    output: &mut Vec<bridge::TokenTree<Span>>,
+) {
+    let is_inner = doc_comment.doc_style == tt::DocCommentStyle::Inner;
+    let to_reserve = output.spare_capacity_mut().len() + 2 + usize::from(is_inner);
+    output.reserve(to_reserve);
+    output.push(bridge::TokenTree::Punct(bridge::Punct {
+        ch: b'#',
+        joint: false,
+        span: doc_comment.span,
+    }));
+    if is_inner {
+        output.push(bridge::TokenTree::Punct(bridge::Punct {
+            ch: b'!',
+            joint: false,
+            span: doc_comment.span,
+        }));
+    }
+    output.push(bridge::TokenTree::Group(bridge::Group {
+        delimiter: rustc_proc_macro::Delimiter::Bracket,
+        span: bridge::DelimSpan::from_single(doc_comment.span),
+        stream: Some(ours::TokenStream::new(vec![
+            ours::TokenTree::Leaf(ours::Leaf::Ident(ours::Ident {
+                sym: sym::doc,
+                is_raw: tt::IdentIsRaw::No,
+                span: doc_comment.span,
+            })),
+            ours::TokenTree::Leaf(ours::Leaf::Punct(ours::Punct {
+                char: '=',
+                spacing: tt::Spacing::Alone,
+                span: doc_comment.span,
+            })),
+            ours::TokenTree::Leaf(ours::Leaf::Literal(doc_comment.literal_for_proc_macros())),
+        ])),
+    }));
+}
+
+fn token_tree_into_bridge<Span: SpanLike>(
     token_tree: ours::TokenTree<Span>,
-) -> bridge::TokenTree<Span> {
-    match token_tree {
+    output: &mut Vec<bridge::TokenTree<Span>>,
+) {
+    let tree = match token_tree {
         ours::TokenTree::Leaf(ours::Leaf::Literal(literal)) => {
             bridge::TokenTree::Literal(literal_into_bridge(literal))
         }
@@ -87,11 +128,25 @@ pub(super) fn token_tree_into_bridge<Span: SpanLike>(
         ours::TokenTree::Leaf(ours::Leaf::Punct(punct)) => {
             bridge::TokenTree::Punct(punct_into_bridge(punct))
         }
+        ours::TokenTree::Leaf(ours::Leaf::DocComment(doc_comment)) => {
+            return doc_comment_into_bridge(doc_comment, output);
+        }
         ours::TokenTree::Group(group) => bridge::TokenTree::Group(group_into_bridge(group)),
-    }
+    };
+    output.push(tree);
 }
 
-pub(super) fn literal_from_bridge<Span>(literal: bridge::Literal<Span>) -> ours::Literal<Span> {
+pub(super) fn token_stream_into_bridge<Span: SpanLike>(
+    token_stream: ours::TokenStream<Span>,
+) -> Vec<bridge::TokenTree<Span>> {
+    let mut result = Vec::with_capacity(token_stream.len());
+    for tree in token_stream.iter() {
+        token_tree_into_bridge(tree.clone(), &mut result);
+    }
+    result
+}
+
+fn literal_from_bridge<Span>(literal: bridge::Literal<Span>) -> ours::Literal<Span> {
     let kind = match literal.kind {
         bridge::LitKind::Byte => tt::LitKind::Byte,
         bridge::LitKind::Char => tt::LitKind::Char,
@@ -115,7 +170,7 @@ pub(super) fn literal_from_bridge<Span>(literal: bridge::Literal<Span>) -> ours:
     }
 }
 
-pub(super) fn punct_from_bridge<Span>(punct: bridge::Punct<Span>) -> ours::Punct<Span> {
+fn punct_from_bridge<Span>(punct: bridge::Punct<Span>) -> ours::Punct<Span> {
     ours::Punct {
         char: char::from(punct.ch),
         spacing: if punct.joint { tt::Spacing::Joint } else { tt::Spacing::Alone },
@@ -123,7 +178,7 @@ pub(super) fn punct_from_bridge<Span>(punct: bridge::Punct<Span>) -> ours::Punct
     }
 }
 
-pub(super) fn ident_from_bridge<Span>(ident: bridge::Ident<Span>) -> ours::Ident<Span> {
+fn ident_from_bridge<Span>(ident: bridge::Ident<Span>) -> ours::Ident<Span> {
     ours::Ident {
         sym: ident.sym,
         is_raw: if ident.is_raw { tt::IdentIsRaw::Yes } else { tt::IdentIsRaw::No },
@@ -131,7 +186,7 @@ pub(super) fn ident_from_bridge<Span>(ident: bridge::Ident<Span>) -> ours::Ident
     }
 }
 
-pub(super) fn group_from_bridge<Span>(group: bridge::Group<Span>) -> ours::Group<Span> {
+fn group_from_bridge<Span>(group: bridge::Group<Span>) -> ours::Group<Span> {
     let kind = match group.delimiter {
         rustc_proc_macro::Delimiter::Parenthesis => tt::DelimiterKind::Parenthesis,
         rustc_proc_macro::Delimiter::Brace => tt::DelimiterKind::Brace,

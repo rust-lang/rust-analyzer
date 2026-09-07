@@ -368,9 +368,11 @@ mod tests {
                     current_dir: Default::default(),
                 };
 
-                let json = serde_json::to_string(&task).unwrap();
-                // println!("{}", json);
-                let back: ExpandMacro = serde_json::from_str(&json).unwrap();
+                let back: ExpandMacro = crate::flat::with_serialization_version(v, || {
+                    let json = serde_json::to_string(&task).unwrap();
+                    // println!("{}", json);
+                    serde_json::from_str(&json).unwrap()
+                });
 
                 assert_eq!(
                     tt,
