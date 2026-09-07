@@ -437,7 +437,7 @@ impl AttrId {
             tt.syntax(),
             SpanMap::RealSpanMap(&span_map),
             span_map.span_for_range(tt.syntax().text_range()),
-            DocCommentDesugarMode::ProcMacro,
+            DocCommentDesugarMode::Keep,
         );
         let Some((_, _, derive_tts)) =
             parse_path_comma_token_tree(db, &tt).nth(derive_index as usize)
