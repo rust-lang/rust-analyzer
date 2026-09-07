@@ -106,6 +106,9 @@ pub fn prettify_macro_expansion(
             AS_KW | DYN_KW | IMPL_KW | CONST_KW | MUT_KW | LET_KW | MATCH_KW => {
                 mods.push(do_ws(after, tok));
             }
+            INNER_DOC_COMMENT | OUTER_DOC_COMMENT => {
+                mods.push(do_nl(after, tok));
+            }
             T![;] if is_next(|it| it != R_CURLY, true) => {
                 mods.push(do_indent(after, tok, indent));
                 if tok.text_range().end() != syn.text_range().end() {

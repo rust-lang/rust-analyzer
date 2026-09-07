@@ -13,6 +13,7 @@ use proc_macro_api::{
     client::ServerError,
     flat::{FlatTree, SpanDataIndexMap},
     legacy_protocol::msg::{Message, Request, Response},
+    version::CURRENT_API_VERSION,
 };
 use span::{Edition, EditionedFileId, FileId, Span, SpanAnchor, SyntaxContext, TextRange};
 use tt::{Delimiter, DelimiterKind, TopSubtreeBuilder};
@@ -173,7 +174,9 @@ where
         proc_macro_srv_cli::main_loop::run(&mut server_reader, &mut server_writer, format)
     });
 
-    let result = test_fn(&mut client_writer, &mut client_reader);
+    let result = proc_macro_api::flat::with_serialization_version(CURRENT_API_VERSION, || {
+        test_fn(&mut client_writer, &mut client_reader)
+    });
 
     drop(client_writer);
 
