@@ -15,8 +15,7 @@ use syntax::{
     Parse, PreorderWithTokens, SmolStr, SyntaxElement,
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, SyntaxTreeBuilder, T, TextRange, TextSize, WalkEvent,
-    ast::make::tokens::doc_comment,
-    format_smolstr,
+    ast::{CommentShape, make::tokens::doc_comment},
 };
 use tt::{Punct, buffer::Cursor};
 
@@ -86,10 +85,11 @@ pub mod dummy_test_span_utils {
 /// Doc comment desugaring differs between mbe and proc-macros.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum DocCommentDesugarMode {
-    /// Desugars doc comments as quoted raw strings
-    Mbe,
-    /// Desugars doc comments as quoted strings
-    ProcMacro,
+    /// Desugars doc comments as quoted raw strings. This is only used for macro-by-example inputs
+    /// (**not** MBE themselves, they should use [`Self::Keep`]).
+    DesugarMbeInput,
+    /// Keep doc comments as [`tt::DocComment`].
+    Keep,
 }
 
 /// Converts a syntax tree to a [`tt::Subtree`] using the provided span map to populate the
@@ -185,8 +185,7 @@ pub fn parse_to_token_tree(
     if lexed.errors().next().is_some() {
         return None;
     }
-    let mut conv =
-        RawConverter { lexed, anchor, pos: 0, ctx, mode: DocCommentDesugarMode::ProcMacro };
+    let mut conv = RawConverter { lexed, anchor, pos: 0, ctx, mode: DocCommentDesugarMode::Keep };
     Some(convert_tokens(&mut conv))
 }
 
@@ -200,8 +199,7 @@ pub fn parse_to_token_tree_static_span(
     if lexed.errors().next().is_some() {
         return None;
     }
-    let mut conv =
-        StaticRawConverter { lexed, pos: 0, span, mode: DocCommentDesugarMode::ProcMacro };
+    let mut conv = StaticRawConverter { lexed, pos: 0, span, mode: DocCommentDesugarMode::Keep };
     Some(convert_tokens(&mut conv))
 }
 
@@ -391,30 +389,20 @@ fn is_single_token_op(kind: SyntaxKind) -> bool {
 /// That is, strips leading `///` (or `/**`, etc)
 /// and strips the ending `*/`
 /// And then quote the string, which is needed to convert to `tt::Literal`
-///
-/// Note that proc-macros desugar with string literals where as macro_rules macros desugar with raw string literals.
-pub fn desugar_doc_comment_text(text: &str, mode: DocCommentDesugarMode) -> (Symbol, tt::LitKind) {
-    match mode {
-        DocCommentDesugarMode::Mbe => {
-            let mut num_of_hashes = 0;
-            let mut count = 0;
-            for ch in text.chars() {
-                count = match ch {
-                    '"' => 1,
-                    '#' if count > 0 => count + 1,
-                    _ => 0,
-                };
-                num_of_hashes = num_of_hashes.max(count);
-            }
-
-            // Quote raw string with delimiters
-            (Symbol::intern(text), tt::LitKind::StrRaw(num_of_hashes))
-        }
-        // Quote string with delimiters
-        DocCommentDesugarMode::ProcMacro => {
-            (Symbol::intern(&format_smolstr!("{}", text.escape_debug())), tt::LitKind::Str)
-        }
+fn desugar_doc_comment_text_for_mbe(text: &str) -> (Symbol, tt::LitKind) {
+    let mut num_of_hashes = 0;
+    let mut count = 0;
+    for ch in text.chars() {
+        count = match ch {
+            '"' => 1,
+            '#' if count > 0 => count + 1,
+            _ => 0,
+        };
+        num_of_hashes = num_of_hashes.max(count);
     }
+
+    // Quote raw string with delimiters
+    (Symbol::intern(text), tt::LitKind::StrRaw(num_of_hashes))
 }
 
 fn convert_doc_comment(
@@ -424,35 +412,57 @@ fn convert_doc_comment(
     mode: DocCommentDesugarMode,
     builder: &mut tt::TopSubtreeBuilder,
 ) {
-    let mk_ident = |s: &str| {
-        tt::Leaf::from(tt::Ident { sym: Symbol::intern(s), span, is_raw: tt::IdentIsRaw::No })
-    };
+    match mode {
+        DocCommentDesugarMode::Keep => {
+            let doc_style =
+                if is_inner { tt::DocCommentStyle::Inner } else { tt::DocCommentStyle::Outer };
+            let comment_style = match CommentShape::from_text(token.text()) {
+                CommentShape::Line => tt::CommentStyle::Line,
+                CommentShape::Block => tt::CommentStyle::Block,
+            };
+            builder.push(tt::Leaf::DocComment(tt::DocComment::new(
+                token.text(),
+                span,
+                doc_style,
+                comment_style,
+            )))
+        }
+        DocCommentDesugarMode::DesugarMbeInput => {
+            let mk_ident = |s: &str| {
+                tt::Leaf::from(tt::Ident {
+                    sym: Symbol::intern(s),
+                    span,
+                    is_raw: tt::IdentIsRaw::No,
+                })
+            };
 
-    let mk_punct =
-        |c: char| tt::Leaf::from(tt::Punct { char: c, spacing: tt::Spacing::Alone, span });
+            let mk_punct =
+                |c: char| tt::Leaf::from(tt::Punct { char: c, spacing: tt::Spacing::Alone, span });
 
-    let mk_doc_literal = |token: &SyntaxToken| {
-        let text = token.text();
-        let from_end = if text.starts_with("/*") && text.ends_with("*/") { 2 } else { 0 };
-        let text = &text[3..text.len() - from_end];
+            let mk_doc_literal = |token: &SyntaxToken| {
+                let text = token.text();
+                let from_end = if text.starts_with("/*") && text.ends_with("*/") { 2 } else { 0 };
+                let text = &text[3..text.len() - from_end];
 
-        let (text, kind) = desugar_doc_comment_text(text, mode);
-        let lit = tt::Literal { text_and_suffix: text, span, kind, suffix_len: 0 };
+                let (text, kind) = desugar_doc_comment_text_for_mbe(text);
+                let lit = tt::Literal { text_and_suffix: text, span, kind, suffix_len: 0 };
 
-        tt::Leaf::from(lit)
-    };
+                tt::Leaf::from(lit)
+            };
 
-    // Make `doc="\" Comments\""
-    let meta_tkns = [mk_ident("doc"), mk_punct('='), mk_doc_literal(token)];
+            // Make `doc="\" Comments\""
+            let meta_tkns = [mk_ident("doc"), mk_punct('='), mk_doc_literal(token)];
 
-    // Make `#![]`
-    builder.push(mk_punct('#'));
-    if is_inner {
-        builder.push(mk_punct('!'));
+            // Make `#![]`
+            builder.push(mk_punct('#'));
+            if is_inner {
+                builder.push(mk_punct('!'));
+            }
+            builder.open(tt::DelimiterKind::Bracket, span);
+            builder.extend(meta_tkns);
+            builder.close(span);
+        }
     }
-    builder.open(tt::DelimiterKind::Bracket, span);
-    builder.extend(meta_tkns);
-    builder.close(span);
 }
 
 /// A raw token (straight from lexer) converter
@@ -979,6 +989,19 @@ impl TtTreeSink<'_> {
                             combined_span = match combined_span {
                                 None => Some(lit.span),
                                 Some(prev_span) => Some(Self::merge_spans(prev_span, lit.span)),
+                            };
+                            self.cursor.bump();
+                            continue 'tokens;
+                        }
+                        tt::Leaf::DocComment(doc_comment) => {
+                            let text = doc_comment.text_with_comment_signs.as_str();
+                            self.buf.push_str(text);
+                            self.text_pos += TextSize::of(text);
+                            combined_span = match combined_span {
+                                None => Some(doc_comment.span),
+                                Some(prev_span) => {
+                                    Some(Self::merge_spans(prev_span, doc_comment.span))
+                                }
                             };
                             self.cursor.bump();
                             continue 'tokens;

@@ -297,10 +297,16 @@ pub(crate) fn attr_macro_input_to_token_tree(
     span_map: SpanMap<'_>,
     span: Span,
     is_derive: bool,
+    is_declarative: bool,
     censor_item_tree_attr_ids: &[AttrId],
     krate: Crate,
 ) -> (tt::TopSubtree, SyntaxFixupUndoInfo) {
-    let fixups = fixup::fixup_syntax(span_map, node, span, DocCommentDesugarMode::ProcMacro);
+    let doc_comment_mode = if is_declarative {
+        DocCommentDesugarMode::DesugarMbeInput
+    } else {
+        DocCommentDesugarMode::Keep
+    };
+    let fixups = fixup::fixup_syntax(span_map, node, span, doc_comment_mode);
     (
         syntax_bridge::syntax_node_to_token_tree_modified(
             node,
@@ -308,7 +314,7 @@ pub(crate) fn attr_macro_input_to_token_tree(
             fixups.append,
             fixups.remove,
             span,
-            DocCommentDesugarMode::ProcMacro,
+            doc_comment_mode,
             macro_input_callback(db, is_derive, censor_item_tree_attr_ids, krate, span, span_map),
         ),
         fixups.undo_info,

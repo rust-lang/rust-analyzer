@@ -1031,6 +1031,15 @@ impl ProcMacroExpander for ShortenProcMacroExpander {
                     it.text_and_suffix = Symbol::empty();
                     it.suffix_len = 0;
                 }
+                Leaf::DocComment(it) => {
+                    it.text_with_comment_signs =
+                        Symbol::intern(match (it.doc_style, it.comment_style) {
+                            (tt::DocCommentStyle::Inner, tt::CommentStyle::Line) => "//!",
+                            (tt::DocCommentStyle::Inner, tt::CommentStyle::Block) => "/*!*/",
+                            (tt::DocCommentStyle::Outer, tt::CommentStyle::Line) => "///",
+                            (tt::DocCommentStyle::Outer, tt::CommentStyle::Block) => "/***/",
+                        });
+                }
                 Leaf::Punct(_) => {}
                 Leaf::Ident(it) => {
                     it.sym = Symbol::intern(&it.sym.as_str().chars().take(1).collect::<String>());

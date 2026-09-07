@@ -13,7 +13,7 @@ use tt::literal_from_str;
 
 use crate::{
     ProcMacroClientHandle, TrackedEnv,
-    server_impl::bridge::{literal_into_bridge, token_tree_from_bridge, token_tree_into_bridge},
+    server_impl::bridge::{literal_into_bridge, token_stream_into_bridge, token_tree_from_bridge},
 };
 
 mod ours {
@@ -137,7 +137,7 @@ impl server::Server for RaSpanServer<'_> {
     }
 
     fn ts_into_trees(&mut self, stream: ours::TokenStream) -> Vec<bridge::TokenTree> {
-        stream.iter().cloned().map(token_tree_into_bridge).collect()
+        token_stream_into_bridge(stream)
     }
 
     fn span_debug(&mut self, span: Self::Span) -> String {

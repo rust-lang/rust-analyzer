@@ -3,9 +3,9 @@
 use core::fmt;
 use std::{mem, rc::Rc};
 
-use intern::{Symbol, sym};
+use intern::Symbol;
 use tt::{
-    Delimiter, DelimiterKind, Ident, IdentIsRaw, Leaf, LitKind, Literal, Punct, Spacing,
+    Delimiter, DelimiterKind, DocComment, Ident, IdentIsRaw, Leaf, LitKind, Punct, Spacing,
     literal_from_lexer,
 };
 
@@ -212,85 +212,27 @@ impl<S> TokenStream<S> {
                     continue;
                 }
                 rustc_lexer::TokenKind::LineComment { doc_style: Some(doc_style) } => {
-                    let text = &s[range.start + 3..range.end];
-                    tokenstream.push(TokenTree::Leaf(Leaf::Punct(Punct {
-                        char: '#',
-                        spacing: Spacing::Alone,
-                        span,
-                    })));
-                    if doc_style == rustc_lexer::DocStyle::Inner {
-                        tokenstream.push(TokenTree::Leaf(Leaf::Punct(Punct {
-                            char: '!',
-                            spacing: Spacing::Alone,
-                            span,
-                        })));
-                    }
+                    let text = &s[range.clone()];
                     let span = span.derive_ranged(range);
-                    tokenstream.push(TokenTree::Group(Group {
-                        delimiter: Delimiter {
-                            open: span,
-                            close: span,
-                            kind: DelimiterKind::Bracket,
-                        },
-                        stream: TokenStream::new_or_empty(vec![
-                            TokenTree::Leaf(Leaf::Ident(Ident {
-                                sym: sym::doc,
-                                is_raw: IdentIsRaw::No,
-                                span,
-                            })),
-                            TokenTree::Leaf(Leaf::Punct(Punct {
-                                char: '=',
-                                spacing: Spacing::Alone,
-                                span,
-                            })),
-                            TokenTree::Leaf(Leaf::Literal(Literal::new_no_suffix(
-                                &text.escape_debug().to_string(),
-                                span,
-                                LitKind::Str,
-                            ))),
-                        ]),
-                    }));
+                    tokenstream.push(TokenTree::Leaf(Leaf::DocComment(DocComment {
+                        text_with_comment_signs: Symbol::intern(text),
+                        span,
+                        doc_style: tt::DocCommentStyle::from_lexer(doc_style),
+                        comment_style: tt::CommentStyle::Line,
+                    })));
                 }
                 rustc_lexer::TokenKind::BlockComment { doc_style: Some(doc_style), terminated } => {
-                    let text =
-                        &s[range.start + 3..if terminated { range.end - 2 } else { range.end }];
-                    let span = span.derive_ranged(range);
-                    tokenstream.push(TokenTree::Leaf(Leaf::Punct(Punct {
-                        char: '#',
-                        spacing: Spacing::Alone,
-                        span,
-                    })));
-                    if doc_style == rustc_lexer::DocStyle::Inner {
-                        tokenstream.push(TokenTree::Leaf(Leaf::Punct(Punct {
-                            char: '!',
-                            spacing: Spacing::Alone,
-                            span,
-                        })));
+                    if !terminated {
+                        return Err("unterminated block comment".to_owned());
                     }
-                    tokenstream.push(TokenTree::Group(Group {
-                        delimiter: Delimiter {
-                            open: span,
-                            close: span,
-                            kind: DelimiterKind::Bracket,
-                        },
-                        stream: TokenStream::new_or_empty(vec![
-                            TokenTree::Leaf(Leaf::Ident(Ident {
-                                sym: sym::doc,
-                                is_raw: IdentIsRaw::No,
-                                span,
-                            })),
-                            TokenTree::Leaf(Leaf::Punct(Punct {
-                                char: '=',
-                                spacing: Spacing::Alone,
-                                span,
-                            })),
-                            TokenTree::Leaf(Leaf::Literal(Literal::new_no_suffix(
-                                &text.escape_debug().to_string(),
-                                span,
-                                LitKind::Str,
-                            ))),
-                        ]),
-                    }));
+                    let text = &s[range.clone()];
+                    let span = span.derive_ranged(range);
+                    tokenstream.push(TokenTree::Leaf(Leaf::DocComment(DocComment {
+                        text_with_comment_signs: Symbol::intern(text),
+                        span,
+                        doc_style: tt::DocCommentStyle::from_lexer(doc_style),
+                        comment_style: tt::CommentStyle::Block,
+                    })));
                 }
                 rustc_lexer::TokenKind::Whitespace => continue,
                 rustc_lexer::TokenKind::Frontmatter { .. } => unreachable!(),
@@ -573,6 +515,7 @@ fn display_token_tree<S>(
                 ),
                 Leaf::Punct(punct) => punct.spacing == Spacing::Alone,
                 Leaf::Ident(_) => true,
+                Leaf::DocComment(_) => false,
             };
         }
     }
@@ -686,6 +629,6 @@ mod tests {
     #[test]
     fn doc_comment_from_str() {
         let token_stream = TokenStream::from_str("/// foo", ()).unwrap();
-        assert_eq!(token_stream.to_string(), r#"# [doc = " foo"]"#);
+        assert_eq!(token_stream.to_string(), "/// foo\n");
     }
 }

@@ -202,7 +202,8 @@ fn run_request(
     if let Some(err) = srv.exited() {
         return Err(err.clone());
     }
-    srv.run_bidirectional(msg, callback)
+
+    crate::flat::with_serialization_version(srv.version(), || srv.run_bidirectional(msg, callback))
 }
 
 pub fn reject_subrequests(req: SubRequest) -> Result<SubResponse, ServerError> {

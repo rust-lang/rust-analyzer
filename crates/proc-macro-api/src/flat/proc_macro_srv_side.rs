@@ -13,8 +13,12 @@ impl<'a, Span: Copy + 'a> WriterTrait<'a, Span> for Writer {
 
     type SubtreeIter = Option<std::slice::Iter<'a, TokenTree<Span>>>;
 
-    fn subtree_data(subtree: Self::Subtree) -> (usize, tt::Delimiter<Span>, Self::SubtreeIter) {
-        (subtree.stream_len(), subtree.delimiter, subtree.stream.as_ref().map(|it| it.iter()))
+    fn subtree_data(subtree: &Self::Subtree) -> (tt::Delimiter<Span>, Self::SubtreeIter) {
+        (subtree.delimiter, subtree.stream.as_ref().map(|it| it.iter()))
+    }
+
+    fn subtree_len(subtree: &Self::Subtree) -> usize {
+        subtree.stream_len()
     }
 
     fn subtree_iter_next(iter: &mut Self::SubtreeIter) -> Option<SubtreeOrLeafRef<'a, Span, Self>> {

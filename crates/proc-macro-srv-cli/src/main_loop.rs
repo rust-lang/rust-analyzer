@@ -40,10 +40,10 @@ pub fn run(
     stdout: &mut (dyn Write + Send + Sync),
     format: ProtocolFormat,
 ) -> io::Result<()> {
-    match format {
+    proc_macro_api::flat::with_serialization_version(CURRENT_API_VERSION, || match format {
         ProtocolFormat::JsonLegacy => run_old(stdin, stdout),
         ProtocolFormat::BidirectionalPostcardPrototype => run_new(stdin, stdout),
-    }
+    })
 }
 
 fn run_new(

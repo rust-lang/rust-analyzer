@@ -86,7 +86,8 @@ impl AttrsOrCfg {
                             .unwrap_or_else(|| meta.syntax().clone()),
                         span_map,
                         span,
-                        DocCommentDesugarMode::ProcMacro,
+                        // FIXME: This won't be correct once we support args for macro_rules attributes.
+                        DocCommentDesugarMode::Keep,
                     );
                     let input = Some(Box::new(AttrInput::TokenTree(tt)));
                     (span, input)

@@ -344,6 +344,24 @@ struct MatchState<'t> {
     is_error: bool,
 }
 
+fn token_name_eq(t1: &tt::Leaf, t2: &tt::Leaf) -> bool {
+    match (t1, t2) {
+        (tt::Leaf::Literal(t1), tt::Leaf::Literal(t2)) => {
+            t1.kind == t2.kind
+                && t1.text_and_suffix == t2.text_and_suffix
+                && t1.suffix_len == t2.suffix_len
+        }
+        (tt::Leaf::Ident(t1), tt::Leaf::Ident(t2)) => t1.sym == t2.sym && t1.is_raw == t2.is_raw,
+        (tt::Leaf::DocComment(_), tt::Leaf::DocComment(_)) => {
+            unreachable!("this function should not be used for doc comments")
+        }
+        (tt::Leaf::Punct(_), tt::Leaf::Punct(_)) => {
+            unreachable!("this function should not be used for puncts")
+        }
+        _ => false,
+    }
+}
+
 /// Process the matcher positions of `cur_items` until it is empty. In the process, this will
 /// produce more items in `next_items`, `eof_items`, and `bb_items`.
 ///
@@ -516,30 +534,19 @@ fn match_loop_inner<'t>(
                     }
                 }
             }
-            OpDelimited::Op(Op::Literal(lhs)) => {
-                if let Ok(rhs) = src.clone().expect_leaf() {
-                    if matches!(&rhs, tt::Leaf::Literal(it) if it.text_and_suffix == lhs.text_and_suffix)
-                    {
-                        item.dot.next();
-                    } else {
-                        res.add_err(ExpandError::new(
-                            *rhs.span(),
-                            ExpandErrorKind::UnexpectedToken,
-                        ));
-                        item.is_error = true;
-                    }
-                } else {
-                    res.add_err(ExpandError::binding_error(
-                        src.clone().next().map_or(delim_span.close, |it| it.first_span()),
-                        format!("expected literal: `{lhs}`"),
-                    ));
-                    item.is_error = true;
+            OpDelimited::Op(Op::Leaf(lhs)) => {
+                if matches!(lhs, tt::Leaf::DocComment(_)) {
+                    // From rustc:
+                    // If it's a doc comment, we just ignore it and move on to the next tt in the
+                    // matcher. This is a bug, but #95267 showed that existing programs rely on this
+                    // behaviour, and changing it would require some care and a transition period.
+                    item.dot.next();
+                    cur_items.push(item);
+                    continue;
                 }
-                try_push!(next_items, item);
-            }
-            OpDelimited::Op(Op::Ident(lhs)) => {
+
                 if let Ok(rhs) = src.clone().expect_leaf() {
-                    if matches!(&rhs, tt::Leaf::Ident(it) if it.sym == lhs.sym) {
+                    if token_name_eq(lhs, &rhs) {
                         item.dot.next();
                     } else {
                         res.add_err(ExpandError::new(
@@ -551,7 +558,14 @@ fn match_loop_inner<'t>(
                 } else {
                     res.add_err(ExpandError::binding_error(
                         src.clone().next().map_or(delim_span.close, |it| it.first_span()),
-                        format!("expected ident: `{lhs}`"),
+                        format!(
+                            "expected {}: `{lhs}`",
+                            match lhs {
+                                tt::Leaf::Punct(_) | tt::Leaf::DocComment(_) => unreachable!(),
+                                tt::Leaf::Literal(_) => "literal",
+                                tt::Leaf::Ident(_) => "ident",
+                            },
+                        ),
                     ));
                     item.is_error = true;
                 }
@@ -871,7 +885,7 @@ fn collect_vars(collector_fun: &mut impl FnMut(Symbol), pattern: &MetaTemplate) 
             Op::Var { name, .. } => collector_fun(name.clone()),
             Op::Subtree { tokens, .. } => collect_vars(collector_fun, tokens),
             Op::Repeat { tokens, .. } => collect_vars(collector_fun, tokens),
-            Op::Literal(_) | Op::Ident(_) | Op::Punct(_) => {}
+            Op::Leaf(_) | Op::Punct(_) => {}
             Op::Ignore { .. }
             | Op::Index { .. }
             | Op::Count { .. }
@@ -952,16 +966,8 @@ impl<'a> Iterator for OpDelimitedIter<'a> {
 fn expect_separator(iter: &mut TtIter<'_>, separator: &Separator) -> bool {
     let mut fork = iter.clone();
     let ok = match separator {
-        Separator::Ident(lhs) => match fork.expect_ident_or_underscore() {
-            Ok(rhs) => rhs.sym == lhs.sym,
-            Err(_) => false,
-        },
-        Separator::Literal(lhs) => match fork.expect_literal() {
-            Ok(rhs) => match rhs {
-                tt::Leaf::Literal(rhs) => rhs.text_and_suffix == lhs.text_and_suffix,
-                tt::Leaf::Ident(rhs) => rhs.sym == lhs.text_and_suffix,
-                tt::Leaf::Punct(_) => false,
-            },
+        Separator::Leaf(lhs) => match fork.expect_leaf() {
+            Ok(rhs) => token_name_eq(lhs, &rhs),
             Err(_) => false,
         },
         Separator::Puncts(lhs) => match fork.expect_glued_punct() {

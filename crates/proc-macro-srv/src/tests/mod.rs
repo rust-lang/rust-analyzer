@@ -80,11 +80,7 @@ pub struct Foo {
             IDENT   struct 1
             IDENT   Foo 1
             GROUP {} 1 1
-              PUNCT   # [alone] 1
-              GROUP [] 1 1
-                IDENT   doc 1
-                PUNCT   = [alone] 1
-                LITERAL Str  The domain where this federated instance is running 1
+              DOC_COMMENT Outer Line /// The domain where this federated instance is running 1
               PUNCT   # [joint] 1
               GROUP [] 1 1
                 IDENT   helper 1
@@ -116,11 +112,7 @@ pub struct Foo {
             IDENT   struct 1
             IDENT   Foo 1
             GROUP {} 1 1
-              PUNCT   # [alone] 1
-              GROUP [] 1 1
-                IDENT   doc 1
-                PUNCT   = [alone] 1
-                LITERAL Str  The domain where this federated instance is running 1
+              DOC_COMMENT Outer Line /// The domain where this federated instance is running 1
               PUNCT   # [joint] 1
               GROUP [] 1 1
                 IDENT   helper 1
@@ -152,11 +144,7 @@ pub struct Foo {
             IDENT   struct 42:Root[0000, 0]@58..64#1
             IDENT   Foo 42:Root[0000, 0]@65..68#1
             GROUP {} 42:Root[0000, 0]@69..70#1 42:Root[0000, 0]@190..191#1
-              PUNCT   # [alone] 42:Root[0000, 0]@0..0#1
-              GROUP [] 42:Root[0000, 0]@75..130#1 42:Root[0000, 0]@75..130#1
-                IDENT   doc 42:Root[0000, 0]@75..130#1
-                PUNCT   = [alone] 42:Root[0000, 0]@75..130#1
-                LITERAL Str  The domain where this federated instance is running 42:Root[0000, 0]@75..130#1
+              DOC_COMMENT Outer Line /// The domain where this federated instance is running 42:Root[0000, 0]@75..130#1
               PUNCT   # [joint] 42:Root[0000, 0]@135..136#1
               GROUP [] 42:Root[0000, 0]@136..137#1 42:Root[0000, 0]@157..158#1
                 IDENT   helper 42:Root[0000, 0]@137..143#1
@@ -188,11 +176,7 @@ pub struct Foo {
             IDENT   struct 42:Root[0000, 0]@58..64#1
             IDENT   Foo 42:Root[0000, 0]@65..68#1
             GROUP {} 42:Root[0000, 0]@69..70#1 42:Root[0000, 0]@190..191#1
-              PUNCT   # [alone] 42:Root[0000, 0]@0..0#1
-              GROUP [] 42:Root[0000, 0]@75..130#1 42:Root[0000, 0]@75..130#1
-                IDENT   doc 42:Root[0000, 0]@75..130#1
-                PUNCT   = [alone] 42:Root[0000, 0]@75..130#1
-                LITERAL Str  The domain where this federated instance is running 42:Root[0000, 0]@75..130#1
+              DOC_COMMENT Outer Line /// The domain where this federated instance is running 42:Root[0000, 0]@75..130#1
               PUNCT   # [joint] 42:Root[0000, 0]@135..136#1
               GROUP [] 42:Root[0000, 0]@136..137#1 42:Root[0000, 0]@157..158#1
                 IDENT   helper 42:Root[0000, 0]@137..143#1

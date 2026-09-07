@@ -83,7 +83,7 @@ fn macro_rules_fixtures_tt() -> FxHashMap<String, tt::TopSubtree> {
                 rule.token_tree().unwrap().syntax(),
                 DummyTestSpanMap,
                 DUMMY,
-                DocCommentDesugarMode::Mbe,
+                DocCommentDesugarMode::Keep,
             );
             (id, def_tt)
         })
@@ -169,8 +169,7 @@ fn invocation_fixtures(
                 None => (),
                 Some(kind) => panic!("Unhandled kind {kind:?}"),
             },
-            Op::Literal(it) => builder.push(tt::Leaf::from(it.clone())),
-            Op::Ident(it) => builder.push(tt::Leaf::from(it.clone())),
+            Op::Leaf(it) => builder.push(it.clone()),
             Op::Punct(puncts) => {
                 for punct in puncts.as_slice() {
                     builder.push(tt::Leaf::from(*punct));
@@ -191,8 +190,7 @@ fn invocation_fixtures(
                         && let Some(sep) = separator
                     {
                         match &**sep {
-                            Separator::Literal(it) => builder.push(tt::Leaf::Literal(it.clone())),
-                            Separator::Ident(it) => builder.push(tt::Leaf::Ident(it.clone())),
+                            Separator::Leaf(it) => builder.push(it.clone()),
                             Separator::Puncts(puncts) => {
                                 for it in puncts {
                                     builder.push(tt::Leaf::Punct(*it))
