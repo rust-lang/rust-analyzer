@@ -205,7 +205,7 @@ mod tests {
 
     fn make_ctx() -> SyntaxContext {
         // SAFETY: Tests do not use a Database, so this won't ever be used within salsa.
-        unsafe { SyntaxContext::from_u32(0) }
+        unsafe { SyntaxContext::from_u32(1) }
     }
 
     fn fixture_token_tree_top_many_none() -> TopSubtree {
