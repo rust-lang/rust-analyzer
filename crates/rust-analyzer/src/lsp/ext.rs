@@ -415,7 +415,7 @@ pub enum MatchingBraceRequest {}
 
 impl Request for MatchingBraceRequest {
     type Params = MatchingBraceParams;
-    type Result = Vec<Position>;
+    type Result = Vec<[Position; 2]>;
     const METHOD: LspRequestMethod<'_> = LspRequestMethod::new("experimental/matchingBrace");
     const MESSAGE_DIRECTION: MessageDirection = MessageDirection::ClientToServer;
 }

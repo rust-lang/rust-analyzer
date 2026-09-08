@@ -1,5 +1,5 @@
 <!---
-lsp/ext.rs hash: 98191ad3d886c851
+lsp/ext.rs hash: e88fcb21364c77f1
 
 If you need to change the above hash to make the test pass, please check if you
 need to adjust this doc as well and ping this issue:
@@ -316,7 +316,7 @@ interface MatchingBraceParams {
 **Response:**
 
 ```typescript
-Position[]
+Position[2][]
 ```
 
 ### Example

@@ -396,7 +396,7 @@ pub(crate) fn handle_selection_range(
 pub(crate) fn handle_matching_brace(
     snap: GlobalStateSnapshot,
     params: lsp_ext::MatchingBraceParams,
-) -> anyhow::Result<Vec<Position>> {
+) -> anyhow::Result<Vec<[Position; 2]>> {
     let _p = tracing::info_span!("handle_matching_brace").entered();
     let file_id = try_default!(from_proto::file_id(&snap, &params.text_document.uri)?);
     let line_index = snap.file_line_index(file_id)?;
@@ -407,10 +407,10 @@ pub(crate) fn handle_matching_brace(
             let offset = from_proto::offset(&line_index, *position);
             offset.map(|offset| {
                 let offset = match snap.analysis.matching_brace(FilePosition { file_id, offset }) {
-                    Ok(Some(matching_brace_offset)) => matching_brace_offset,
-                    Err(_) | Ok(None) => offset,
+                    Ok(Some(matching_brace_offset)) => matching_brace_offset.into(),
+                    Err(_) | Ok(None) => [offset; 2],
                 };
-                to_proto::position(&line_index, offset)
+                offset.map(|offset| to_proto::position(&line_index, offset))
             })
         })
         .collect()

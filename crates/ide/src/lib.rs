@@ -385,7 +385,10 @@ impl Analysis {
 
     /// Returns position of the matching brace (all types of braces are
     /// supported).
-    pub fn matching_brace(&self, position: FilePosition) -> Cancellable<Option<TextSize>> {
+    pub fn matching_brace(
+        &self,
+        position: FilePosition,
+    ) -> Cancellable<Option<(TextSize, TextSize)>> {
         self.with_db(|db| {
             let file_id = EditionedFileId::current_edition(&self.db, position.file_id);
             let parse = file_id.parse(db);
