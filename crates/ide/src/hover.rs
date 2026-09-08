@@ -85,9 +85,9 @@ pub enum HoverAction {
 }
 
 impl HoverAction {
-    fn goto_type_from_targets(
-        sema: &Semantics<'_, RootDatabase>,
-        targets: Vec<hir::ModuleDef>,
+    fn goto_type_from_targets<'db>(
+        sema: &Semantics<'db, RootDatabase>,
+        targets: Vec<hir::ModuleDef<'db>>,
         edition: Edition,
     ) -> Option<Self> {
         let db = sema.db;
@@ -451,10 +451,10 @@ fn hover_ranged(
 }
 
 // FIXME: Why is this pub(crate)?
-pub(crate) fn hover_for_definition(
-    sema: &Semantics<'_, RootDatabase>,
+pub(crate) fn hover_for_definition<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     file_id: FileId,
-    def: Definition<'_>,
+    def: Definition<'db>,
     subst: Option<GenericSubstitution<'_>>,
     scope_node: &SyntaxNode,
     macro_arm: Option<u32>,
@@ -592,9 +592,9 @@ fn show_implementations_action(
     adt.try_to_nav(sema).map(UpmappingResult::call_site).map(to_action)
 }
 
-fn show_fn_references_action(
-    sema: &Semantics<'_, RootDatabase>,
-    def: Definition<'_>,
+fn show_fn_references_action<'db>(
+    sema: &Semantics<'db, RootDatabase>,
+    def: Definition<'db>,
 ) -> Option<HoverAction> {
     match def {
         Definition::Function(it) => {
@@ -630,16 +630,16 @@ fn runnable_action(
     }
 }
 
-fn goto_type_action_for_def(
-    sema: &Semantics<'_, RootDatabase>,
+fn goto_type_action_for_def<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     def: Definition<'_>,
     notable_traits: &[(hir::Trait, Vec<(Option<hir::Type<'_>>, hir::Name)>)],
     subst_types: Option<Vec<(hir::Symbol, hir::Type<'_>)>>,
     edition: Edition,
 ) -> Option<HoverAction> {
     let db = sema.db;
-    let mut targets: Vec<hir::ModuleDef> = Vec::new();
-    let mut push_new_def = |item: hir::ModuleDef| {
+    let mut targets: Vec<hir::ModuleDef<'db>> = Vec::new();
+    let mut push_new_def = |item: hir::ModuleDef<'db>| {
         if !targets.contains(&item) {
             targets.push(item);
         }
@@ -687,10 +687,10 @@ fn goto_type_action_for_def(
     HoverAction::goto_type_from_targets(sema, targets, edition)
 }
 
-fn walk_and_push_ty(
+fn walk_and_push_ty<'db>(
     db: &RootDatabase,
     ty: &hir::Type<'_>,
-    push_new_def: &mut dyn FnMut(hir::ModuleDef),
+    push_new_def: &mut dyn FnMut(hir::ModuleDef<'db>),
 ) {
     ty.walk(db, |t| {
         if let Some(adt) = t.as_adt() {

@@ -33,7 +33,7 @@ pub(super) fn hints(
     }
 
     let def = sema.to_def(node)?;
-    let def: DefWithBody = def.into();
+    let def: DefWithBody<'_> = def.into();
 
     let def = def.try_into().ok()?;
     let (hir, source_map) = hir::Body::with_source_map(sema.db, def);
