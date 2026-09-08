@@ -98,7 +98,7 @@ fn merge_uses(
     };
     let mut merged = first.clone();
     for item in &rest {
-        merged = try_merge_imports(editor.make(), &merged, item, mb)?;
+        merged = try_merge_imports(editor.make(), &merged, item, mb, None)?;
     }
     for item in rest {
         item.remove(editor);

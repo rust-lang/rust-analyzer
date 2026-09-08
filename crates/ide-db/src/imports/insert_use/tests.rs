@@ -1326,6 +1326,106 @@ use ::ext::foo::Foo;
     );
 }
 
+#[test]
+fn insert_replaces_self_import_in_all_granularities() {
+    let definitions = "mod foo { pub mod bar { pub struct Baz; } pub fn bar() {} }";
+    for (granularity, imports) in [
+        (ImportGranularity::Crate, "use foo::{bar, bar::Baz};"),
+        (ImportGranularity::One, "use {foo::bar, foo::bar::Baz};"),
+        (ImportGranularity::Module, "use foo::bar;\nuse foo::bar::Baz;"),
+        (ImportGranularity::Item, "use foo::bar;\nuse foo::bar::Baz;"),
+    ] {
+        check(
+            "foo::bar",
+            &format!("use foo::bar::{{self, Baz}};\n\n{definitions}"),
+            &format!("{imports}\n\n{definitions}"),
+            granularity,
+        );
+    }
+}
+
+#[test]
+fn insert_replaces_only_self_import() {
+    for granularity in
+        [ImportGranularity::Crate, ImportGranularity::Module, ImportGranularity::Item]
+    {
+        check("foo::bar", "use foo::bar::{self};", "use foo::bar;", granularity);
+    }
+    check_one("foo::bar", "use {foo::bar::{self}};", "use {foo::bar};");
+}
+
+#[test]
+fn insert_replaces_self_import_preserving_aliases() {
+    let definitions = "mod foo { pub mod bar { pub struct Baz; } pub fn bar() {} }";
+    for (existing, expected) in [
+        ("self as bar, Baz", "use foo::{bar, bar::Baz};"),
+        ("self as renamed, Baz", "use foo::{bar, bar::{self as renamed, Baz}};"),
+        ("self, self as renamed", "use foo::{bar, bar::{self as renamed}};"),
+        ("self, self as _", "use foo::{bar, bar::{self as _}};"),
+    ] {
+        check_crate(
+            "foo::bar",
+            &format!("use foo::bar::{{{existing}}};\n\n{definitions}"),
+            &format!("{expected}\n\n{definitions}"),
+        );
+    }
+}
+
+#[test]
+fn insert_replaces_nested_self_without_normalizing_other_imports() {
+    check_crate(
+        "foo::bar",
+        r#"
+use foo::{bar::{self, Baz}, quux, quux::Item};
+
+mod foo {
+    pub mod bar { pub struct Baz; }
+    pub fn bar() {}
+    pub mod quux { pub struct Item; }
+    pub fn quux() {}
+}
+"#,
+        r#"
+use foo::bar;
+use foo::{bar::Baz, quux, quux::Item};
+
+mod foo {
+    pub mod bar { pub struct Baz; }
+    pub fn bar() {}
+    pub mod quux { pub struct Item; }
+    pub fn quux() {}
+}
+"#,
+    );
+}
+
+#[test]
+fn insert_replaces_self_after_merging_another_import() {
+    check_crate(
+        "foo::bar",
+        r#"
+use foo::Other;
+use foo::bar::{self, Baz};
+
+mod foo {
+    pub struct Other;
+    pub mod bar { pub struct Baz; }
+    pub fn bar() {}
+}
+"#,
+        r#"
+use foo::{Other, bar};
+use foo::bar::Baz;
+
+mod foo {
+    pub struct Other;
+    pub mod bar { pub struct Baz; }
+    pub fn bar() {}
+}
+"#,
+    );
+}
+
 fn check_with_config(
     path: &str,
     #[rust_analyzer::rust_fixture] ra_fixture_before: &str,
@@ -1358,7 +1458,7 @@ fn check_with_config(
         .find_map(ast::Path::cast)
         .unwrap();
 
-    insert_use_with_editor(&file, path, config, &editor);
+    insert_use_with_editor(sema, &file, path, config, &editor);
     let edit = editor.finish();
     let result = edit.new_root().to_string();
     assert_eq_text!(&trim_indent(ra_fixture_after), &result);
@@ -1432,7 +1532,7 @@ fn check_merge_only_fail(ra_fixture0: &str, ra_fixture1: &str, mb: MergeBehavior
         .unwrap();
 
     let make = SyntaxFactory::without_mappings();
-    let result = try_merge_imports(&make, &use0, &use1, mb);
+    let result = try_merge_imports(&make, &use0, &use1, mb, None);
     assert_eq!(result.map(|u| u.to_string()), None);
 }
 
@@ -1498,7 +1598,7 @@ fn check_merge(ra_fixture0: &str, ra_fixture1: &str, last: &str, mb: MergeBehavi
         .unwrap();
 
     let make = SyntaxFactory::without_mappings();
-    let result = try_merge_imports(&make, &use0, &use1, mb);
+    let result = try_merge_imports(&make, &use0, &use1, mb, None);
     assert_eq!(result.map(|u| u.to_string().trim().to_owned()), Some(last.trim().to_owned()));
 }
 
@@ -1529,7 +1629,7 @@ fn merge_gated_imports_with_different_values() {
         .unwrap();
 
     let make = SyntaxFactory::without_mappings();
-    let result = try_merge_imports(&make, &use0, &use1, MergeBehavior::Crate);
+    let result = try_merge_imports(&make, &use0, &use1, MergeBehavior::Crate, None);
     assert_eq!(result, None);
 }
 

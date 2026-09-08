@@ -172,6 +172,7 @@ pub(crate) fn json_in_items(
                         }
 
                         insert_uses_with_editor(
+                            sema,
                             &import_scope,
                             imports_to_insert,
                             &config.insert_use,

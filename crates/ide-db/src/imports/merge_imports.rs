@@ -39,11 +39,15 @@ impl MergeBehavior {
 }
 
 /// Merge `rhs` into `lhs` keeping both intact.
+///
+/// `preserve_path_len` prevents an existing multi-namespace path of that length from being
+/// replaced with a nested `self` import.
 pub fn try_merge_imports(
     make: &SyntaxFactory,
     lhs: &ast::Use,
     rhs: &ast::Use,
     merge_behavior: MergeBehavior,
+    preserve_path_len: Option<usize>,
 ) -> Option<ast::Use> {
     // don't merge imports with different visibilities
     if !eq_visibility(lhs.visibility(), rhs.visibility()) {
@@ -55,13 +59,85 @@ pub fn try_merge_imports(
 
     let lhs_tree = lhs.use_tree()?;
     let rhs_tree = rhs.use_tree()?;
-    let merged_tree = try_merge_trees_with_factory(lhs_tree, rhs_tree, merge_behavior, make)?;
+    let (merged_tree, normalize) =
+        try_merge_trees_with_factory(lhs_tree, rhs_tree, merge_behavior, preserve_path_len, make)?;
 
-    // Ignore `None` result because normalization should not affect the merge result.
-    let use_tree = try_normalize_use_tree(merged_tree.clone(), merge_behavior.into(), make)
-        .unwrap_or(merged_tree);
+    let use_tree = if normalize {
+        // Ignore `None` result because normalization should not affect the merge result.
+        try_normalize_use_tree(merged_tree.clone(), merge_behavior.into(), make)
+            .unwrap_or(merged_tree)
+    } else {
+        merged_tree
+    };
 
     make_use_with_tree(lhs, use_tree)
+}
+
+/// Remove `self` bindings supplied by an explicit import of `path`.
+/// Returns `None` if no imports remain.
+pub(super) fn remove_redundant_self_import(
+    use_item: &ast::Use,
+    path: &ast::Path,
+    make: &SyntaxFactory,
+) -> Option<ast::Use> {
+    let Some(tree) = use_item.use_tree() else { return Some(use_item.clone()) };
+    let segments = path.segments().collect::<Vec<_>>();
+    let name = path.segment().and_then(|segment| segment.name_ref());
+    let updated = remove_redundant_self(tree.clone(), &segments, name.as_ref(), make)?;
+    if updated == tree {
+        Some(use_item.clone())
+    } else {
+        Some(make_use_with_tree(use_item, updated).unwrap_or_else(|| use_item.clone()))
+    }
+}
+
+fn remove_redundant_self(
+    tree: ast::UseTree,
+    path: &[ast::PathSegment],
+    name: Option<&ast::NameRef>,
+    make: &SyntaxFactory,
+) -> Option<ast::UseTree> {
+    let Some(list) = tree.use_tree_list() else { return Some(tree) };
+    let prefix = tree.path().map(|path| path.segments().collect::<Vec<_>>()).unwrap_or_default();
+    if prefix.len() > path.len()
+        || prefix.iter().zip(path).any(|(a, b)| a.syntax().text() != b.syntax().text())
+    {
+        return Some(tree);
+    }
+    let path = &path[prefix.len()..];
+    let mut changed = false;
+    let subtrees = list
+        .use_trees()
+        .filter_map(|subtree| {
+            let redundant_self = path.is_empty()
+                && subtree.path().as_ref().is_some_and(path_is_self)
+                && subtree.rename().is_none_or(|rename| {
+                    rename.name().zip(name).is_some_and(|(alias, name)| alias.text() == name.text())
+                });
+            if redundant_self {
+                changed = true;
+                return None;
+            }
+            let updated = remove_redundant_self(subtree.clone(), path, name, make);
+            changed |= updated.as_ref() != Some(&subtree);
+            updated
+        })
+        .collect::<Vec<_>>();
+    if !changed {
+        return Some(tree);
+    }
+    if subtrees.is_empty() {
+        return None;
+    }
+    // Only collapse this level. General normalization could turn another
+    // explicit multi-namespace import back into a type-only `self` import.
+    let collapse = subtrees.len() == 1 && !subtrees[0].path().as_ref().is_some_and(path_is_self);
+    let Some(updated) = with_use_tree_list(&tree, subtrees, make) else { return Some(tree) };
+    if collapse {
+        Some(merge_single_subtree_into_parent_tree(updated.clone(), make).unwrap_or(updated))
+    } else {
+        Some(updated)
+    }
 }
 
 /// Merge `rhs` into `lhs` keeping both intact.
@@ -71,7 +147,7 @@ pub fn try_merge_trees(
     rhs: &ast::UseTree,
     merge: MergeBehavior,
 ) -> Option<ast::UseTree> {
-    let merged = try_merge_trees_with_factory(lhs.clone(), rhs.clone(), merge, make)?;
+    let (merged, _) = try_merge_trees_with_factory(lhs.clone(), rhs.clone(), merge, None, make)?;
 
     // Ignore `None` result because normalization should not affect the merge result.
     Some(try_normalize_use_tree(merged.clone(), merge.into(), make).unwrap_or(merged))
@@ -81,16 +157,56 @@ fn try_merge_trees_with_factory(
     mut lhs: ast::UseTree,
     mut rhs: ast::UseTree,
     merge: MergeBehavior,
+    preserve_path_len: Option<usize>,
     make: &SyntaxFactory,
-) -> Option<ast::UseTree> {
+) -> Option<(ast::UseTree, bool)> {
     if merge == MergeBehavior::One {
         lhs = wrap_in_tree_list(&lhs, make).unwrap_or(lhs);
         rhs = wrap_in_tree_list(&rhs, make).unwrap_or(rhs);
+
+        if preserve_path_len.is_some() {
+            let mut use_trees = lhs
+                .use_tree_list()?
+                .use_trees()
+                .chain(rhs.use_tree_list()?.use_trees())
+                .collect::<Vec<_>>();
+            use_trees.sort_unstable_by(use_tree_cmp);
+            return Some((with_use_tree_list(&lhs, use_trees, make)?, false));
+        }
     } else {
         let lhs_path = lhs.path()?;
         let rhs_path = rhs.path()?;
 
         let (lhs_prefix, rhs_prefix) = common_prefix(&lhs_path, &rhs_path)?;
+        if let Some(preserve_path_len) = preserve_path_len {
+            if merge == MergeBehavior::Module || path_len(lhs_prefix.clone()) != preserve_path_len {
+                return None;
+            }
+
+            let lhs_is_prefix =
+                lhs.is_simple_path() && lhs.rename().is_none() && lhs_path == lhs_prefix;
+            let rhs_is_prefix =
+                rhs.is_simple_path() && rhs.rename().is_none() && rhs_path == rhs_prefix;
+            if lhs_is_prefix == rhs_is_prefix {
+                return None;
+            }
+
+            let (merge_lhs, merge_rhs) = match (lhs_prefix.qualifier(), rhs_prefix.qualifier()) {
+                (Some(lhs_parent), Some(rhs_parent)) => {
+                    (split_prefix(&lhs, &lhs_parent, make)?, split_prefix(&rhs, &rhs_parent, make)?)
+                }
+                (None, None) => (wrap_in_tree_list(&lhs, make)?, wrap_in_tree_list(&rhs, make)?),
+                _ => return None,
+            };
+            let mut use_trees = merge_lhs
+                .use_tree_list()?
+                .use_trees()
+                .chain(merge_rhs.use_tree_list()?.use_trees())
+                .collect::<Vec<_>>();
+            use_trees.sort_unstable_by(use_tree_cmp);
+            return Some((with_use_tree_list(&merge_lhs, use_trees, make)?, false));
+        }
+
         if lhs.is_simple_path()
             && rhs.is_simple_path()
             && lhs_path == lhs_prefix
@@ -106,13 +222,13 @@ fn try_merge_trees_with_factory(
                 return None;
             }
 
-            return Some(rhs);
+            return Some((rhs, true));
         } else {
             lhs = split_prefix(&lhs, &lhs_prefix, make)?;
             rhs = split_prefix(&rhs, &rhs_prefix, make)?;
         }
     }
-    recursive_merge(lhs, rhs, merge, make)
+    Some((recursive_merge(lhs, rhs, merge, make)?, true))
 }
 
 /// Recursively merges rhs to lhs
@@ -334,10 +450,11 @@ fn recursive_normalize(
     while anchor_idx < use_tree_list.len() {
         let mut candidate_idx = anchor_idx + 1;
         while candidate_idx < use_tree_list.len() {
-            if let Some(mut merged) = try_merge_trees_with_factory(
+            if let Some((mut merged, _)) = try_merge_trees_with_factory(
                 use_tree_list[anchor_idx].clone(),
                 use_tree_list[candidate_idx].clone(),
                 MergeBehavior::Crate,
+                None,
                 make,
             ) {
                 if let Some(normalized) =
