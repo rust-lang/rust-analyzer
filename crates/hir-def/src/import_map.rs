@@ -1,6 +1,6 @@
 //! A map of all publicly exported items in a crate.
 
-use std::{fmt, iter};
+use std::{cmp::Ordering, fmt, iter};
 
 use base_db::{Crate, SourceDatabase};
 use fst::{Automaton, Streamer, raw::IndexedValue};
@@ -9,7 +9,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use span::Edition;
-use stdx::{format_to, to_lowercase_chars};
+use stdx::{cmp_lowercase, format_to, to_lowercase_chars};
 
 use crate::{
     AdtId, AssocItemId, AttrDefId, Complete, EnumId, FxIndexMap, ModuleDefId, ModuleId, TraitId,
@@ -96,16 +96,14 @@ impl ImportMap {
                     .map(move |(idx, info)| (item, info.name.as_str(), idx as u32))
             })
             .collect();
-        importables.sort_by(|(_, l_info, _), (_, r_info, _)| {
-            to_lowercase_chars(l_info).cmp(to_lowercase_chars(r_info))
-        });
+        importables.sort_by(|(_, l_info, _), (_, r_info, _)| cmp_lowercase(l_info, r_info));
         importables.dedup();
 
         // Build the FST, taking care not to insert duplicate values.
         let mut builder = fst::MapBuilder::memory();
         let mut iter =
             importables.iter().enumerate().dedup_by(|&(_, (_, lhs, _)), &(_, (_, rhs, _))| {
-                to_lowercase_chars(lhs).eq(to_lowercase_chars(rhs))
+                cmp_lowercase(lhs, rhs) == Ordering::Equal
             });
 
         let mut insert = |name: &str, start, end| {

@@ -40,7 +40,7 @@ use hir::{
 };
 use itertools::Itertools;
 use rayon::prelude::*;
-use stdx::to_lowercase_chars;
+use stdx::{cmp_lowercase, to_lowercase_chars};
 
 use crate::RootDatabase;
 
@@ -482,7 +482,7 @@ impl Hash for SymbolIndex<'_> {
 impl<'db> SymbolIndex<'db> {
     fn new(mut symbols: Box<[FileSymbol<'db>]>) -> SymbolIndex<'db> {
         fn cmp(lhs: &FileSymbol<'_>, rhs: &FileSymbol<'_>) -> Ordering {
-            to_lowercase_chars(lhs.name.as_str()).cmp(to_lowercase_chars(rhs.name.as_str()))
+            cmp_lowercase(lhs.name.as_str(), rhs.name.as_str())
         }
 
         symbols.par_sort_by(cmp);
