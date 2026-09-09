@@ -25,8 +25,8 @@ use crate::{
     db::HirDatabase,
     generics::{Generics, generics},
     next_solver::{
-        Const, ConstKind, DbInterner, ExistentialPredicate, GenericArgKind, GenericArgs, Pattern,
-        PatternKind, Region, RegionKind, StoredVariancesOf, TermKind, Ty, TyKind, VariancesOf,
+        Const, ConstKind, ExistentialPredicate, GenericArgKind, GenericArgs, Pattern, PatternKind,
+        Region, RegionKind, StoredVariancesOf, TermKind, Ty, TyKind, VariancesOf,
     },
 };
 
@@ -46,7 +46,7 @@ fn variances_of_query(db: &dyn HirDatabase, def: GenericDefId) -> StoredVariance
         GenericDefId::AdtId(adt) => {
             if let AdtId::StructId(id) = adt {
                 let flags = &StructSignature::of(db, id).flags;
-                let types = || crate::next_solver::default_types(db);
+                let types = || crate::next_solver::default_types();
                 if flags.contains(StructFlags::IS_UNSAFE_CELL) {
                     return types().one_invariant.store();
                 } else if flags.intersects(
@@ -56,13 +56,13 @@ fn variances_of_query(db: &dyn HirDatabase, def: GenericDefId) -> StoredVariance
                 }
             }
         }
-        _ => return VariancesOf::empty(DbInterner::new_no_crate(db)).store(),
+        _ => return VariancesOf::empty().store(),
     }
 
     let generics = generics(db, def);
     let count = generics.len(true);
     if count == 0 {
-        return VariancesOf::empty(DbInterner::new_no_crate(db)).store();
+        return VariancesOf::empty().store();
     }
     let variances =
         Context { generics, variances: vec![Variance::Bivariant; count].into_boxed_slice(), db }
@@ -106,11 +106,10 @@ pub(crate) fn variances_of_cycle_initial(
     _: salsa::Id,
     def: GenericDefId,
 ) -> StoredVariancesOf {
-    let interner = DbInterner::new_no_crate(db);
     let generics = generics(db, def);
     let count = generics.len(true);
 
-    VariancesOf::new_from_iter(interner, std::iter::repeat_n(Variance::Bivariant, count)).store()
+    VariancesOf::new_from_iter(std::iter::repeat_n(Variance::Bivariant, count)).store()
 }
 
 struct Context<'db> {

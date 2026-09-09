@@ -16,7 +16,7 @@ use rustc_type_ir::{
 use crate::{
     next_solver::{
         BoundConst, FxIndexMap, ParamEnv, PlaceholderConst, PlaceholderRegion, PlaceholderType,
-        PolyTraitRef,
+        PolyTraitRef, default_types,
         infer::{
             InferCtxt,
             traits::{Obligation, ObligationCause, PredicateObligation},
@@ -80,7 +80,7 @@ pub trait IntegerTypeExt {
 
 impl IntegerTypeExt for IntegerType {
     fn to_ty<'db>(&self, interner: DbInterner<'db>) -> Ty<'db> {
-        let types = interner.default_types();
+        let types = default_types();
         match self {
             IntegerType::Pointer(true) => types.types.isize,
             IntegerType::Pointer(false) => types.types.usize,
@@ -122,9 +122,9 @@ pub trait IntegerExt {
 
 impl IntegerExt for Integer {
     #[inline]
-    fn to_ty<'db>(&self, interner: DbInterner<'db>, signed: bool) -> Ty<'db> {
+    fn to_ty<'db>(&self, _interner: DbInterner<'db>, signed: bool) -> Ty<'db> {
         use Integer::*;
-        let types = interner.default_types();
+        let types = default_types();
         match (*self, signed) {
             (I8, false) => types.types.u8,
             (I16, false) => types.types.u16,
@@ -217,9 +217,9 @@ pub trait FloatExt {
 
 impl FloatExt for Float {
     #[inline]
-    fn to_ty<'db>(&self, interner: DbInterner<'db>) -> Ty<'db> {
+    fn to_ty<'db>(&self, _interner: DbInterner<'db>) -> Ty<'db> {
         use Float::*;
-        let types = interner.default_types();
+        let types = default_types();
         match *self {
             F16 => types.types.f16,
             F32 => types.types.f32,
@@ -250,7 +250,7 @@ impl PrimitiveExt for Primitive {
         match *self {
             Primitive::Int(i, signed) => i.to_ty(interner, signed),
             Primitive::Float(f) => f.to_ty(interner),
-            Primitive::Pointer(_) => interner.default_types().types.mut_unit_ptr,
+            Primitive::Pointer(_) => default_types().types.mut_unit_ptr,
         }
     }
 
@@ -282,8 +282,8 @@ pub trait CoroutineArgsExt<'db> {
 impl<'db> CoroutineArgsExt<'db> for CoroutineArgs<DbInterner<'db>> {
     /// The type of the state discriminant used in the coroutine type.
     #[inline]
-    fn discr_ty(&self, interner: DbInterner<'db>) -> Ty<'db> {
-        interner.default_types().types.u32
+    fn discr_ty(&self, _interner: DbInterner<'db>) -> Ty<'db> {
+        default_types().types.u32
     }
 }
 

@@ -502,7 +502,7 @@ pub(super) mod resolve_completely {
         infer::unify::InferenceTable,
         next_solver::{
             Const, ConstKind, DbInterner, DefaultAny, GenericArg, Goal, Predicate, Region, Term,
-            TermKind, Ty, TyKind,
+            TermKind, Ty, TyKind, default_types,
             infer::{resolve::ReplaceInferWithError, traits::ObligationCause},
             normalize::deeply_normalize_with_skipped_universes_and_ambiguous_coroutine_goals,
         },
@@ -541,7 +541,7 @@ pub(super) mod resolve_completely {
                 .collect();
 
             Self {
-                types: table.interner().default_types(),
+                types: default_types(),
                 table,
                 diagnostics,
                 has_errors: false,

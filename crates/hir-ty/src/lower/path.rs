@@ -214,7 +214,6 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                                     span,
                                 );
                                 let args = GenericArgs::new_from_iter(
-                                    self.ctx.interner,
                                     trait_ref
                                         .args
                                         .iter()
@@ -544,7 +543,6 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
         let substs = self.substs_from_path_segment(assoc_type.into(), infer_args, None, true, span);
 
         let substs = GenericArgs::new_from_iter(
-            interner,
             trait_args.iter().chain(substs.iter().skip(trait_args.len())),
         );
 
@@ -576,7 +574,6 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
         lowering_assoc_type_generics: bool,
         span: Span,
     ) -> GenericArgs<'db> {
-        let interner = self.ctx.interner;
         let prev_current_segment_idx = self.current_segment_idx;
         let prev_current_segment = self.current_or_prev_segment;
 
@@ -586,7 +583,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
             ValueTyDefId::UnionId(it) => it.into(),
             ValueTyDefId::ConstId(it) => it.into(),
             ValueTyDefId::StaticId(_) => {
-                return GenericArgs::empty(interner);
+                return GenericArgs::empty();
             }
             ValueTyDefId::EnumVariantId(var) => {
                 // the generic args for an enum variant may be either specified
@@ -929,7 +926,6 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         )
                     });
                 let args = GenericArgs::new_from_iter(
-                    interner,
                     super_trait_args.iter().chain(args.iter().skip(super_trait_args.len())),
                 );
                 let projection_term = AliasTerm::new_from_args(

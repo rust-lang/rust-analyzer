@@ -11,8 +11,8 @@ use rustc_type_ir::{
 };
 
 use crate::next_solver::{
-    GenericArg, OutlivesPredicate, impl_foldable_for_interned_slice, impl_stored_interned,
-    interned_slice,
+    GenericArg, OutlivesPredicate, default_types, impl_foldable_for_interned_slice,
+    impl_stored_interned, interned_slice,
 };
 
 use super::{SolverDefId, interner::DbInterner};
@@ -63,8 +63,8 @@ impl<'db> Region<'db> {
         Region::new(interner, RegionKind::ReVar(v))
     }
 
-    pub fn new_erased(interner: DbInterner<'db>) -> Region<'db> {
-        interner.default_types().regions.erased
+    pub fn new_erased(_interner: DbInterner<'db>) -> Region<'db> {
+        default_types().regions.erased
     }
 
     pub fn new_bound(
@@ -104,8 +104,8 @@ impl<'db> Region<'db> {
         matches!(self.inner(), RegionKind::ReError(_))
     }
 
-    pub fn error(interner: DbInterner<'db>) -> Self {
-        interner.default_types().regions.error
+    pub fn error(_interner: DbInterner<'db>) -> Self {
+        default_types().regions.error
     }
 
     pub fn type_flags(&self) -> TypeFlags {
@@ -286,8 +286,8 @@ impl<'db> rustc_type_ir::inherent::Region<DbInterner<'db>> for Region<'db> {
         )
     }
 
-    fn new_static(interner: DbInterner<'db>) -> Self {
-        interner.default_types().regions.statik
+    fn new_static(_interner: DbInterner<'db>) -> Self {
+        default_types().regions.statik
     }
 
     fn new_placeholder(interner: DbInterner<'db>, var: PlaceholderRegion<'db>) -> Self {
