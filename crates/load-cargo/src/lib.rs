@@ -542,7 +542,7 @@ fn load_crate_graph_into_db(
     }
     let changes = vfs.take_changes();
     for (_, file) in changes {
-        if let vfs::Change::Create(v, _) | vfs::Change::Modify(v, _) = file.change {
+        if let vfs::Change::Create(v, _, _) | vfs::Change::Modify(v, _, _) = file.change {
             analysis_change.change_file(file.file_id, String::from_utf8(v).ok())
         }
     }
