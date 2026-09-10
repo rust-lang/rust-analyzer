@@ -162,7 +162,10 @@ impl<'db> FulfillmentCtxt<'db> {
         let mut errors = Vec::new();
         loop {
             let mut any_changed = false;
-            self.try_evaluate_obligations_scratch.extend(self.obligations.drain_pending(|_| true));
+            std::mem::swap(
+                &mut self.try_evaluate_obligations_scratch,
+                &mut self.obligations.pending,
+            );
             for (mut obligation, stalled_on) in self.try_evaluate_obligations_scratch.drain(..) {
                 if obligation.recursion_depth >= infcx.interner.recursion_limit() {
                     self.obligations.on_fulfillment_overflow(infcx);
