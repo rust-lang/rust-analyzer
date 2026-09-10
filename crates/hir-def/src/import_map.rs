@@ -9,7 +9,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use span::Edition;
-use stdx::format_to;
+use stdx::{format_to, to_lowercase_chars};
 
 use crate::{
     AdtId, AssocItemId, AttrDefId, Complete, EnumId, FxIndexMap, ModuleDefId, ModuleId, TraitId,
@@ -97,21 +97,20 @@ impl ImportMap {
             })
             .collect();
         importables.sort_by(|(_, l_info, _), (_, r_info, _)| {
-            let lhs_chars = l_info.chars().map(|c| c.to_ascii_lowercase());
-            let rhs_chars = r_info.chars().map(|c| c.to_ascii_lowercase());
-            lhs_chars.cmp(rhs_chars)
+            to_lowercase_chars(l_info).cmp(to_lowercase_chars(r_info))
         });
         importables.dedup();
 
         // Build the FST, taking care not to insert duplicate values.
         let mut builder = fst::MapBuilder::memory();
-        let mut iter = importables
-            .iter()
-            .enumerate()
-            .dedup_by(|&(_, (_, lhs, _)), &(_, (_, rhs, _))| lhs.eq_ignore_ascii_case(rhs));
+        let mut iter =
+            importables.iter().enumerate().dedup_by(|&(_, (_, lhs, _)), &(_, (_, rhs, _))| {
+                to_lowercase_chars(lhs).eq(to_lowercase_chars(rhs))
+            });
 
         let mut insert = |name: &str, start, end| {
-            builder.insert(name.to_ascii_lowercase(), ((start as u64) << 32) | end as u64).unwrap()
+            let key: String = to_lowercase_chars(name).collect();
+            builder.insert(key, ((start as u64) << 32) | end as u64).unwrap()
         };
 
         if let Some((mut last, (_, name, _))) = iter.next() {
@@ -407,7 +406,7 @@ pub struct Query {
 
 impl Query {
     pub fn new(query: String) -> Self {
-        let lowercased = query.to_lowercase();
+        let lowercased = to_lowercase_chars(&query).collect();
         Self {
             query,
             lowercased,

@@ -92,6 +92,10 @@ where
     }
 }
 
+pub fn to_lowercase_chars(name: &str) -> impl Iterator<Item = char> {
+    name.chars().flat_map(char::to_lowercase)
+}
+
 pub fn to_lower_snake_case(s: &str) -> String {
     to_snake_case(s, char::to_lowercase)
 }
