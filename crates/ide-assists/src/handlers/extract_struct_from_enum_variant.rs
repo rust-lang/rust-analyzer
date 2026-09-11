@@ -16,7 +16,8 @@ use syntax::{
     SyntaxKind::*,
     SyntaxNode, T,
     ast::{
-        self, AstNode, HasAttrs, HasGenericParams, HasName, HasVisibility, edit::AstNodeEdit,
+        self, AstNode, HasAttrs, HasGenericParams, HasName, HasVisibility,
+        edit::{AstNodeEdit, IndentLevel},
         syntax_factory::SyntaxFactory,
     },
     match_ast,
@@ -54,7 +55,7 @@ pub(crate) fn extract_struct_from_enum_variant(
 
     let enum_ast = variant.parent_enum();
     let enum_hir = ctx.sema.to_def(&enum_ast)?;
-    let target = variant.syntax().text_range();
+    let target = variant.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("extract_struct_from_enum_variant"),
         "Extract struct from enum variant",
@@ -137,10 +138,12 @@ pub(crate) fn extract_struct_from_enum_variant(
                 field_list.clone()
             };
 
-            let (comments_for_struct, comments_to_delete) =
-                collect_variant_comments(make, variant.syntax());
-            for element in &comments_to_delete {
-                editor.delete(element.clone());
+            let comments_for_struct =
+                take_variant_comments(&editor, &variant, IndentLevel::from_node(enum_ast.syntax()));
+            let docs_for_struct: Vec<ast::DocComment> =
+                variant.syntax().children().filter_map(ast::DocComment::cast).collect();
+            for doc in &docs_for_struct {
+                editor.delete(doc.syntax());
             }
 
             let def = create_struct_def(
@@ -157,13 +160,16 @@ pub(crate) fn extract_struct_from_enum_variant(
 
             let mut insert_items: Vec<SyntaxElement> = Vec::new();
             for attr in enum_ast.attrs() {
-                insert_items.push(attr.syntax().clone().into());
-                insert_items.push(make.whitespace("\n").into());
+                insert_items.push(make.with_trailing_trivia(attr.syntax(), "\n"));
             }
-            insert_items.extend(comments_for_struct);
-            insert_items.push(def.syntax().clone().into());
-            insert_items.push(make.whitespace(&format!("\n\n{indent}")).into());
-            editor.insert_all_with_whitespace(Position::before(enum_ast.syntax()), insert_items);
+            for doc in docs_for_struct {
+                insert_items.push(make.with_trailing_trivia(doc.syntax(), &format!("\n{indent}")));
+            }
+            insert_items.push(make.with_trailing_trivia(def.syntax(), "\n"));
+            insert_items[0] = make
+                .with_leading_trivia(&insert_items[0], &format!("{comments_for_struct}{indent}"));
+            editor.insert_all(Position::before(enum_ast.syntax()), insert_items);
+            editor.prepend_leading_trivia(enum_ast.syntax(), "\n");
 
             update_variant(&editor, &variant, generic_params);
 
@@ -343,45 +349,35 @@ fn update_variant(
     let field_list = make.tuple_field_list(iter::once(tuple_field));
     editor.replace(variant.field_list()?.syntax(), field_list.syntax());
 
-    // remove any ws after the name
-    if let Some(ws) = name
-        .syntax()
-        .siblings_with_tokens(syntax::Direction::Next)
-        .find_map(|tok| tok.into_token().filter(|tok| tok.kind() == WHITESPACE))
-    {
-        editor.delete(ws);
+    if let Some(token) = name.syntax().last_non_trivia_token() {
+        editor.strip_trailing_blank_trivia(&token);
     }
 
     Some(())
 }
 
-fn collect_variant_comments(
-    make: &SyntaxFactory,
-    node: &SyntaxNode,
-) -> (Vec<SyntaxElement>, Vec<SyntaxElement>) {
-    let mut to_insert: Vec<SyntaxElement> = Vec::new();
-    let mut to_delete: Vec<SyntaxElement> = Vec::new();
-    let mut after_comment = false;
+fn take_variant_comments(
+    editor: &SyntaxEditor,
+    variant: &ast::Variant,
+    indent: IndentLevel,
+) -> String {
+    let Some(token) = variant.syntax().first_non_trivia_token() else { return String::new() };
+    let trivia: Vec<_> = token.leading_trivia().collect();
+    let Some(last) = trivia.iter().rposition(|it| it.kind() == COMMENT) else {
+        return String::new();
+    };
+    let end = trivia[last..]
+        .iter()
+        .position(|it| it.kind() == NEWLINE)
+        .map_or(trivia.len() - 1, |offset| last + offset);
 
-    for child in node.children_with_tokens() {
-        match child.kind() {
-            COMMENT | DOC_COMMENT => {
-                after_comment = true;
-                to_insert.push(child.clone());
-                to_delete.push(child);
-            }
-            WHITESPACE if after_comment => {
-                after_comment = false;
-                to_insert.push(make.whitespace("\n").into());
-                to_delete.push(child);
-            }
-            _ => {
-                after_comment = false;
-            }
-        }
-    }
-
-    (to_insert, to_delete)
+    let comments = trivia[..=end]
+        .iter()
+        .filter(|it| it.kind() == COMMENT)
+        .map(|it| format!("{indent}{}\n", it.text()))
+        .collect();
+    editor.splice_leading_trivia(&token, ..=end, []);
+    comments
 }
 
 fn apply_references(
@@ -403,8 +399,8 @@ fn apply_references(
     }
     // deep clone to prevent cycle
     let path = make.path_from_segments(iter::once(segment.clone()), false);
-    editor.insert(Position::before(segment.syntax()), make.token(T!['(']));
     editor.insert(Position::before(segment.syntax()), path.syntax());
+    editor.insert(Position::before(segment.syntax()), make.token(T!['(']));
     editor.insert(Position::after(&node), make.token(T![')']));
 }
 
@@ -450,7 +446,7 @@ fn reference_to_node(
         reference.name.as_name_ref()?.syntax().parent().and_then(ast::PathSegment::cast)?;
 
     // filter out the reference in marco
-    let segment_range = segment.syntax().text_range();
+    let segment_range = segment.syntax().text_range_without_outer_trivia();
     if segment_range != reference.range {
         return None;
     }

@@ -68,8 +68,9 @@ pub(crate) fn pull_assignment_up(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
     {
         return None;
     }
-    let target = tgt.syntax().text_range();
+    let target = tgt.syntax().text_range_without_outer_trivia();
 
+    let base = tgt.syntax().text_range().start();
     let (editor, edit_tgt) = SyntaxEditor::new(tgt.syntax().clone());
     let assignments: Vec<_> = collector
         .assignments
@@ -78,11 +79,11 @@ pub(crate) fn pull_assignment_up(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
             Some((
                 find_node_at_range::<ast::BinExpr>(
                     &edit_tgt,
-                    stmt.syntax().text_range() - target.start(),
+                    stmt.syntax().text_range_without_outer_trivia() - base,
                 )?,
                 find_node_at_range::<ast::Expr>(
                     &edit_tgt,
-                    rhs.syntax().text_range() - target.start(),
+                    rhs.syntax().text_range_without_outer_trivia() - base,
                 )?,
             ))
         })

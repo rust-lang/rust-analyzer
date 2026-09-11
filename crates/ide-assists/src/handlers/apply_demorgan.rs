@@ -205,7 +205,7 @@ pub(crate) fn apply_demorgan_iterator(
     let ast::Expr::ClosureExpr(closure_expr) = arg_expr else { return None };
     let closure_body = closure_expr.body()?;
 
-    let op_range = method_call.syntax().text_range();
+    let op_range = method_call.syntax().text_range_without_outer_trivia();
     let label = format!("Apply De Morgan's law to `Iterator::{}`", name.text());
     acc.add_group(
         &GroupLabel("Apply De Morgan's law".to_owned()),

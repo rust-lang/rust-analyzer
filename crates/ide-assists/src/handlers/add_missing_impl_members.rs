@@ -117,9 +117,11 @@ fn add_missing_impl_members_inner(
     let impl_ = ctx.sema.to_def(&impl_def)?;
 
     if ctx.token_at_offset().all(|t| {
-        t.parent_ancestors()
-            .take_while(|node| node != impl_def.syntax())
-            .any(|s| ast::BlockExpr::can_cast(s.kind()) || ast::ParamList::can_cast(s.kind()))
+        t.owning_node().is_some_and(|node| {
+            node.ancestors()
+                .take_while(|node| node != impl_def.syntax())
+                .any(|s| ast::BlockExpr::can_cast(s.kind()) || ast::ParamList::can_cast(s.kind()))
+        })
     }) {
         return None;
     }
@@ -149,7 +151,7 @@ fn add_missing_impl_members_inner(
         return None;
     }
 
-    let target = impl_def.syntax().text_range();
+    let target = impl_def.syntax().text_range_without_outer_trivia();
     acc.add(AssistId::quick_fix(assist_id), label, target, |edit| {
         let editor = edit.make_editor(impl_def.syntax());
         let make = editor.make();
@@ -196,9 +198,9 @@ fn add_missing_impl_members_inner(
             assoc_item_list.add_items(&editor, new_assoc_items);
         } else {
             let assoc_item_list = make.assoc_item_list(new_assoc_items);
-            editor.insert_all(
+            editor.insert(
                 Position::after(impl_def.syntax()),
-                vec![make.whitespace(" ").into(), assoc_item_list.syntax().clone().into()],
+                make.with_leading_trivia(assoc_item_list.syntax().clone(), " "),
             );
             first_new_item = assoc_item_list.assoc_items().next();
         }
@@ -208,7 +210,7 @@ fn add_missing_impl_members_inner(
             if let DefaultMethods::No = mode
                 && let Some(ast::AssocItem::Fn(func)) = &first_new_item
                 && let Some(m) = func.syntax().descendants().find_map(ast::MacroCall::cast)
-                && m.syntax().text() == "todo!()"
+                && m.syntax().text_without_outer_trivia() == "todo!()"
             {
                 placeholder = Some(m);
             }

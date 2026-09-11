@@ -7,7 +7,7 @@ use ide_db::{
 use stdx::format_to;
 use syntax::{
     AstNode, Direction, SyntaxKind, SyntaxNode, T, TextSize, ToSmolStr,
-    algo::{skip_trivia_token, skip_whitespace_token},
+    algo::skip_whitespace_token,
     ast::{
         self, HasArgList, HasGenericParams, HasName,
         edit::{AstNodeEdit, IndentLevel},
@@ -112,24 +112,12 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '
         {
             is_async = true;
             ret_ty = ret_ty.future_output(ctx.db())?;
-            let end = async_token
-                .siblings_with_tokens(Direction::Next)
-                .skip(1)
-                .take_while(|it| it.kind() == SyntaxKind::WHITESPACE)
-                .last()
-                .unwrap_or_else(|| async_token.clone().into());
-            editor.delete_all(async_token.into()..=end);
+            editor.delete(async_token);
         }
         if let Some(gen_token) = block.gen_token() {
             is_gen = true;
             ret_ty = ret_ty.iterator_item(ctx.db())?;
-            let end = gen_token
-                .siblings_with_tokens(Direction::Next)
-                .skip(1)
-                .take_while(|it| it.kind() == SyntaxKind::WHITESPACE)
-                .last()
-                .unwrap_or_else(|| gen_token.clone().into());
-            editor.delete_all(gen_token.into()..=end);
+            editor.delete(gen_token);
         }
 
         if block.try_block_modifier().is_none()
@@ -144,7 +132,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '
     acc.add(
         AssistId::refactor_rewrite("convert_closure_to_fn"),
         "Convert closure to fn",
-        closure.param_list()?.syntax().text_range(),
+        closure.param_list()?.syntax().text_range_without_outer_trivia(),
         |builder| {
             let make = editor.make();
             let closure_name_or_default = closure_name
@@ -268,12 +256,16 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '
                 false,
                 is_gen,
             );
-            fn_ = fn_.dedent(IndentLevel::from_token(&fn_.syntax().last_token().unwrap()));
+            fn_ =
+                fn_.dedent(IndentLevel::from_token(&fn_.syntax().last_non_trivia_token().unwrap()));
 
             match &closure_name {
                 Some((closure_decl, _, _)) => {
                     fn_ = fn_.indent(closure_decl.indent_level());
-                    builder.replace(closure_decl.syntax().text_range(), fn_.to_string());
+                    builder.replace(
+                        closure_decl.syntax().text_range_without_outer_trivia(),
+                        fn_.to_string(),
+                    );
                 }
                 None => {
                     let Some(top_stmt) =
@@ -289,7 +281,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '
                         return;
                     };
                     builder.replace(
-                        closure.syntax().text_range(),
+                        closure.syntax().text_range_without_outer_trivia(),
                         closure_name_or_default.to_string(),
                     );
                     match top_stmt {
@@ -298,28 +290,32 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '
                             fn_ = fn_.indent(indent);
                             let range = stmt
                                 .syntax()
-                                .first_token()
+                                .first_non_trivia_token()
                                 .and_then(|token| {
                                     skip_whitespace_token(token.prev_token()?, Direction::Prev)
                                 })
                                 .map(|it| it.text_range().end())
-                                .unwrap_or_else(|| stmt.syntax().text_range().start());
+                                .unwrap_or_else(|| {
+                                    stmt.syntax().text_range_without_outer_trivia().start()
+                                });
                             builder.insert(range, format!("\n{indent}{fn_}"));
                         }
                         Either::Right(Either::Left(closure_inside_closure)) => {
                             let Some(closure_body) = closure_inside_closure.body() else { return };
                             // FIXME: Maybe we can indent this properly, adding newlines and all, but this is hard.
                             builder.insert(
-                                closure_body.syntax().text_range().start(),
+                                closure_body.syntax().text_range_without_outer_trivia().start(),
                                 format!("{{ {fn_} "),
                             );
-                            builder
-                                .insert(closure_body.syntax().text_range().end(), " }".to_owned());
+                            builder.insert(
+                                closure_body.syntax().text_range_without_outer_trivia().end(),
+                                " }".to_owned(),
+                            );
                         }
                         Either::Right(Either::Right(block_expr)) => {
                             let Some(tail_expr) = block_expr.tail_expr() else { return };
                             let Some(insert_in) =
-                                tail_expr.syntax().first_token().and_then(|token| {
+                                tail_expr.syntax().first_non_trivia_token().and_then(|token| {
                                     skip_whitespace_token(token.prev_token()?, Direction::Prev)
                                 })
                             else {
@@ -607,9 +603,11 @@ fn handle_call(
         ast::CallExpr::cast(peel_blocks_and_refs_and_parens(closure_ref).syntax().parent()?)?;
     let args = call.arg_list()?;
     // The really last token is `)`; we need one before that.
-    let has_trailing_comma = args.syntax().last_token()?.prev_token().is_some_and(|token| {
-        skip_trivia_token(token, Direction::Prev).is_some_and(|token| token.kind() == T![,])
-    });
+    let has_trailing_comma = args
+        .syntax()
+        .last_non_trivia_token()?
+        .prev_non_trivia_token()
+        .is_some_and(|token| token.kind() == T![,]);
     let has_existing_args = args.args().next().is_some();
 
     let FileRangeWrapper { file_id, range } = ctx.sema.original_range_opt(args.syntax())?;

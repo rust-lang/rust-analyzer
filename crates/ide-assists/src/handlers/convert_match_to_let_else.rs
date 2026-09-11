@@ -35,7 +35,7 @@ pub(crate) fn convert_match_to_let_else(
 ) -> Option<()> {
     let let_stmt: ast::LetStmt = ctx.find_node_at_offset()?;
     let pat = let_stmt.pat()?;
-    if ctx.offset() > pat.syntax().text_range().end() {
+    if ctx.offset() > pat.syntax().text_range_without_outer_trivia().end() {
         return None;
     }
 
@@ -60,7 +60,7 @@ pub(crate) fn convert_match_to_let_else(
     acc.add(
         AssistId::refactor_rewrite("convert_match_to_let_else"),
         "Convert match to let-else",
-        let_stmt.syntax().text_range(),
+        let_stmt.syntax().text_range_without_outer_trivia(),
         |builder| {
             let extracting_arm_pat =
                 rename_variable(&extracting_arm_pat, &extracted_variable_positions, pat);
@@ -73,7 +73,7 @@ pub(crate) fn convert_match_to_let_else(
                 ("", "")
             };
             builder.replace(
-                let_stmt.syntax().text_range(),
+                let_stmt.syntax().text_range_without_outer_trivia(),
                 format!("let {open_paren}{extracting_arm_pat}{close_paren} = {initializer_expr} else {diverging_arm_expr};"),
             )
         },
@@ -132,11 +132,12 @@ fn find_extracted_variable(ctx: &AssistContext<'_, '_>, arm: &ast::MatchArm) -> 
 
 // Rename `extracted` with `binding` in `pat`.
 fn rename_variable(pat: &ast::Pat, extracted: &[Name], binding: ast::Pat) -> SyntaxNode {
+    let binding = binding.detached();
     let (editor, syntax) = SyntaxEditor::new(pat.syntax().clone());
     let make = editor.make();
     let extracted = extracted
         .iter()
-        .map(|e| e.syntax().text_range() - pat.syntax().text_range().start())
+        .map(|e| e.syntax().text_range_without_outer_trivia() - pat.syntax().text_range().start())
         .map(|r| syntax.covering_element(r))
         .collect::<Vec<_>>();
     for extracted_syntax in extracted {
@@ -157,7 +158,7 @@ fn rename_variable(pat: &ast::Pat, extracted: &[Name], binding: ast::Pat) -> Syn
     }
     let new_node = editor.finish().new_root().clone();
     if let Some(pat) = ast::Pat::cast(new_node.clone()) {
-        pat.dedent(1.into()).syntax().clone()
+        pat.dedent(1.into()).detached().syntax().clone()
     } else {
         new_node
     }

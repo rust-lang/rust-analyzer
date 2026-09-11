@@ -13,7 +13,7 @@ use crate::assist_context::{AssistContext, Assists};
 pub(crate) fn term_search(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let unexpanded = ctx.find_node_at_offset::<ast::MacroCall>()?;
     let syntax = unexpanded.syntax();
-    let goal_range = syntax.text_range();
+    let goal_range = syntax.text_range_without_outer_trivia();
 
     let parent = syntax.parent()?;
     let scope = ctx.sema.scope(&parent)?;

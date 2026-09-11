@@ -97,10 +97,11 @@ pub(crate) fn add_turbo_fish(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
                     let make = editor.make();
 
                     if let_stmt.semicolon_token().is_none() {
-                        editor.insert(
-                            Position::last_child_of(let_stmt.syntax()),
-                            make.token(syntax::SyntaxKind::SEMICOLON),
-                        );
+                        let position = match let_stmt.syntax().last_child_or_token() {
+                            Some(last) => Position::after(last),
+                            None => Position::last_child_of(let_stmt.syntax()),
+                        };
+                        editor.insert(position, make.token(syntax::SyntaxKind::SEMICOLON));
                     }
 
                     let placeholder_ty = make.ty_placeholder();
@@ -108,8 +109,7 @@ pub(crate) fn add_turbo_fish(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
                     if let Some(pat) = let_stmt.pat() {
                         let elements = vec![
                             make.token(syntax::SyntaxKind::COLON).into(),
-                            make.whitespace(" ").into(),
-                            placeholder_ty.syntax().clone().into(),
+                            make.with_leading_trivia(placeholder_ty.syntax(), " "),
                         ];
                         editor.insert_all(Position::after(pat.syntax()), elements);
                         if let Some(cap) = ctx.config.snippet_cap {

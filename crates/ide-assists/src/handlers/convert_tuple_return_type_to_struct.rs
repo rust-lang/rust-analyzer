@@ -66,7 +66,7 @@ pub(crate) fn convert_tuple_return_type_to_struct(
     let fn_name = fn_.name()?;
     let target_module = ctx.sema.scope(fn_.syntax())?.module().nearest_non_block_module(ctx.db());
 
-    let target = type_ref.syntax().text_range();
+    let target = type_ref.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("convert_tuple_return_type_to_struct"),
         "Convert tuple return type to tuple struct",
@@ -258,7 +258,10 @@ fn add_tuple_struct_def(
     let indent = IndentLevel::from_node(parent);
     let struct_def = struct_def.indent(indent);
 
-    edit.insert(parent.text_range().start(), format!("{struct_def}\n\n{indent}"));
+    edit.insert(
+        parent.text_range_without_outer_trivia().start(),
+        format!("{struct_def}\n\n{indent}"),
+    );
 }
 
 /// Replaces each returned tuple in `body` with the constructor of the tuple struct named `struct_name`.

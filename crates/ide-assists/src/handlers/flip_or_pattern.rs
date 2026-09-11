@@ -1,7 +1,6 @@
 use syntax::{
-    Direction, T,
-    algo::non_trivia_sibling,
-    ast::{self, AstNode},
+    T,
+    ast::{self, AstNode, edit::AstNodeEdit},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -27,14 +26,15 @@ pub(crate) fn flip_or_pattern(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
 
     let parent = ast::OrPat::cast(pipe.parent()?)?;
 
-    let before = non_trivia_sibling(pipe.clone().into(), Direction::Prev)?.into_node()?;
-    let after = non_trivia_sibling(pipe.clone().into(), Direction::Next)?.into_node()?;
+    let before = ast::Pat::cast(pipe.prev_sibling_or_token()?.into_node()?)?;
+    let after = ast::Pat::cast(pipe.next_sibling_or_token()?.into_node()?)?;
 
     let target = pipe.text_range();
     acc.add(AssistId::refactor_rewrite("flip_or_pattern"), "Flip patterns", target, |builder| {
         let editor = builder.make_editor(parent.syntax());
-        editor.replace(before.clone(), after.clone());
-        editor.replace(after, before);
+        let (first, second) = (before.detached(), after.detached());
+        editor.replace(before.syntax(), second.syntax());
+        editor.replace(after.syntax(), first.syntax());
         builder.add_file_edits(ctx.vfs_file_id(), editor);
     })
 }

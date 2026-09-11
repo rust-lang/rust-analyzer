@@ -42,7 +42,7 @@ pub(crate) fn generate_default_from_enum_variant(
         cov_mark::hit!(test_gen_default_on_non_unit_variant_not_implemented);
         return None;
     }
-    if !variant.syntax().text_range().contains_range(ctx.selection_trimmed()) {
+    if !variant.syntax().text_range_without_outer_trivia().contains_range(ctx.selection_trimmed()) {
         return None;
     }
 
@@ -51,7 +51,7 @@ pub(crate) fn generate_default_from_enum_variant(
         return None;
     }
 
-    let target = variant.syntax().text_range();
+    let target = variant.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::generate("generate_default_from_enum_variant"),
         "Generate `Default` impl from this enum variant",
@@ -62,12 +62,12 @@ pub(crate) fn generate_default_from_enum_variant(
             let indent = adt.indent_level();
             let impl_ = default_impl(variant_name, &adt, make);
 
-            editor.insert_all(
+            editor.insert(
                 Position::after(adt.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                    impl_.indent(indent).syntax().clone().into(),
-                ],
+                make.with_leading_trivia(
+                    impl_.indent(indent).syntax().clone(),
+                    &format!("\n\n{indent}"),
+                ),
             );
             edit.add_file_edits(ctx.vfs_file_id(), editor);
         },

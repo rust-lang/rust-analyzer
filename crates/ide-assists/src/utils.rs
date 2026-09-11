@@ -17,17 +17,17 @@ use ide_db::{
 };
 use itertools::Itertools;
 use syntax::{
-    AstNode, AstToken, Direction, NodeOrToken, SourceFile,
+    AstNode, Direction, NodeOrToken, SourceFile, SyntaxElement,
     SyntaxKind::*,
     SyntaxNode, SyntaxToken, T, TextRange, TextSize, WalkEvent,
     ast::{
-        self, HasArgList, HasAttrs, HasGenericParams, HasName, HasTypeBounds, Whitespace,
+        self, HasArgList, HasAttrs, HasGenericParams, HasName, HasTypeBounds,
         edit::{AstNodeEdit, AttrsOwnerEdit, IndentLevel},
         make,
         prec::ExprPrecedence,
         syntax_factory::SyntaxFactory,
     },
-    syntax_editor::{Element, Removable, SyntaxEditor},
+    syntax_editor::{Element, Position, Removable, SyntaxEditor},
 };
 
 use crate::{
@@ -40,7 +40,7 @@ pub(crate) mod ref_field_expr;
 
 pub(crate) fn unwrap_trivial_block(block_expr: ast::BlockExpr) -> ast::Expr {
     extract_trivial_expression(&block_expr)
-        .filter(|expr| !expr.syntax().text().contains_char('\n'))
+        .filter(|expr| !expr.syntax().text_without_outer_trivia().contains_char('\n'))
         .unwrap_or_else(|| block_expr.into())
 }
 
@@ -52,12 +52,20 @@ pub fn extract_trivial_expression(block_expr: &ast::BlockExpr) -> Option<ast::Ex
     let has_anything_else = |thing: &SyntaxNode| -> bool {
         let mut non_trivial_children =
             stmt_list.syntax().children_with_tokens().filter(|it| match it.kind() {
-                WHITESPACE | T!['{'] | T!['}'] => false,
+                T!['{'] | T!['}'] => false,
                 _ => it.as_node() != Some(thing),
             });
         non_trivial_children.next().is_some()
     };
-    if stmt_list.syntax().children_with_tokens().any(|it| ast::AnyComment::can_cast(it.kind())) {
+    let owns_comment = |token: SyntaxToken| {
+        token.leading_trivia().chain(token.trailing_trivia()).any(|it| it.kind() == COMMENT)
+    };
+    if stmt_list
+        .syntax()
+        .descendants_with_tokens()
+        .filter_map(|it| it.into_token())
+        .any(owns_comment)
+    {
         return None;
     }
 
@@ -83,7 +91,7 @@ pub fn extract_trivial_expression(block_expr: &ast::BlockExpr) -> Option<ast::Ex
 
 pub(crate) fn wrap_block(expr: &ast::Expr, make: &SyntaxFactory) -> ast::BlockExpr {
     if let ast::Expr::BlockExpr(block) = expr
-        && let Some(first) = block.syntax().first_token()
+        && let Some(first) = block.syntax().first_non_trivia_token()
         && first.kind() == T!['{']
     {
         block.reset_indent()
@@ -135,7 +143,7 @@ fn needs_parens_in_guard_chain(make: &SyntaxFactory, guard: &ast::Expr) -> bool 
 pub fn test_related_attribute_syn(fn_def: &ast::Fn) -> Option<ast::Attr> {
     fn_def.attrs().find_map(|attr| {
         let path = attr.path()?;
-        let text = path.syntax().text().to_string();
+        let text = path.syntax().text_without_outer_trivia().to_string();
         if text.starts_with("test") || text.ends_with("test") { Some(attr) } else { None }
     })
 }
@@ -267,9 +275,9 @@ pub fn add_trait_assoc_items_to_impl(
 
 pub(crate) fn vis_offset(node: &SyntaxNode) -> TextSize {
     node.children_with_tokens()
-        .find(|it| !matches!(it.kind(), WHITESPACE | COMMENT | DOC_COMMENT | ATTR))
-        .map(|it| it.text_range().start())
-        .unwrap_or_else(|| node.text_range().start())
+        .find(|it| !matches!(it.kind(), DOC_COMMENT | ATTR))
+        .map(|it| it.text_range_without_outer_trivia().start())
+        .unwrap_or_else(|| node.text_range_without_outer_trivia().start())
 }
 
 pub(crate) fn invert_boolean_expression(make: &SyntaxFactory, expr: ast::Expr) -> ast::Expr {
@@ -351,9 +359,11 @@ pub(crate) fn insert_attributes(
     }
     let elem = before.syntax_element();
     let indent = IndentLevel::from_element(&elem);
-    let whitespace = format!("\n{indent}");
     let elements: Vec<syntax::SyntaxElement> = attrs
-        .flat_map(|attr| [attr.syntax().clone().into(), make.whitespace(&whitespace).into()])
+        .map(|attr| {
+            let attr = make.with_leading_trivia(attr.syntax(), &indent.to_string());
+            make.with_trailing_trivia(&attr, "\n")
+        })
         .collect();
     editor.insert_all(syntax::syntax_editor::Position::before(elem), elements);
 }
@@ -363,12 +373,17 @@ pub(crate) fn next_prev() -> impl Iterator<Item = Direction> {
 }
 
 pub(crate) fn does_pat_match_variant(pat: &ast::Pat, var: &ast::Pat) -> bool {
-    let first_node_text = |pat: &ast::Pat| pat.syntax().first_child().map(|node| node.text());
+    let first_node_text = |pat: &ast::Pat| {
+        pat.syntax().first_child().map(|node| node.text_without_outer_trivia().to_string())
+    };
 
     let pat_head = match pat {
         ast::Pat::IdentPat(bind_pat) => match bind_pat.pat() {
             Some(p) => first_node_text(&p),
-            None => return pat.syntax().text() == var.syntax().text(),
+            None => {
+                return pat.syntax().text_without_outer_trivia()
+                    == var.syntax().text_without_outer_trivia();
+            }
         },
         pat => first_node_text(pat),
     };
@@ -697,7 +712,7 @@ fn generic_param_associated_bounds(
             let bounds = [make.type_bound(trait_.clone())];
             make.where_pred(either::Either::Right(make.ty_path(path).into()), bounds)
         })
-        .unique_by(|it| it.syntax().to_string())
+        .unique_by(|it| it.syntax().text_without_outer_trivia().to_string())
         .peekable();
     trait_where_clause.peek().is_some().then(|| make.where_clause(trait_where_clause))
 }
@@ -920,14 +935,59 @@ pub(crate) fn get_methods(items: &ast::AssocItemList) -> Vec<ast::Fn> {
         .collect()
 }
 
+pub(crate) fn insert_before_with_separator(
+    editor: &SyntaxEditor,
+    anchor: &SyntaxNode,
+    item: &SyntaxNode,
+    separator: &str,
+) {
+    let make = editor.make();
+    let Some((head, indent)) = separator.rsplit_once('\n') else {
+        editor.insert(Position::before(anchor), make.with_trailing_trivia(item, separator));
+        return;
+    };
+
+    let item = make.with_leading_trivia(item, indent);
+    editor.insert(Position::before(anchor), make.with_trailing_trivia(&item, "\n"));
+
+    let extra = head.matches('\n').count();
+    if extra > 0 {
+        editor.prepend_leading_trivia(anchor, &"\n".repeat(extra));
+    }
+}
+
+pub(crate) fn repositioned(
+    make: &SyntaxFactory,
+    old: &SyntaxNode,
+    new: &SyntaxNode,
+) -> SyntaxElement {
+    let blank = |token: &SyntaxToken| matches!(token.kind(), WHITESPACE | NEWLINE);
+    let text = |it: SyntaxToken| it.text().to_owned();
+
+    let place: String = old
+        .first_non_trivia_token()
+        .map(|it| it.leading_trivia().take_while(blank).map(text).collect())
+        .unwrap_or_default();
+    let own: String = new
+        .first_non_trivia_token()
+        .map(|it| it.leading_trivia().skip_while(blank).map(text).collect())
+        .unwrap_or_default();
+    let leading = make.with_leading_trivia(new, &format!("{place}{own}"));
+
+    let trailing: String = old
+        .last_non_trivia_token()
+        .map(|it| it.trailing_trivia().map(text).collect())
+        .unwrap_or_default();
+    make.with_trailing_trivia(&leading, &trailing)
+}
+
 /// Trim(remove leading and trailing whitespace) `initial_range` in `source_file`, return the trimmed range.
 pub(crate) fn trimmed_text_range(source_file: &SourceFile, initial_range: TextRange) -> TextRange {
     let mut trimmed_range = initial_range;
     while source_file
         .syntax()
         .token_at_offset(trimmed_range.start())
-        .find_map(Whitespace::cast)
-        .is_some()
+        .any(|it| matches!(it.kind(), WHITESPACE | NEWLINE))
         && trimmed_range.start() < trimmed_range.end()
     {
         let start = trimmed_range.start() + TextSize::from(1);
@@ -936,8 +996,7 @@ pub(crate) fn trimmed_text_range(source_file: &SourceFile, initial_range: TextRa
     while source_file
         .syntax()
         .token_at_offset(trimmed_range.end())
-        .find_map(Whitespace::cast)
-        .is_some()
+        .any(|it| matches!(it.kind(), WHITESPACE | NEWLINE))
         && trimmed_range.start() < trimmed_range.end()
     {
         let end = trimmed_range.end() - TextSize::from(1);
@@ -1037,11 +1096,14 @@ pub(crate) fn replace_record_field_expr(
     if let Some(ast::Expr::PathExpr(path_expr)) = record_field.expr() {
         // replace field shorthand
         let file_range = ctx.sema.original_range(path_expr.syntax());
-        edit.insert(file_range.range.end(), format!(": {}", initializer.syntax().text()))
+        edit.insert(
+            file_range.range.end(),
+            format!(": {}", initializer.syntax().text_without_outer_trivia()),
+        )
     } else if let Some(expr) = record_field.expr() {
         // just replace expr
         let file_range = ctx.sema.original_range(expr.syntax());
-        edit.replace(file_range.range, initializer.syntax().text());
+        edit.replace(file_range.range, initializer.syntax().text_without_outer_trivia());
     }
 }
 
@@ -1092,7 +1154,7 @@ pub(crate) fn tt_from_syntax(
 }
 
 pub(crate) fn cover_let_chain(mut expr: ast::Expr, range: TextRange) -> Option<ast::Expr> {
-    if !expr.syntax().text_range().contains_range(range) {
+    if !expr.syntax().text_range_without_outer_trivia().contains_range(range) {
         return None;
     }
     loop {
@@ -1105,7 +1167,7 @@ pub(crate) fn cover_let_chain(mut expr: ast::Expr, range: TextRange) -> Option<a
         };
 
         if let Some(chain_expr) = chain_expr
-            && chain_expr.syntax().text_range().contains_range(range)
+            && chain_expr.syntax().text_range_without_outer_trivia().contains_range(range)
         {
             break Some(chain_expr);
         }
@@ -1121,7 +1183,9 @@ pub(crate) fn cover_edit_range(
         NodeOrToken::Node(node) => node,
         NodeOrToken::Token(t) => t.parent().unwrap(),
     };
-    let mut iter = node.children_with_tokens().filter(|it| range.contains_range(it.text_range()));
+    let mut iter = node
+        .children_with_tokens()
+        .filter(|it| range.contains_range(it.text_range_without_outer_trivia()));
     let first = iter.next().unwrap_or(node.into());
     let last = iter.last().unwrap_or_else(|| first.clone());
     first..=last
@@ -1132,8 +1196,10 @@ pub(crate) fn is_selected(
     selection: syntax::TextRange,
     allow_empty: bool,
 ) -> bool {
-    selection.intersect(it.syntax().text_range()).is_some_and(|it| !it.is_empty())
-        || allow_empty && it.syntax().text_range().contains_range(selection)
+    selection
+        .intersect(it.syntax().text_range_without_outer_trivia())
+        .is_some_and(|it| !it.is_empty())
+        || allow_empty && it.syntax().text_range_without_outer_trivia().contains_range(selection)
 }
 
 pub fn is_body_const(sema: &Semantics<'_, RootDatabase>, expr: &ast::Expr) -> bool {

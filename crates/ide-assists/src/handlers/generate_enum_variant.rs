@@ -53,7 +53,7 @@ pub(crate) fn generate_enum_variant(acc: &mut Assists, ctx: &AssistContext<'_, '
         return None;
     };
 
-    let target = path.syntax().text_range();
+    let target = path.syntax().text_range_without_outer_trivia();
     let name_ref: &ast::NameRef = &name_ref;
     let db = ctx.db();
     let InRealFile { file_id, value: enum_node } = e.source(db)?.original_ast_node_rooted(db)?;

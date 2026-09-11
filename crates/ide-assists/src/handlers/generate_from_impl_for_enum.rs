@@ -32,7 +32,7 @@ pub(crate) fn generate_from_impl_for_enum(
     let adt = ast::Adt::Enum(variant.parent_enum());
     let variants = selected_variants(ctx, &variant)?;
 
-    let target = variant.syntax().text_range();
+    let target = variant.syntax().text_range_without_outer_trivia();
     let file_id = ctx.vfs_file_id();
     acc.add(
         AssistId::generate("generate_from_impl_for_enum"),
@@ -46,8 +46,7 @@ pub(crate) fn generate_from_impl_for_enum(
 
             for variant_info in variants {
                 let impl_ = build_from_impl(make, &adt, variant_info).indent(indent);
-                elements.push(make.whitespace(&format!("\n\n{indent}")).into());
-                elements.push(impl_.syntax().clone().into());
+                elements.push(make.with_leading_trivia(impl_.syntax(), &format!("\n\n{indent}")));
             }
 
             editor.insert_all(Position::after(adt.syntax()), elements);

@@ -71,7 +71,7 @@ pub(crate) fn destructure_tuple_binding_impl(
         acc.add(
             AssistId::refactor_rewrite("destructure_tuple_binding_in_sub_pattern"),
             "Destructure tuple in sub-pattern",
-            data.ident_pat.syntax().text_range(),
+            data.ident_pat.syntax().text_range_without_outer_trivia(),
             |edit| destructure_tuple_edit_impl(ctx, edit, &data, true),
         );
     }
@@ -79,7 +79,7 @@ pub(crate) fn destructure_tuple_binding_impl(
     acc.add(
         AssistId::refactor_rewrite("destructure_tuple_binding"),
         if with_sub_pattern { "Destructure tuple in place" } else { "Destructure tuple" },
-        data.ident_pat.syntax().text_range(),
+        data.ident_pat.syntax().text_range_without_outer_trivia(),
         |edit| destructure_tuple_edit_impl(ctx, edit, &data, false),
     );
 
@@ -227,8 +227,10 @@ impl AssignmentEdit {
         if self.in_sub_pattern {
             self.ident_pat.set_pat(Some(self.tuple_pat.into()), editor);
         } else if self.is_shorthand_field {
-            editor.insert(Position::after(self.ident_pat.syntax()), self.tuple_pat.syntax());
-            editor.insert(Position::after(self.ident_pat.syntax()), make.whitespace(" "));
+            editor.insert(
+                Position::after(self.ident_pat.syntax()),
+                make.with_leading_trivia(self.tuple_pat.syntax(), " "),
+            );
             editor.insert(Position::after(self.ident_pat.syntax()), make.token(T![:]));
         } else {
             editor.replace(self.ident_pat.syntax(), self.tuple_pat.syntax())

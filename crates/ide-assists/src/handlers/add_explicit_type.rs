@@ -44,7 +44,7 @@ pub(crate) fn add_explicit_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
     };
 
     let module = ctx.sema.scope(pat.syntax())?.module();
-    let pat_range = pat.syntax().text_range();
+    let pat_range = pat.syntax().text_range_without_outer_trivia();
 
     // Don't enable the assist if there is a type ascription without any placeholders
     if let Some(ty) = &ascribed_ty {
@@ -78,7 +78,8 @@ pub(crate) fn add_explicit_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
         pat_range,
         |builder| match ascribed_ty {
             Some(ascribed_ty) => {
-                builder.replace(ascribed_ty.syntax().text_range(), inferred_type);
+                builder
+                    .replace(ascribed_ty.syntax().text_range_without_outer_trivia(), inferred_type);
             }
             None => {
                 builder.insert(pat_range.end(), format!(": {inferred_type}"));

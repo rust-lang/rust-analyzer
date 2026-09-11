@@ -40,10 +40,11 @@ pub(crate) fn merge_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
         return None;
     }
     let current_expr = current_arm.expr()?;
-    let current_text_range = current_arm.syntax().text_range();
+    let current_text_range = current_arm.syntax().text_range_without_outer_trivia();
     let current_arm_types = get_arm_types(ctx, &current_arm);
     let multi_arm_selection = !ctx.has_empty_selection()
-        && ctx.selection_trimmed().end() > current_arm.syntax().text_range().end();
+        && ctx.selection_trimmed().end()
+            > current_arm.syntax().text_range_without_outer_trivia().end();
 
     // We check if the following match arms match this one. We could, but don't,
     // compare to the previous match arm as well.
@@ -52,12 +53,14 @@ pub(crate) fn merge_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             Some(expr) if arm.guard().is_none() => {
                 // don't include match arms that start after our selection
                 if multi_arm_selection
-                    && arm.syntax().text_range().start() >= ctx.selection_trimmed().end()
+                    && arm.syntax().text_range_without_outer_trivia().start()
+                        >= ctx.selection_trimmed().end()
                 {
                     return false;
                 }
 
-                let same_text = expr.syntax().text() == current_expr.syntax().text();
+                let same_text = expr.syntax().text_without_outer_trivia()
+                    == current_expr.syntax().text_without_outer_trivia();
                 if !same_text {
                     return false;
                 }
@@ -83,7 +86,7 @@ pub(crate) fn merge_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
                 arms_to_merge
                     .iter()
                     .filter_map(ast::MatchArm::pat)
-                    .map(|x| x.syntax().to_string())
+                    .map(|x| x.syntax().text_without_outer_trivia().to_string())
                     .collect::<Vec<String>>()
                     .join(" | ")
             };
@@ -91,8 +94,8 @@ pub(crate) fn merge_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             let arm = format!("{pats} => {current_expr},");
 
             if let [first, .., last] = &*arms_to_merge {
-                let start = first.syntax().text_range().start();
-                let end = last.syntax().text_range().end();
+                let start = first.syntax().text_range_without_outer_trivia().start();
+                let end = last.syntax().text_range_without_outer_trivia().end();
 
                 edit.replace(TextRange::new(start, end), arm);
             }

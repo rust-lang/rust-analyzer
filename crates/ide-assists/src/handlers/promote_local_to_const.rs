@@ -71,7 +71,7 @@ pub(crate) fn promote_local_to_const(acc: &mut Assists, ctx: &AssistContext<'_, 
     acc.add(
         AssistId::refactor("promote_local_to_const"),
         "Promote local to constant",
-        let_stmt.syntax().text_range(),
+        let_stmt.syntax().text_range_without_outer_trivia(),
         |edit| {
             let editor = edit.make_editor(let_stmt.syntax());
             let make = editor.make();
@@ -87,7 +87,7 @@ pub(crate) fn promote_local_to_const(acc: &mut Assists, ctx: &AssistContext<'_, 
                         utils::replace_record_field_expr(ctx, edit, record_field, name_expr);
                     } else {
                         let usage_range = usage.range;
-                        edit.replace(usage_range, name_ref.syntax().text());
+                        edit.replace(usage_range, name_ref.syntax().text_without_outer_trivia());
                     }
                 }
             }
