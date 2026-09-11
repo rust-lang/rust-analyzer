@@ -74,7 +74,7 @@ pub(super) fn hints(
         position,
         pad_left: false,
         pad_right,
-        resolve_parent: Some(expr.syntax().text_range()),
+        resolve_parent: Some(expr.syntax().text_range_without_outer_trivia()),
     };
     hint.label.append_str("(");
     let last = captures.len() - 1;

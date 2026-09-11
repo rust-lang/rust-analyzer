@@ -3,10 +3,9 @@ use std::iter::successors;
 use hir::Semantics;
 use ide_db::RootDatabase;
 use syntax::{
-    Direction, NodeOrToken,
+    Direction, NodeOrToken, SyntaxElement,
     SyntaxKind::{self, *},
-    SyntaxNode, SyntaxToken, T, TextRange, TextSize, TokenAtOffset,
-    algo::{self, skip_trivia_token},
+    SyntaxNode, SyntaxToken, T, TextRange, TextSize, TokenAtOffset, algo,
     ast::{self, AstNode, AstToken},
 };
 
@@ -60,8 +59,9 @@ fn try_extend_selection(
     if range.is_empty() {
         let offset = range.start();
         let mut leaves = root.token_at_offset(offset);
-        if leaves.clone().all(|it| it.kind() == WHITESPACE) {
-            return Some(extend_ws(root, leaves.next()?, offset));
+        if leaves.clone().all(|it| matches!(it.kind(), WHITESPACE | NEWLINE)) {
+            let run = syntax::algo::blank_run(&leaves.next()?);
+            return Some(extend_ws(root, run.after, run.range, offset));
         }
         let leaf_range = match leaves {
             TokenAtOffset::None => return None,
@@ -82,8 +82,8 @@ fn try_extend_selection(
             if token.text_range() != range {
                 return Some(token.text_range());
             }
-            if let Some(comment) = ast::AnyComment::cast(token.clone())
-                && let Some(range) = extend_comments(comment)
+            if ast::AnyComment::can_cast(token.kind())
+                && let Some(range) = extend_comments(&token)
             {
                 return Some(range);
             }
@@ -100,8 +100,8 @@ fn try_extend_selection(
         return Some(range);
     }
 
-    if node.text_range() != range {
-        return Some(node.text_range());
+    if node.text_range_without_outer_trivia() != range {
+        return Some(node.text_range_without_outer_trivia());
     }
 
     let node = shallowest_node(&node);
@@ -112,7 +112,7 @@ fn try_extend_selection(
         return Some(range);
     }
 
-    node.parent().map(|it| it.text_range())
+    node.parent().map(|it| it.text_range_without_outer_trivia())
 }
 
 fn extend_tokens_from_range(
@@ -122,18 +122,20 @@ fn extend_tokens_from_range(
 ) -> Option<TextRange> {
     let src = macro_call.syntax().covering_element(original_range);
     let (first_token, last_token) = match src {
-        NodeOrToken::Node(it) => (it.first_token()?, it.last_token()?),
+        NodeOrToken::Node(it) => (it.first_non_trivia_token()?, it.last_non_trivia_token()?),
         NodeOrToken::Token(it) => (it.clone(), it),
     };
 
-    let mut first_token = skip_trivia_token(first_token, Direction::Next)?;
-    let mut last_token = skip_trivia_token(last_token, Direction::Prev)?;
+    let mut first_token =
+        if !first_token.is_trivia() { first_token } else { first_token.next_non_trivia_token()? };
+    let mut last_token =
+        if !last_token.is_trivia() { last_token } else { last_token.prev_non_trivia_token()? };
 
     while !original_range.contains_range(first_token.text_range()) {
-        first_token = skip_trivia_token(first_token.next_token()?, Direction::Next)?;
+        first_token = first_token.next_non_trivia_token()?;
     }
     while !original_range.contains_range(last_token.text_range()) {
-        last_token = skip_trivia_token(last_token.prev_token()?, Direction::Prev)?;
+        last_token = last_token.prev_non_trivia_token()?;
     }
 
     // compute original mapped token range
@@ -143,7 +145,9 @@ fn extend_tokens_from_range(
         let mut lca =
             algo::least_common_ancestor(&fst_expanded.parent()?, &lst_expanded.parent()?)?;
         lca = shallowest_node(&lca);
-        if lca.first_token() == Some(fst_expanded) && lca.last_token() == Some(lst_expanded) {
+        if lca.first_non_trivia_token() == Some(fst_expanded)
+            && lca.last_non_trivia_token() == Some(lst_expanded)
+        {
             lca = lca.parent()?;
         }
         lca
@@ -163,19 +167,13 @@ fn extend_tokens_from_range(
     };
 
     // Find the first and last text range under expanded parent
-    let first = successors(Some(first_token), |token| {
-        let token = token.prev_token()?;
-        skip_trivia_token(token, Direction::Prev)
-    })
-    .take_while(validate())
-    .last()?;
+    let first = successors(Some(first_token), |token| token.prev_non_trivia_token())
+        .take_while(validate())
+        .last()?;
 
-    let last = successors(Some(last_token), |token| {
-        let token = token.next_token()?;
-        skip_trivia_token(token, Direction::Next)
-    })
-    .take_while(validate())
-    .last()?;
+    let last = successors(Some(last_token), |token| token.next_non_trivia_token())
+        .take_while(validate())
+        .last()?;
 
     let range = first.text_range().cover(last.text_range());
     if range.contains_range(original_range) && original_range != range { Some(range) } else { None }
@@ -183,7 +181,12 @@ fn extend_tokens_from_range(
 
 /// Find the shallowest node with same range, which allows us to traverse siblings.
 fn shallowest_node(node: &SyntaxNode) -> SyntaxNode {
-    node.ancestors().take_while(|n| n.text_range() == node.text_range()).last().unwrap()
+    node.ancestors()
+        .take_while(|n| {
+            n.text_range_without_outer_trivia() == node.text_range_without_outer_trivia()
+        })
+        .last()
+        .unwrap()
 }
 
 fn extend_single_word_in_comment_or_string(
@@ -215,35 +218,53 @@ fn extend_single_word_in_comment_or_string(
     if range.is_empty() { None } else { Some(range + leaf.text_range().start()) }
 }
 
-fn extend_ws(root: &SyntaxNode, ws: SyntaxToken, offset: TextSize) -> TextRange {
-    let ws_text = ws.text();
-    let suffix = TextRange::new(offset, ws.text_range().end()) - ws.text_range().start();
-    let prefix = TextRange::new(ws.text_range().start(), offset) - ws.text_range().start();
+fn extend_ws(
+    root: &SyntaxNode,
+    after: Option<SyntaxToken>,
+    ws: TextRange,
+    offset: TextSize,
+) -> TextRange {
+    let ws_text = root.text().slice(ws - root.text_range().start()).to_string();
+    let ws_text = ws_text.as_str();
+    let suffix = TextRange::new(offset, ws.end()) - ws.start();
+    let prefix = TextRange::new(ws.start(), offset) - ws.start();
     let ws_suffix = &ws_text[suffix];
     let ws_prefix = &ws_text[prefix];
     if ws_text.contains('\n')
         && !ws_suffix.contains('\n')
-        && let Some(node) = ws.next_sibling_or_token()
+        && let Some(after) = after
     {
-        let start = match ws_prefix.rfind('\n') {
-            Some(idx) => ws.text_range().start() + TextSize::from((idx + 1) as u32),
-            None => node.text_range().start(),
+        let node: SyntaxElement = match after.index() {
+            None => after.into(),
+            Some(_) => {
+                let owner = after.prev_token().and_then(|trivia_token| trivia_token.owning_node());
+                after
+                    .parent_ancestors()
+                    .take_while(|it| Some(it) != owner.as_ref())
+                    .last()
+                    .map_or(after.into(), Into::into)
+            }
         };
-        let end = if root.text().char_at(node.text_range().end()) == Some('\n') {
-            node.text_range().end() + TextSize::of('\n')
+        let start = match ws_prefix.rfind('\n') {
+            Some(idx) => ws.start() + TextSize::from((idx + 1) as u32),
+            None => node.text_range_without_outer_trivia().start(),
+        };
+        let end = if root.text().char_at(node.text_range_without_outer_trivia().end()) == Some('\n')
+        {
+            node.text_range_without_outer_trivia().end() + TextSize::of('\n')
         } else {
-            node.text_range().end()
+            node.text_range_without_outer_trivia().end()
         };
         return TextRange::new(start, end);
     }
-    ws.text_range()
+    ws
 }
 
 fn pick_best(l: SyntaxToken, r: SyntaxToken) -> SyntaxToken {
     return if priority(&r) > priority(&l) { r } else { l };
     fn priority(n: &SyntaxToken) -> usize {
         match n.kind() {
-            WHITESPACE => 0,
+            WHITESPACE | NEWLINE => 0,
             IDENT | T![self] | T![super] | T![crate] | T![Self] | LIFETIME_IDENT => 2,
             _ => 1,
         }
@@ -252,21 +273,13 @@ fn pick_best(l: SyntaxToken, r: SyntaxToken) -> SyntaxToken {
 
 /// Extend list item selection to include nearby delimiter and whitespace.
 fn extend_list_item(node: &SyntaxNode) -> Option<TextRange> {
-    fn is_single_line_ws(node: &SyntaxToken) -> bool {
-        node.kind() == WHITESPACE && !node.text().contains('\n')
-    }
-
     fn nearby_delimiter(
         delimiter_kind: SyntaxKind,
         node: &SyntaxNode,
         dir: Direction,
     ) -> Option<SyntaxToken> {
         node.siblings_with_tokens(dir)
-            .skip(1)
-            .find(|node| match node {
-                NodeOrToken::Node(_) => true,
-                NodeOrToken::Token(it) => !is_single_line_ws(it),
-            })
+            .nth(1)
             .and_then(|it| it.into_token())
             .filter(|node| node.kind() == delimiter_kind)
     }
@@ -278,45 +291,35 @@ fn extend_list_item(node: &SyntaxNode) -> Option<TextRange> {
 
     if let Some(delimiter_node) = nearby_delimiter(delimiter, node, Direction::Next) {
         // Include any following whitespace when delimiter is after list item.
-        let final_node = delimiter_node
-            .next_sibling_or_token()
-            .and_then(|it| it.into_token())
-            .filter(is_single_line_ws)
-            .unwrap_or(delimiter_node);
+        let mut end = delimiter_node.text_range().end();
+        for trivia_token in delimiter_node.trailing_trivia() {
+            if trivia_token.kind() != WHITESPACE {
+                break;
+            }
+            end = trivia_token.text_range().end();
+        }
 
-        return Some(TextRange::new(node.text_range().start(), final_node.text_range().end()));
+        return Some(TextRange::new(node.text_range_without_outer_trivia().start(), end));
     }
     if let Some(delimiter_node) = nearby_delimiter(delimiter, node, Direction::Prev) {
-        return Some(TextRange::new(delimiter_node.text_range().start(), node.text_range().end()));
+        return Some(TextRange::new(
+            delimiter_node.text_range().start(),
+            node.text_range_without_outer_trivia().end(),
+        ));
     }
 
     None
 }
 
-fn extend_comments(comment: ast::AnyComment) -> Option<TextRange> {
-    let prev = adj_comments(&comment, Direction::Prev);
-    let next = adj_comments(&comment, Direction::Next);
-    if prev != next {
-        Some(TextRange::new(prev.syntax().text_range().start(), next.syntax().text_range().end()))
-    } else {
-        None
-    }
-}
-
-fn adj_comments(comment: &ast::AnyComment, dir: Direction) -> ast::AnyComment {
-    let mut res = comment.clone();
-    for element in comment.syntax().siblings_with_tokens(dir) {
-        let token = match element.as_token() {
-            None => break,
-            Some(token) => token,
-        };
-        if let Some(c) = ast::AnyComment::cast(token.clone()) {
-            res = c
-        } else if token.kind() != WHITESPACE || token.text().contains("\n\n") {
-            break;
-        }
-    }
-    res
+fn extend_comments(comment: &SyntaxToken) -> Option<TextRange> {
+    let prev =
+        successors(Some(comment.clone()), |it| syntax::algo::adjacent_comment(it, Direction::Prev))
+            .last()?;
+    let next =
+        successors(Some(comment.clone()), |it| syntax::algo::adjacent_comment(it, Direction::Next))
+            .last()?;
+    let range = TextRange::new(prev.text_range().start(), next.text_range().end());
+    (range != comment.text_range()).then_some(range)
 }
 
 #[cfg(test)]

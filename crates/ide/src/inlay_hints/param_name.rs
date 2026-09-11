@@ -85,7 +85,7 @@ pub(super) fn hints(
                 position: InlayHintPosition::Before,
                 pad_left: false,
                 pad_right: true,
-                resolve_parent: Some(expr.syntax().text_range()),
+                resolve_parent: Some(expr.syntax().text_range_without_outer_trivia()),
             }
         });
 
@@ -137,7 +137,7 @@ pub(super) fn hints(
                     position: InlayHintPosition::Before,
                     pad_left: true,
                     pad_right: false,
-                    resolve_parent: Some(expr.syntax().text_range()),
+                    resolve_parent: Some(expr.syntax().text_range_without_outer_trivia()),
                 });
             }
         }

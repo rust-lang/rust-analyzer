@@ -4221,7 +4221,7 @@ pub mod future {
                                 file_id: FileId(
                                     0,
                                 ),
-                                full_range: 0..110,
+                                full_range: 101..110,
                                 focus_range: 108..109,
                                 name: "S",
                                 kind: Struct,

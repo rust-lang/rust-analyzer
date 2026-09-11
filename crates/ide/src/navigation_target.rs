@@ -445,7 +445,11 @@ where
                     (
                         full_range,
                         node.and_then(|node| {
-                            Some(ast::HasName::name(&node)?.syntax().text_range())
+                            Some(
+                                ast::HasName::name(&node)?
+                                    .syntax()
+                                    .text_range_without_outer_trivia(),
+                            )
                         }),
                     )
                 }),
@@ -474,11 +478,19 @@ impl ToNav for hir::Module {
         };
         let kind = if self.is_crate_root(db) { SymbolKind::CrateRoot } else { SymbolKind::Module };
 
-        orig_range_with_focus(db, file_id, syntax, focus).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| {
-                NavigationTarget::from_syntax(file_id, name.clone(), focus_range, full_range, kind)
-            },
+        let range = match &value {
+            ModuleSource::SourceFile(_) => syntax.text_range(),
+            _ => syntax.text_range_without_outer_trivia(),
+        };
+        orig_range_with_focus_r(
+            db,
+            file_id,
+            range,
+            focus.map(|it| it.syntax().text_range_without_outer_trivia()),
         )
+        .map(|(FileRange { file_id, range: full_range }, focus_range)| {
+            NavigationTarget::from_syntax(file_id, name.clone(), focus_range, full_range, kind)
+        })
     }
 }
 
@@ -501,7 +513,9 @@ impl TryToNav for hir::Impl {
                 db,
                 file_id,
                 full_range,
-                source.and_then(|source| Some(source.self_ty()?.syntax().text_range())),
+                source.and_then(|source| {
+                    Some(source.self_ty()?.syntax().text_range_without_outer_trivia())
+                }),
             )
             .map(|(FileRange { file_id, range: full_range }, focus_range)| {
                 NavigationTarget::from_syntax(
@@ -901,11 +915,12 @@ fn orig_range_with_focus(
     value: &SyntaxNode,
     name: Option<impl AstNode>,
 ) -> UpmappingResult<(FileRange, Option<TextRange>)> {
+    let range = value.text_range_without_outer_trivia();
     orig_range_with_focus_r(
         db,
         hir_file,
-        value.text_range(),
-        name.map(|it| it.syntax().text_range()),
+        range,
+        name.map(|it| it.syntax().text_range_without_outer_trivia()),
     )
 }
 
