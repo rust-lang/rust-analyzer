@@ -386,8 +386,8 @@ pub(crate) fn complete_expr_path<'db>(
                     }
 
                     if in_block_expr {
-                        add_keyword("letm", "let mut $1 = $0;");
-                        add_keyword("let", "let $1 = $0;");
+                        add_keyword("letm", "let mut $1 = $2;$0");
+                        add_keyword("let", "let $1 = $2;$0");
                     }
 
                     if !before_else_kw && (after_if_expr || after_incomplete_let) {
