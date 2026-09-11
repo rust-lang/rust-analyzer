@@ -80,6 +80,36 @@ fn test() {
 }
 
 #[test]
+fn associated_type_impl_trait_out_of_scope_param() {
+    // regression test for out_of_scope generic param
+    check_infer(
+        r#"
+trait Foo {}
+struct Wrapper<U>(U);
+impl<U: Foo> Foo for Wrapper<U> {}
+
+trait Bar {
+    type Item;
+}
+struct S2;
+impl Bar for S2 {
+    type Item = impl Foo;
+    fn bar<U: Foo>(x: U) -> Self::Item {
+        Wrapper(x)
+    }
+}
+        "#,
+        expect![[r#"
+            174..175 'x': U
+            194..220 '{     ...     }': Wrapper<U>
+            204..211 'Wrapper': fn Wrapper<U>(U) -> Wrapper<U>
+            204..214 'Wrapper(x)': Wrapper<U>
+            212..213 'x': U
+        "#]],
+    );
+}
+
+#[test]
 fn associated_type_with_impl_trait_in_tuple() {
     check_no_mismatches(
         r#"
