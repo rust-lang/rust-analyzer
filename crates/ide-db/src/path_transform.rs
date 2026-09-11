@@ -279,7 +279,9 @@ impl Ctx<'_> {
         // so that such operation is safe.
         let (editor, item) = SyntaxEditor::new(self.transform_path(item));
         preorder_rev(&item).filter_map(ast::Lifetime::cast).for_each(|lifetime| {
-            if let Some(subst) = self.lifetime_substs.get(&lifetime.syntax().text().to_string()) {
+            if let Some(subst) =
+                self.lifetime_substs.get(&lifetime.syntax().text_without_outer_trivia().to_string())
+            {
                 editor.replace(lifetime.syntax(), subst.clone().syntax());
             }
         });
@@ -744,6 +746,6 @@ fn main() {
     let Alias = ();
     let Union = ();
 }"#;
-        assert_eq_text!(expected, &transformed.to_string());
+        assert_eq_text!(expected, &transformed.text_without_outer_trivia().to_string());
     }
 }

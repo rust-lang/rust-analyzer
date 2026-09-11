@@ -568,7 +568,10 @@ fn source_edit_from_name(
 
         // FIXME: instead of splitting the shorthand, recursively trigger a rename of the
         // other name https://github.com/rust-lang/rust-analyzer/issues/6547
-        edit.insert(ident_pat.syntax().text_range().start(), format!("{new_name}: "));
+        edit.insert(
+            ident_pat.syntax().text_range_without_outer_trivia().start(),
+            format!("{new_name}: "),
+        );
         return true;
     }
 
@@ -600,8 +603,8 @@ fn source_edit_from_name_ref(
 
                         // same names, we can use a shorthand here instead.
                         // we do not want to erase attributes hence this range start
-                        let s = field_name.syntax().text_range().start();
-                        let e = init.syntax().text_range().start();
+                        let s = field_name.syntax().text_range_without_outer_trivia().start();
+                        let e = init.syntax().text_range_without_outer_trivia().start();
                         edit.delete(TextRange::new(s, e));
                         return true;
                     }
@@ -612,8 +615,8 @@ fn source_edit_from_name_ref(
 
                     // same names, we can use a shorthand here instead.
                     // we do not want to erase attributes hence this range start
-                    let s = field_name.syntax().text_range().end();
-                    let e = init.syntax().text_range().end();
+                    let s = field_name.syntax().text_range_without_outer_trivia().end();
+                    let e = init.syntax().text_range_without_outer_trivia().end();
                     edit.delete(TextRange::new(s, e));
                     return true;
                 }
@@ -623,7 +626,7 @@ fn source_edit_from_name_ref(
                 cov_mark::hit!(test_rename_field_in_field_shorthand);
                 // Foo { field } -> Foo { new_name: field }
                 //       ^ insert `new_name: `
-                let offset = name_ref.syntax().text_range().start();
+                let offset = name_ref.syntax().text_range_without_outer_trivia().start();
                 edit.insert(offset, format!("{new_name}: "));
                 return true;
             }
@@ -631,7 +634,7 @@ fn source_edit_from_name_ref(
                 cov_mark::hit!(test_rename_local_in_field_shorthand);
                 // Foo { field } -> Foo { field: new_name }
                 //            ^ insert `: new_name`
-                let offset = name_ref.syntax().text_range().end();
+                let offset = name_ref.syntax().text_range_without_outer_trivia().end();
                 edit.insert(offset, format!(": {new_name}"));
                 return true;
             }
@@ -656,10 +659,10 @@ fn source_edit_from_name_ref(
 
                         // same names, we can use a shorthand here instead/
                         // we do not want to erase attributes hence this range start
-                        let s = field_name.syntax().text_range().start();
-                        let e = pat.syntax().text_range().start();
+                        let s = field_name.syntax().text_range_without_outer_trivia().start();
+                        let e = pat.syntax().text_range_without_outer_trivia().start();
                         edit.delete(TextRange::new(s, e));
-                        edit.replace(name.syntax().text_range(), new_name);
+                        edit.replace(name.syntax().text_range_without_outer_trivia(), new_name);
                         return true;
                     }
                 }
@@ -729,7 +732,7 @@ fn source_edit_from_def<'db>(
             };
             file_id = Some(source.file_id);
             if let Either::Left(pat) = source.value {
-                let name_range = pat.name().unwrap().syntax().text_range();
+                let name_range = pat.name().unwrap().syntax().text_range_without_outer_trivia();
 
                 // special cases required for renaming fields/locals in Record patterns
                 if let Some(pat_field) = pat.syntax().parent().and_then(ast::RecordPatField::cast) {
@@ -742,10 +745,9 @@ fn source_edit_from_def<'db>(
                             //                      ^^^^^ replace this with `field`
                             cov_mark::hit!(test_rename_local_put_init_shorthand_pat);
                             edit.delete(
-                                name_ref
-                                    .syntax()
-                                    .text_range()
-                                    .cover_offset(pat.syntax().text_range().start()),
+                                name_ref.syntax().text_range_without_outer_trivia().cover_offset(
+                                    pat.syntax().text_range_without_outer_trivia().start(),
+                                ),
                             );
                             edit.replace(name_range, name_ref.text().to_owned());
                         } else {
@@ -764,7 +766,7 @@ fn source_edit_from_def<'db>(
                         //   original_ast_node_rootedd: `
                         //               ^^^^^ replace this with `new_name`
                         edit.insert(
-                            pat.syntax().text_range().start(),
+                            pat.syntax().text_range_without_outer_trivia().start(),
                             format!("{}: ", pat_field.field_name().unwrap()),
                         );
                         edit.replace(
