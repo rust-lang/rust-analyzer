@@ -17,8 +17,9 @@ use rustc_hash::FxHashMap;
 use span::{Span, SpanAnchor, SyntaxContext, TextRange, TextSize};
 
 use crate::{
-    DelimSpan, Delimiter, DelimiterKind, Ident, IdentIsRaw, Leaf, LitKind, Literal, Punct, Spacing,
-    Subtree, SubtreeView, TokenTree, TokenTreesView, TtIter,
+    CommentStyle, DelimSpan, Delimiter, DelimiterKind, DocComment, DocCommentStyle, Ident,
+    IdentIsRaw, Leaf, LitKind, Literal, Punct, Spacing, Subtree, SubtreeView, TokenTree,
+    TokenTreesView, TtIter,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -340,19 +341,12 @@ unsafe fn encode<'a>(
     unsafe {
         match tt {
             TokenTree::Leaf(Leaf::Punct(Punct { char, spacing, span })) => {
-                if char.is_ascii() {
-                    let spacing = spacing as u8;
-                    let span_extra = 0b1 | (u32::from(spacing) & 0b10);
-                    let char = ((char as u8) << 1) | (spacing & 0b1);
-                    ptr.write::<u8>(char);
-                    ptr = encode_span(ptr, &span, span_parts_map, span_extra, false);
-                } else {
-                    let mut control_byte = 0b110;
-                    control_byte |= (spacing as u8) << 3;
-                    ptr.write::<char>(char);
-                    ptr.write::<u8>(control_byte);
-                    ptr = encode_span(ptr, &span, span_parts_map, 0b00, false);
-                }
+                debug_assert!(char.is_ascii(), "non-ascii puncts should be impossible");
+                let spacing = spacing as u8;
+                let span_extra = 0b1 | (u32::from(spacing) & 0b10);
+                let char = ((char as u8) << 1) | (spacing & 0b1);
+                ptr.write::<u8>(char);
+                ptr = encode_span(ptr, &span, span_parts_map, span_extra, false);
             }
             TokenTree::Leaf(Leaf::Ident(Ident { sym, span, is_raw })) => {
                 ptr = encode_symbol(ptr, &sym, is_raw as u32, symbols_map);
@@ -397,6 +391,19 @@ unsafe fn encode<'a>(
                     }
                     ptr.write::<u8>(control_byte);
                 }
+                ptr = encode_span(ptr, &span, span_parts_map, 0b00, false);
+            }
+            TokenTree::Leaf(Leaf::DocComment(DocComment {
+                text_with_comment_signs,
+                span,
+                doc_style,
+                comment_style,
+            })) => {
+                let mut control_byte = 0b110;
+                control_byte |= (doc_style as u8) << 3;
+                control_byte |= (comment_style as u8) << 4;
+                ptr = encode_symbol(ptr, &text_with_comment_signs, 0, symbols_map);
+                ptr.write::<u8>(control_byte);
                 ptr = encode_span(ptr, &span, span_parts_map, 0b00, false);
             }
             TokenTree::Subtree(Subtree { delimiter, len }) => {
@@ -957,13 +964,22 @@ unsafe fn decode<'a>(
                 })
             }
             0b110 => {
-                cold_path();
+                // A doc comment.
+                let doc_style =
+                    transmute::<u8, DocCommentStyle>((control_byte_extra_data & 0b1) as u8);
+                let comment_style =
+                    transmute::<u8, CommentStyle>((control_byte_extra_data >> 1) as u8);
+                let text_with_comment_signs_first_byte = ptr.read::<u8>();
+                let text_with_comment_signs;
+                (ptr, text_with_comment_signs) =
+                    decode_symbol(ptr, text_with_comment_signs_first_byte, symbols);
 
-                // Non-ASCII punct. Extremely rare but technically possible.
-                let spacing = transmute::<u8, Spacing>(control_byte_extra_data as u8);
-                let char = ptr.read::<char>();
-
-                TokenTree::Leaf(Leaf::Punct(Punct { char, spacing, span }))
+                TokenTree::Leaf(Leaf::DocComment(DocComment {
+                    text_with_comment_signs,
+                    span,
+                    doc_style,
+                    comment_style,
+                }))
             }
             0b011 | 0b100 => {
                 // Literal, format 1: the 6 bits remaining from `control_byte` decide the kind and the suffix len from a constant set

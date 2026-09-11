@@ -50,7 +50,8 @@ mod foo {
 
 #[attr1]
 #[attr2] struct S;
-#[doc = " Foo"] mod foo {
+/// Foo
+mod foo {
     # ![foo]
     # ![doc = "123..."]
     # ![attr2]
@@ -293,8 +294,11 @@ struct S;
 #[doc = "doc attr"]
 struct S;
 
-#[doc = " doc string \\n with newline"]
-#[doc = "\n     MultiLines Doc\n     MultiLines Doc\n"]
+/// doc string \n with newline
+/**
+     MultiLines Doc
+     MultiLines Doc
+*/
 #[doc = "doc attr"] struct S;"##]],
     );
 }

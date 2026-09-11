@@ -257,3 +257,84 @@ macro_rules! m {
     "#]],
     );
 }
+
+#[test]
+fn doc_comment_is_ignored() {
+    check(
+        r#"
+macro_rules! m {
+    (
+        /// hello
+    ) => {};
+}
+
+m!();
+    "#,
+        expect![[r#"
+macro_rules! m {
+    (
+        /// hello
+    ) => {};
+}
+
+
+    "#]],
+    );
+    check(
+        r#"
+macro_rules! m {
+    () => {
+        macro_rules! m2 {
+            (/** hello */) => {}
+        }
+    };
+}
+
+m!();
+m2!();
+    "#,
+        expect![[r#"
+macro_rules! m {
+    () => {
+        macro_rules! m2 {
+            (/** hello */) => {}
+        }
+    };
+}
+
+macro_rules !m2 {
+    (/** hello */
+    ) = > {}
+}
+
+    "#]],
+    );
+    check(
+        r#"
+macro_rules! m {
+    ($($t:tt)*) => {
+        macro_rules! m2 {
+            ($($t)*) => {}
+        }
+    };
+}
+
+m!(/** hello */);
+m2!();
+    "#,
+        expect![[r#"
+macro_rules! m {
+    ($($t:tt)*) => {
+        macro_rules! m2 {
+            ($($t)*) => {}
+        }
+    };
+}
+
+macro_rules !m2 {
+    (#[doc = r" hello "]) = > {}
+}
+/* error: unexpected token in input */
+    "#]],
+    );
+}

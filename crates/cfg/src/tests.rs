@@ -23,7 +23,7 @@ fn assert_parse_result(input: &str, expected: CfgExpr) {
         pred_ast.syntax(),
         DummyTestSpanMap,
         DUMMY,
-        DocCommentDesugarMode::ProcMacro,
+        DocCommentDesugarMode::Keep,
     );
     let cfg = CfgExpr::parse(&tt);
     assert_eq!(cfg, expected);
@@ -39,7 +39,7 @@ fn check_dnf(input: &str, expect: Expect) {
         pred_ast.syntax(),
         DummyTestSpanMap,
         DUMMY,
-        DocCommentDesugarMode::ProcMacro,
+        DocCommentDesugarMode::Keep,
     );
     let cfg = CfgExpr::parse(&tt);
     let actual = format!("#![cfg({})]", DnfExpr::new(&cfg));
@@ -57,7 +57,7 @@ fn check_why_inactive(input: &str, opts: &CfgOptions, expect: Expect) {
         pred_ast.syntax(),
         DummyTestSpanMap,
         DUMMY,
-        DocCommentDesugarMode::ProcMacro,
+        DocCommentDesugarMode::Keep,
     );
     let cfg = CfgExpr::parse(&tt);
     let dnf = DnfExpr::new(&cfg);
@@ -77,7 +77,7 @@ fn check_enable_hints(input: &str, opts: &CfgOptions, expected_hints: &[&str]) {
         pred_ast.syntax(),
         DummyTestSpanMap,
         DUMMY,
-        DocCommentDesugarMode::ProcMacro,
+        DocCommentDesugarMode::Keep,
     );
     let cfg = CfgExpr::parse(&tt);
     let dnf = DnfExpr::new(&cfg);
