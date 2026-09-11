@@ -322,7 +322,7 @@ pub(crate) fn render_expr<'db>(
 
     let source_range = match ctx.original_token.parent() {
         Some(node) => match node.ancestors().find_map(ast::Path::cast) {
-            Some(path) => path.syntax().text_range(),
+            Some(path) => path.syntax().text_range_without_outer_trivia(),
             None => node.text_range(),
         },
         None => ctx.source_range(),
