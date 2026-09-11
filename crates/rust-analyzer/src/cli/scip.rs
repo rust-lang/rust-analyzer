@@ -22,7 +22,8 @@ use crate::{
 
 impl flags::Scip {
     pub fn run(self) -> anyhow::Result<()> {
-        eprintln!("Generating SCIP start...");
+        let num_threads = self.num_threads.unwrap_or_else(num_cpus::get_physical);
+        eprintln!("Generating SCIP start with {num_threads} threads...");
         let now = Instant::now();
 
         let no_progress = &|s| eprintln!("rust-analyzer: Loading {s}");
@@ -52,7 +53,7 @@ impl flags::Scip {
             load_out_dirs_from_check: true,
             with_proc_macro_server: ProcMacroServerChoice::Sysroot,
             prefill_caches: true,
-            num_worker_threads: self.num_threads.unwrap_or_else(num_cpus::get_physical),
+            num_worker_threads: num_threads,
             proc_macro_processes: config.proc_macro_num_processes(),
         };
         let cargo_config = config.cargo(None);
@@ -72,7 +73,7 @@ impl flags::Scip {
             VendoredLibrariesConfig::Included { workspace_root: &root.clone().into() }
         };
 
-        let si = StaticIndex::compute(&analysis, vendored_libs_config);
+        let si = StaticIndex::compute(&analysis, vendored_libs_config, num_threads, false, false);
 
         let metadata = scip_types::Metadata {
             version: scip_types::ProtocolVersion::UnspecifiedProtocolVersion.into(),
@@ -145,7 +146,7 @@ impl flags::Scip {
                 let token = si.tokens.get(id).unwrap();
 
                 let Some(TokenSymbols { symbol, enclosing_symbol, is_inherent_impl }) =
-                    symbol_generator.token_symbols(id, token)
+                    symbol_generator.token_symbols(id, token.value())
                 else {
                     // token did not have a moniker, so there is no reasonable occurrence to emit
                     // see ide::moniker::def_to_moniker
@@ -171,7 +172,7 @@ impl flags::Scip {
                             symbols.push(compute_symbol_info(
                                 symbol.clone(),
                                 enclosing_symbol,
-                                token,
+                                token.value(),
                             ));
                         }
                     }
@@ -253,7 +254,7 @@ impl flags::Scip {
             }
 
             let TokenSymbols { symbol, enclosing_symbol, .. } = symbol_generator
-                .token_symbols(id, token)
+                .token_symbols(id, token.value())
                 .expect("To have been referenced, the symbol must be in the cache.");
 
             record_error_if_symbol_already_used(
@@ -263,7 +264,11 @@ impl flags::Scip {
                 &line_index,
                 text_range,
             );
-            external_symbols.push(compute_symbol_info(symbol.clone(), enclosing_symbol, token));
+            external_symbols.push(compute_symbol_info(
+                symbol.clone(),
+                enclosing_symbol,
+                token.value(),
+            ));
         }
 
         let index = scip_types::Index {
@@ -535,7 +540,7 @@ mod test {
 
     /// If expected == "", then assert that there are no symbols (this is basically local symbol)
     #[track_caller]
-    fn check_symbol(#[rust_analyzer::rust_fixture] ra_fixture: &str, expected: &str) {
+    fn check_symbols(#[rust_analyzer::rust_fixture] ra_fixture: &str, expected: &[&str]) {
         let (host, position) = position(ra_fixture);
 
         let analysis = host.analysis();
@@ -544,52 +549,46 @@ mod test {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            1,
+            false,
+            false,
         );
 
         let FilePosition { file_id, offset } = position;
 
-        let mut found_symbol = None;
-        for file in &si.files {
-            if file.file_id != file_id {
-                continue;
-            }
-            for &(range, id) in &file.tokens {
-                // check if cursor is within token, ignoring token for the module defined by the file (whose range is the whole file)
-                if range.start() != TextSize::from(0) && range.contains(offset - TextSize::from(1))
-                {
-                    let token = si.tokens.get(id).unwrap();
-                    found_symbol = match token.moniker.as_ref() {
-                        None => None,
-                        Some(MonikerResult::Moniker(moniker)) => {
-                            Some(scip::symbol::format_symbol(moniker_to_symbol(moniker)))
-                        }
-                        Some(MonikerResult::Local { enclosing_moniker: Some(moniker) }) => {
-                            Some(format!(
-                                "local enclosed by {}",
-                                scip::symbol::format_symbol(moniker_to_symbol(moniker))
-                            ))
-                        }
-                        Some(MonikerResult::Local { enclosing_moniker: None }) => {
-                            Some("unenclosed local".to_owned())
-                        }
-                    };
-                    break;
+        let tokens_at_position = si
+            .files
+            .into_iter()
+            .filter(|file| file.file_id == file_id)
+            .flat_map(|file| file.tokens)
+            .filter(|(range, _token_id)| {
+                range.start() != TextSize::from(0) && range.contains(offset - TextSize::from(1))
+            })
+            .map(|(_range, token_id)| si.tokens.get(token_id).unwrap());
+
+        let mut symbols_at_position: Vec<_> = tokens_at_position
+            .filter_map(|token| match token.moniker.as_ref() {
+                None => None,
+                Some(MonikerResult::Moniker(moniker)) => {
+                    Some(scip::symbol::format_symbol(moniker_to_symbol(moniker)))
                 }
-            }
-        }
+                Some(MonikerResult::Local { enclosing_moniker: Some(moniker) }) => Some(format!(
+                    "local enclosed by {}",
+                    scip::symbol::format_symbol(moniker_to_symbol(moniker))
+                )),
+                Some(MonikerResult::Local { enclosing_moniker: None }) => {
+                    Some("unenclosed local".to_owned())
+                }
+            })
+            .collect();
 
-        if expected.is_empty() {
-            assert!(found_symbol.is_none(), "must have no symbols {found_symbol:?}");
-            return;
-        }
-
-        assert!(found_symbol.is_some(), "must have one symbol {found_symbol:?}");
-        assert_eq!(found_symbol.unwrap(), expected);
+        symbols_at_position.sort_unstable();
+        assert_eq!(symbols_at_position, expected);
     }
 
     #[test]
     fn basic() {
-        check_symbol(
+        check_symbols(
             r#"
 //- /workspace/lib.rs crate:main deps:foo
 use foo::example_mod::func;
@@ -601,13 +600,13 @@ pub mod example_mod {
     pub fn func() {}
 }
 "#,
-            "rust-analyzer cargo foo 0.1.0 example_mod/func().",
+            &["rust-analyzer cargo foo 0.1.0 example_mod/func()."],
         );
     }
 
     #[test]
     fn operator_overload() {
-        check_symbol(
+        check_symbols(
             r#"
 //- minicore: add
 //- /workspace/lib.rs crate:main
@@ -624,13 +623,13 @@ fn main() {
     s +=$0 S;
 }
 "#,
-            "rust-analyzer cargo main . impl#[S][`AddAssign<Self>`]add_assign().",
+            &["rust-analyzer cargo main . impl#[S][`AddAssign<Self>`]add_assign()."],
         );
     }
 
     #[test]
     fn symbol_for_trait() {
-        check_symbol(
+        check_symbols(
             r#"
 //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
 pub mod module {
@@ -639,13 +638,13 @@ pub mod module {
     }
 }
 "#,
-            "rust-analyzer cargo foo 0.1.0 module/MyTrait#func().",
+            &["rust-analyzer cargo foo 0.1.0 module/MyTrait#func()."],
         );
     }
 
     #[test]
     fn symbol_for_trait_alias() {
-        check_symbol(
+        check_symbols(
             r#"
 //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
 #![feature(trait_alias)]
@@ -654,13 +653,13 @@ pub mod module {
     pub trait MyTraitAlias$0 = MyTrait;
 }
 "#,
-            "rust-analyzer cargo foo 0.1.0 module/MyTraitAlias#",
+            &["rust-analyzer cargo foo 0.1.0 module/MyTraitAlias#"],
         );
     }
 
     #[test]
     fn symbol_for_trait_constant() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
     pub mod module {
@@ -669,13 +668,13 @@ pub mod module {
         }
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 module/MyTrait#MY_CONST.",
+            &["rust-analyzer cargo foo 0.1.0 module/MyTrait#MY_CONST."],
         );
     }
 
     #[test]
     fn symbol_for_trait_type() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
     pub mod module {
@@ -684,13 +683,13 @@ pub mod module {
         }
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 module/MyTrait#MyType#",
+            &["rust-analyzer cargo foo 0.1.0 module/MyTrait#MyType#"],
         );
     }
 
     #[test]
     fn symbol_for_trait_impl_function() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
     pub mod module {
@@ -705,13 +704,13 @@ pub mod module {
         }
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 module/impl#[MyStruct][MyTrait]func().",
+            &["rust-analyzer cargo foo 0.1.0 module/impl#[MyStruct][MyTrait]func()."],
         );
     }
 
     #[test]
     fn symbol_for_field() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main deps:foo
     use foo::St;
@@ -723,13 +722,13 @@ pub mod module {
         pub a: i32,
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 St#a.",
+            &["rust-analyzer cargo foo 0.1.0 St#a."],
         );
     }
 
     #[test]
     fn symbol_for_param() {
-        check_symbol(
+        check_symbols(
             r#"
 //- /workspace/lib.rs crate:main deps:foo
 use foo::example_mod::func;
@@ -741,13 +740,13 @@ pub mod example_mod {
     pub fn func(x$0: usize) {}
 }
 "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 example_mod/func().",
+            &["local enclosed by rust-analyzer cargo foo 0.1.0 example_mod/func()."],
         );
     }
 
     #[test]
     fn symbol_for_closure_param() {
-        check_symbol(
+        check_symbols(
             r#"
 //- /workspace/lib.rs crate:main deps:foo
 use foo::example_mod::func;
@@ -761,13 +760,13 @@ pub mod example_mod {
     }
 }
 "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 example_mod/func().",
+            &["local enclosed by rust-analyzer cargo foo 0.1.0 example_mod/func()."],
         );
     }
 
     #[test]
     fn local_symbol_for_local() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main deps:foo
     use foo::module::func;
@@ -781,13 +780,13 @@ pub mod example_mod {
         }
     }
     "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 module/func().",
+            &["local enclosed by rust-analyzer cargo foo 0.1.0 module/func()."],
         );
     }
 
     #[test]
     fn global_symbol_for_pub_struct() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     mod foo;
@@ -800,13 +799,13 @@ pub mod example_mod {
         pub i: i32,
     }
     "#,
-            "rust-analyzer cargo main . foo/Bar#",
+            &["rust-analyzer cargo main . foo/Bar#"],
         );
     }
 
     #[test]
     fn global_symbol_for_pub_struct_reference() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     mod foo;
@@ -819,32 +818,32 @@ pub mod example_mod {
         pub i: i32,
     }
     "#,
-            "rust-analyzer cargo main . foo/Bar#",
+            &["rust-analyzer cargo main . foo/Bar#"],
         );
     }
 
     #[test]
     fn symbol_for_type_alias() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     pub type MyTypeAlias$0 = u8;
     "#,
-            "rust-analyzer cargo main . MyTypeAlias#",
+            &["rust-analyzer cargo main . MyTypeAlias#"],
         );
     }
 
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_nested_function() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
        pub fn inner_func$0() {}
     }
     "#,
-            "rust-analyzer cargo main . inner_func().",
+            &["rust-analyzer cargo main . inner_func()."],
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
@@ -853,14 +852,14 @@ pub mod example_mod {
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_struct_in_function() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
        struct SomeStruct$0 {}
     }
     "#,
-            "rust-analyzer cargo main . SomeStruct#",
+            &["rust-analyzer cargo main . SomeStruct#"],
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
@@ -869,14 +868,14 @@ pub mod example_mod {
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_const_in_function() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
        const SOME_CONST$0: u32 = 1;
     }
     "#,
-            "rust-analyzer cargo main . SOME_CONST.",
+            &["rust-analyzer cargo main . SOME_CONST."],
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
@@ -885,16 +884,77 @@ pub mod example_mod {
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_static_in_function() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
        static SOME_STATIC$0: u32 = 1;
     }
     "#,
-            "rust-analyzer cargo main . SOME_STATIC.",
+            &["rust-analyzer cargo main . SOME_STATIC."],
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
+        );
+    }
+
+    #[test]
+    fn include_macro() {
+        check_symbols(
+            r#"
+                //- minicore: include
+                //- /workspace/lib.rs crate:main
+                use core::include;
+
+                include!("included.rs");
+
+                //- /workspace/included.rs
+                struct Included$0;
+            "#,
+            &["rust-analyzer cargo main . Included#"],
+        );
+    }
+
+    #[test]
+    fn include_macro_indirect() {
+        check_symbols(
+            r#"
+                //- minicore: include
+                //- /workspace/lib.rs crate:main
+                macro_rules! includer {
+                    () => {
+                        include!("include_intermediate.rs");
+                    };
+                }
+
+                includer!();
+
+                //- /workspace/include_intermediate.rs
+                include!("included.rs");
+
+                //- /workspace/included.rs
+                struct Included$0;
+            "#,
+            &["rust-analyzer cargo main . Included#"],
+        );
+    }
+
+    #[test]
+    fn include_macro_multiple() {
+        check_symbols(
+            r#"
+                //- minicore: include
+                //- /workspace/lib.rs crate:main
+                mod a {
+                    include!("included.rs");
+                }
+                mod b {
+                    include!("included.rs");
+                }
+
+                //- /workspace/included.rs
+                struct Included$0;
+            "#,
+            &["rust-analyzer cargo main . a/Included#", "rust-analyzer cargo main . b/Included#"],
         );
     }
 
@@ -912,6 +972,9 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            1,
+            false,
+            false,
         );
 
         let file = si.files.first().unwrap();
@@ -935,6 +998,9 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            1,
+            false,
+            false,
         );
 
         let file = si.files.first().unwrap();
@@ -963,6 +1029,9 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            1,
+            false,
+            false,
         );
 
         let file = si.files.first().unwrap();
@@ -995,6 +1064,9 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            1,
+            false,
+            false,
         );
 
         let file = si.files.first().unwrap();
