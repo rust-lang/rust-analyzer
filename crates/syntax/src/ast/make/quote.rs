@@ -58,12 +58,7 @@ macro_rules! quote_impl_ {
         $($rest:tt)*
     ) => {
         const { $crate::ast::make::quote::verify_only_whitespaces($whitespace) };
-        $children.push($crate::ast::make::quote::NodeOrToken::Token(
-            $crate::ast::make::quote::GreenToken::new(
-                $crate::ast::make::quote::RSyntaxKind($crate::SyntaxKind::WHITESPACE as u16),
-                $whitespace,
-            ),
-        ));
+        $crate::ast::make::quote::push_whitespace(&mut $children, $whitespace);
         $crate::ast::make::quote::quote_impl!( @append $children $($rest)* );
     };
 
@@ -148,13 +143,86 @@ macro_rules! quote_ {
         >>::with_capacity(1);
         $crate::ast::make::quote::quote_impl!( @append root $root { $($tree)* } );
         let root = root.into_iter().next().unwrap();
-        let root = $crate::SyntaxNode::new_root(root.into_node().unwrap());
+        let root = $crate::ast::make::quote::attach_trivia(&root.into_node().unwrap());
+        let root = $crate::SyntaxNode::new_root(root);
         <$crate::ast::$root as $crate::ast::AstNode>::cast(root).unwrap()
     }};
 }
 pub(crate) use quote_ as quote;
 
-use crate::AstNode;
+use crate::{AstNode, SyntaxKind, SyntaxKind::NEWLINE};
+
+pub(crate) fn push_whitespace(children: &mut Vec<NodeOrToken<GreenNode, GreenToken>>, text: &str) {
+    let trivia = crate::ast::make::tokens::trivia(text);
+    children.extend(
+        trivia
+            .into_iter()
+            .map(|(kind, text)| GreenToken::new(RSyntaxKind(kind as u16), text).into()),
+    );
+}
+
+enum Piece {
+    Enter(RSyntaxKind),
+    Exit,
+    Token(GreenToken, Vec<GreenToken>, Vec<GreenToken>),
+}
+
+fn kind(token: &rowan::GreenTokenData) -> SyntaxKind {
+    SyntaxKind::from(token.kind().0)
+}
+
+fn flatten(node: &rowan::GreenNodeData, pieces: &mut Vec<Piece>, leading: &mut Vec<GreenToken>) {
+    pieces.push(Piece::Enter(node.kind()));
+    for child in node.children() {
+        match child {
+            NodeOrToken::Node(node) => flatten(node, pieces, leading),
+            NodeOrToken::Token(token) if !kind(token).is_trivia() => {
+                leading.extend(token.leading_trivia().iter().cloned());
+                let trailing = token.trailing_trivia().to_vec();
+                pieces.push(Piece::Token(token.to_owned(), std::mem::take(leading), trailing));
+            }
+            NodeOrToken::Token(trivia) => {
+                let open = pieces.iter_mut().rev().find_map(|piece| match piece {
+                    Piece::Token(_, _, trailing) => Some(trailing),
+                    _ => None,
+                });
+                match open {
+                    Some(trailing) if !trailing.last().is_some_and(|it| kind(it) == NEWLINE) => {
+                        trailing.push(trivia.to_owned())
+                    }
+                    _ => leading.push(trivia.to_owned()),
+                }
+            }
+        }
+    }
+    pieces.push(Piece::Exit);
+}
+
+pub(crate) fn attach_trivia(root: &GreenNode) -> GreenNode {
+    let (mut pieces, mut leading) = (Vec::new(), Vec::new());
+    flatten(root, &mut pieces, &mut leading);
+    debug_assert!(leading.is_empty(), "trivia needs a following token");
+
+    let mut frames: Vec<(RSyntaxKind, Vec<NodeOrToken<GreenNode, GreenToken>>)> = Vec::new();
+    for piece in pieces {
+        match piece {
+            Piece::Enter(kind) => frames.push((kind, Vec::new())),
+            Piece::Token(token, leading, trailing) => {
+                let token = GreenToken::with_trivia(token.kind(), token.text(), leading, trailing);
+                frames.last_mut().expect("a token outside any node").1.push(token.into());
+            }
+            Piece::Exit => {
+                let (kind, children) = frames.pop().expect("an exit for every enter");
+                let node = GreenNode::new(kind, children);
+                match frames.last_mut() {
+                    Some((_, parent)) => parent.push(node.into()),
+                    None => return node,
+                }
+            }
+        }
+    }
+    unreachable!("the root exits last")
+}
 
 pub(crate) trait ToNodeChild {
     fn append_node_child(self, children: &mut Vec<NodeOrToken<GreenNode, GreenToken>>);
@@ -162,7 +230,8 @@ pub(crate) trait ToNodeChild {
 
 impl<N: AstNode> ToNodeChild for N {
     fn append_node_child(self, children: &mut Vec<NodeOrToken<GreenNode, GreenToken>>) {
-        children.push((*self.syntax().clone_subtree().green()).to_owned().into());
+        let detached = crate::algo::strip_outer_blank_trivia(self.syntax());
+        children.push(detached.green().to_owned().into());
     }
 }
 
