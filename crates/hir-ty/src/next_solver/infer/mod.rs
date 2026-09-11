@@ -59,6 +59,7 @@ pub mod relate;
 pub mod resolve;
 pub mod select;
 pub(crate) mod snapshot;
+pub(crate) use snapshot::StalledVarKey;
 pub mod traits;
 mod type_variable;
 mod unify_key;
@@ -878,7 +879,7 @@ impl<'db> InferCtxt<'db> {
     pub fn take_opaque_types(
         &self,
     ) -> impl IntoIterator<Item = (OpaqueTypeKey<'db>, OpaqueHiddenType<'db>)> + use<'db> {
-        self.inner.borrow_mut().opaque_type_storage.take_opaque_types()
+        self.inner.borrow_mut().opaque_types().take_opaque_types()
     }
 
     #[instrument(level = "debug", skip(self), ret)]
@@ -1002,6 +1003,14 @@ impl<'db> InferCtxt<'db> {
 
     pub fn root_const_var(&self, var: ConstVid) -> ConstVid {
         self.inner.borrow_mut().const_unification_table().find(var).vid
+    }
+
+    pub(crate) fn root_int_var(&self, var: IntVid) -> IntVid {
+        self.inner.borrow_mut().int_unification_table().find(var)
+    }
+
+    pub(crate) fn root_float_var(&self, var: FloatVid) -> FloatVid {
+        self.inner.borrow_mut().float_unification_table().find(var)
     }
 
     /// Resolves an int var to a rigid int type, if it was constrained to one,
