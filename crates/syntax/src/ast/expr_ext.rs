@@ -115,27 +115,36 @@ fn if_block_condition() {
         parser::Edition::CURRENT,
     );
     let if_ = parse.tree().syntax().descendants().find_map(ast::IfExpr::cast).unwrap();
-    assert_eq!(if_.then_branch().unwrap().syntax().text(), r#"{ "if" }"#);
+    assert_eq!(if_.then_branch().unwrap().syntax().text_without_outer_trivia(), r#"{ "if" }"#);
     let elif = match if_.else_branch().unwrap() {
         ElseBranch::IfExpr(elif) => elif,
         ElseBranch::Block(_) => panic!("should be `else if`"),
     };
-    assert_eq!(elif.then_branch().unwrap().syntax().text(), r#"{ "first elif" }"#);
+    assert_eq!(
+        elif.then_branch().unwrap().syntax().text_without_outer_trivia(),
+        r#"{ "first elif" }"#
+    );
     let elif = match elif.else_branch().unwrap() {
         ElseBranch::IfExpr(elif) => elif,
         ElseBranch::Block(_) => panic!("should be `else if`"),
     };
-    assert_eq!(elif.then_branch().unwrap().syntax().text(), r#"{ "second elif" }"#);
+    assert_eq!(
+        elif.then_branch().unwrap().syntax().text_without_outer_trivia(),
+        r#"{ "second elif" }"#
+    );
     let elif = match elif.else_branch().unwrap() {
         ElseBranch::IfExpr(elif) => elif,
         ElseBranch::Block(_) => panic!("should be `else if`"),
     };
-    assert_eq!(elif.then_branch().unwrap().syntax().text(), r#"{ "third elif" }"#);
+    assert_eq!(
+        elif.then_branch().unwrap().syntax().text_without_outer_trivia(),
+        r#"{ "third elif" }"#
+    );
     let else_ = match elif.else_branch().unwrap() {
         ElseBranch::Block(else_) => else_,
         ElseBranch::IfExpr(_) => panic!("should be `else`"),
     };
-    assert_eq!(else_.syntax().text(), r#"{ "else" }"#);
+    assert_eq!(else_.syntax().text_without_outer_trivia(), r#"{ "else" }"#);
 }
 
 #[test]
@@ -150,12 +159,12 @@ fn if_condition_with_if_inside() {
         parser::Edition::CURRENT,
     );
     let if_ = parse.tree().syntax().descendants().find_map(ast::IfExpr::cast).unwrap();
-    assert_eq!(if_.then_branch().unwrap().syntax().text(), r#"{ "if" }"#);
+    assert_eq!(if_.then_branch().unwrap().syntax().text_without_outer_trivia(), r#"{ "if" }"#);
     let else_ = match if_.else_branch().unwrap() {
         ElseBranch::Block(else_) => else_,
         ElseBranch::IfExpr(_) => panic!("should be `else`"),
     };
-    assert_eq!(else_.syntax().text(), r#"{ "else" }"#);
+    assert_eq!(else_.syntax().text_without_outer_trivia(), r#"{ "else" }"#);
 }
 
 impl ast::PrefixExpr {
@@ -335,7 +344,7 @@ impl ast::Literal {
     pub fn token(&self) -> SyntaxToken {
         self.syntax()
             .children_with_tokens()
-            .find(|e| !ast::AnyAttr::can_cast(e.kind()) && !e.kind().is_trivia())
+            .find(|e| !ast::AnyAttr::can_cast(e.kind()))
             .and_then(|e| e.into_token())
             .unwrap()
     }

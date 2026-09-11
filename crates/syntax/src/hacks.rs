@@ -18,5 +18,5 @@ pub fn parse_expr_from_str(s: &str, edition: Edition) -> Option<ast::Expr> {
     // Can't check the text because the original text may contain whitespace and comments.
     // Wrap in parentheses to better allow for verification. Of course, the real fix is
     // to get rid of this hack.
-    expr.expr()
+    expr.expr().map(|it| crate::ast::edit::AstNodeEdit::detached(&it))
 }
