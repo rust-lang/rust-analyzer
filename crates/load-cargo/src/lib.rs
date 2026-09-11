@@ -718,10 +718,12 @@ impl ProcMacroExpander for Expander {
                     let call_site_ast_id = macro_call_loc.kind.erased_ast_id();
 
                     if let Some(editioned_file_id) = call_site_file.file_id() {
-                        let range = hir_expand::HirFileId::from(editioned_file_id)
+                        let file_id = hir_expand::HirFileId::from(editioned_file_id);
+                        let range = file_id
                             .ast_id_map(db)
                             .get_erased(call_site_ast_id)
-                            .text_range();
+                            .to_node(&file_id.parse_or_expand(db))
+                            .text_range_without_outer_trivia();
 
                         let parent_span = Some(ParentSpan {
                             file_id: editioned_file_id.span_file_id(db).as_u32(),

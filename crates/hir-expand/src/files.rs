@@ -121,7 +121,7 @@ pub type ErasedAstId = crate::InFile<ErasedFileAstId>;
 
 impl ErasedAstId {
     pub fn to_range(&self, db: &dyn SourceDatabase) -> TextRange {
-        self.to_ptr(db).text_range()
+        self.to_ptr(db).to_node(&self.file_id.parse_or_expand(db)).text_range_without_outer_trivia()
     }
     pub fn to_ptr(&self, db: &dyn SourceDatabase) -> SyntaxNodePtr {
         self.file_id.ast_id_map(db).get_erased(self.value)
@@ -241,7 +241,10 @@ impl<FileId: Copy, N: AstNode> InFileWrapper<FileId, N> {
         self.with_value(self.value.syntax())
     }
     pub fn node_file_range(&self) -> FileRangeWrapper<FileId> {
-        FileRangeWrapper { file_id: self.file_id, range: self.value.syntax().text_range() }
+        FileRangeWrapper {
+            file_id: self.file_id,
+            range: self.value.syntax().text_range_without_outer_trivia(),
+        }
     }
 }
 
@@ -255,7 +258,10 @@ impl<FileId: Copy, N: AstNode> InFileWrapper<FileId, &N> {
 // region:specific impls
 impl<FileId: Copy, SN: Borrow<SyntaxNode>> InFileWrapper<FileId, SN> {
     pub fn file_range(&self) -> FileRangeWrapper<FileId> {
-        FileRangeWrapper { file_id: self.file_id, range: self.value.borrow().text_range() }
+        FileRangeWrapper {
+            file_id: self.file_id,
+            range: self.value.borrow().text_range_without_outer_trivia(),
+        }
     }
 }
 
@@ -303,7 +309,7 @@ impl<SN: Borrow<SyntaxNode>> InFile<SN> {
     }
 
     pub fn text_range(&self) -> TextRange {
-        self.value.borrow().text_range()
+        self.value.borrow().text_range_without_outer_trivia()
     }
 
     /// Falls back to the macro call range if the node cannot be mapped up fully.
@@ -311,12 +317,16 @@ impl<SN: Borrow<SyntaxNode>> InFile<SN> {
     /// For attributes and derives, this will point back to the attribute only.
     /// For the entire item use `InFile::original_file_range_full`.
     pub fn original_file_range_rooted(self, db: &dyn SourceDatabase) -> FileRange {
-        self.borrow().map(SyntaxNode::text_range).original_node_file_range_rooted(db)
+        self.borrow()
+            .map(SyntaxNode::text_range_without_outer_trivia)
+            .original_node_file_range_rooted(db)
     }
 
     /// Falls back to the macro call range if the node cannot be mapped up fully.
     pub fn original_file_range_with_macro_call_input(self, db: &dyn SourceDatabase) -> FileRange {
-        self.borrow().map(SyntaxNode::text_range).original_node_file_range_with_macro_call_input(db)
+        self.borrow()
+            .map(SyntaxNode::text_range_without_outer_trivia)
+            .original_node_file_range_with_macro_call_input(db)
     }
 
     pub fn original_syntax_node_rooted(
@@ -340,7 +350,7 @@ impl<SN: Borrow<SyntaxNode>> InFile<SN> {
         let FileRange { file_id: editioned_file_id, range } = map_node_range_up_rooted(
             db,
             file_id.expansion_span_map(db),
-            self.value.borrow().text_range(),
+            self.value.borrow().text_range_without_outer_trivia(),
         )?;
 
         let kind = self.kind();
@@ -349,7 +359,7 @@ impl<SN: Borrow<SyntaxNode>> InFile<SN> {
             .syntax_node()
             .covering_element(range)
             .ancestors()
-            .take_while(|it| it.text_range() == range)
+            .take_while(|it| it.text_range_without_outer_trivia() == range)
             .find(|it| it.kind() == kind)?;
         Some(InRealFile::new(editioned_file_id, value))
     }
@@ -361,7 +371,9 @@ impl InFile<&SyntaxNode> {
         self,
         db: &dyn SourceDatabase,
     ) -> Option<(FileRange, SyntaxContext)> {
-        self.borrow().map(SyntaxNode::text_range).original_node_file_range_opt(db)
+        self.borrow()
+            .map(SyntaxNode::text_range_without_outer_trivia)
+            .original_node_file_range_opt(db)
     }
 }
 
@@ -519,7 +531,7 @@ impl<N: AstNode> InFile<N> {
         let FileRange { file_id: editioned_file_id, range } = map_node_range_up_rooted(
             db,
             file_id.expansion_span_map(db),
-            self.value.syntax().text_range(),
+            self.value.syntax().text_range_without_outer_trivia(),
         )?;
 
         // FIXME: This heuristic is brittle and with the right macro may select completely unrelated nodes?
