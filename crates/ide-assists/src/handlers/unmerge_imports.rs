@@ -1,7 +1,7 @@
 use syntax::{
     AstNode, SyntaxKind,
     ast::{self, HasAttrs, HasVisibility, edit::IndentLevel, syntax_factory::SyntaxFactory},
-    syntax_editor::{Element, Position, Removable, SyntaxEditor},
+    syntax_editor::{Position, Removable, SyntaxEditor},
 };
 
 use crate::{
@@ -41,7 +41,7 @@ pub(crate) fn unmerge_imports(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
         None => "Unmerge use".into(),
     };
 
-    let target = tree.syntax().text_range();
+    let target = tree.syntax().text_range_without_outer_trivia();
     acc.add(AssistId::refactor_rewrite("unmerge_imports"), label, target, |builder| {
         let make = editor.make();
         let new_use = make.use_(
@@ -53,13 +53,12 @@ pub(crate) fn unmerge_imports(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
         // Remove the use tree from the current use item
         tree.remove(&editor);
         // Insert a newline and indentation, followed by the new use item
-        editor.insert_all(
+        editor.insert(
             Position::after(use_.syntax()),
-            vec![
-                make.whitespace(&format!("\n{}", IndentLevel::from_node(use_.syntax())))
-                    .syntax_element(),
-                new_use.syntax().syntax_element(),
-            ],
+            make.with_leading_trivia(
+                new_use.syntax(),
+                &format!("\n{}", IndentLevel::from_node(use_.syntax())),
+            ),
         );
         builder.add_file_edits(ctx.vfs_file_id(), editor);
     })

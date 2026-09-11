@@ -1,6 +1,5 @@
 use syntax::{
-    AstNode, Direction, NodeOrToken, SyntaxKind, SyntaxToken, T,
-    algo::non_trivia_sibling,
+    AstNode, NodeOrToken, SyntaxKind, SyntaxToken, T,
     ast::{self, syntax_factory::SyntaxFactory},
 };
 
@@ -23,8 +22,8 @@ use crate::{AssistContext, AssistId, Assists};
 // ```
 pub(crate) fn flip_comma(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let comma = ctx.find_token_syntax_at_offset(T![,])?;
-    let prev = non_trivia_sibling(comma.clone().into(), Direction::Prev)?;
-    let next = non_trivia_sibling(comma.clone().into(), Direction::Next)?;
+    let prev = comma.prev_sibling_or_token()?;
+    let next = comma.next_sibling_or_token()?;
 
     // Don't apply a "flip" in case of a last comma
     // that typically comes before punctuation
@@ -49,8 +48,8 @@ pub(crate) fn flip_comma(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opti
             let new_tree = flip_tree(parent.clone(), comma, editor.make());
             editor.replace(parent.syntax(), new_tree.syntax());
         } else {
-            editor.replace(prev.clone(), next.clone());
-            editor.replace(next.clone(), prev.clone());
+            editor.replace_verbatim(prev.clone(), next.clone());
+            editor.replace_verbatim(next.clone(), prev.clone());
         }
 
         builder.add_file_edits(ctx.vfs_file_id(), editor);
@@ -63,38 +62,25 @@ fn flip_tree(tree: ast::TokenTree, comma: SyntaxToken, make: &SyntaxFactory) -> 
         tree_iter.by_ref().take_while(|it| it.as_token() != Some(&comma)).collect();
     let after: Vec<_> = tree_iter.collect();
 
-    let not_ws = |element: &NodeOrToken<_, SyntaxToken>| match element {
-        NodeOrToken::Token(token) => token.kind() != SyntaxKind::WHITESPACE,
-        NodeOrToken::Node(_) => true,
-    };
-
     let is_comma = |element: &NodeOrToken<_, SyntaxToken>| match element {
         NodeOrToken::Token(token) => token.kind() == T![,],
         NodeOrToken::Node(_) => false,
     };
 
-    let prev_start_untrimmed = match before.iter().rposition(is_comma) {
+    let prev_start = match before.iter().rposition(is_comma) {
         Some(pos) => pos + 1,
         None => 1,
     };
-    let prev_end = 1 + before.iter().rposition(not_ws).unwrap();
-    let prev_start = prev_start_untrimmed
-        + before[prev_start_untrimmed..prev_end].iter().position(not_ws).unwrap();
-
-    let next_start = after.iter().position(not_ws).unwrap();
-    let next_end_untrimmed = match after.iter().position(is_comma) {
+    let next_end = match after.iter().position(is_comma) {
         Some(pos) => pos,
         None => after.len() - 1,
     };
-    let next_end = 1 + after[..next_end_untrimmed].iter().rposition(not_ws).unwrap();
 
     let result = [
         &before[1..prev_start],
-        &after[next_start..next_end],
-        &before[prev_end..],
+        &after[..next_end],
         &[NodeOrToken::Token(comma)],
-        &after[..next_start],
-        &before[prev_start..prev_end],
+        &before[prev_start..],
         &after[next_end..after.len() - 1],
     ]
     .concat();
