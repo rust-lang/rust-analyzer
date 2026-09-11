@@ -261,6 +261,21 @@ fn traverse(
     let mut body_stack: Vec<Option<ExpressionStoreOwner>> = vec![];
     let mut per_body_cache: FxHashMap<ExpressionStoreOwner, FxHashSet<_>> = FxHashMap::default();
 
+    let mut trivia_token = root.token_at_offset(range_to_highlight.start()).right_biased();
+    while let Some(token) =
+        trivia_token.filter(|it| it.text_range().start() < range_to_highlight.end())
+    {
+        let range = token.text_range();
+        let mut highlight = HlTag::Comment.into();
+        if token.kind() == syntax::SyntaxKind::COMMENT
+            && !range.is_empty()
+            && filter_by_config(&mut highlight, config)
+        {
+            hl.add(HlRange { range, highlight, binding_hash: None });
+        }
+        trivia_token = token.next_token();
+    }
+
     // Walk all nodes, keeping track of whether we are inside a macro or not.
     // If in macro, expand it first and highlight the expanded code.
     let mut preorder = root.preorder_with_tokens();
@@ -268,7 +283,7 @@ fn traverse(
         use WalkEvent::{Enter, Leave};
 
         let range = match &event {
-            Enter(it) | Leave(it) => it.text_range(),
+            Enter(it) | Leave(it) => it.text_range_without_outer_trivia(),
         };
 
         // Element outside of the viewport, no need to highlight
@@ -358,7 +373,6 @@ fn traverse(
         }
 
         let element = match event {
-            Enter(NodeOrToken::Token(tok)) if tok.kind() == WHITESPACE => continue,
             Enter(it) => it,
             Leave(NodeOrToken::Token(_)) => continue,
             Leave(NodeOrToken::Node(node)) => {

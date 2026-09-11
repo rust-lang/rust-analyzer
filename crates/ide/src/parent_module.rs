@@ -30,9 +30,9 @@ pub(crate) fn parent_module(db: &RootDatabase, position: FilePosition) -> Vec<Na
 
     // If cursor is literally on `mod foo`, go to the grandpa.
     if let Some(m) = &module
-        && !m
-            .item_list()
-            .is_some_and(|it| it.syntax().text_range().contains_inclusive(position.offset))
+        && !m.item_list().is_some_and(|it| {
+            it.syntax().text_range_without_outer_trivia().contains_inclusive(position.offset)
+        })
     {
         cov_mark::hit!(test_resolve_parent_module_on_module_decl);
         module = m.syntax().ancestors().skip(1).find_map(ast::Module::cast);

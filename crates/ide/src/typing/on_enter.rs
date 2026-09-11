@@ -3,7 +3,7 @@
 
 use ide_db::{FilePosition, RootDatabase, source_change::SnippetEdit};
 use syntax::{
-    AstNode, SmolStr, SourceFile,
+    AstNode, Direction, SmolStr, SourceFile,
     SyntaxKind::*,
     SyntaxToken, TextRange, TextSize, TokenAtOffset,
     ast::{self, AstToken, edit::IndentLevel},
@@ -90,7 +90,7 @@ fn on_enter_in_comment(
         if comment.text().ends_with(' ') {
             cov_mark::hit!(continues_end_of_line_comment_with_space);
             remove_trailing_whitespace = true;
-        } else if !followed_by_comment(comment) {
+        } else if syntax::algo::adjacent_comment(comment.syntax(), Direction::Next).is_none() {
             return None;
         }
     }
@@ -128,7 +128,7 @@ fn brace_contents_on_same_line(l_curly: &SyntaxToken) -> Option<(SyntaxToken, St
     let mut token = l_curly.next_token()?;
 
     loop {
-        if token.kind() == WHITESPACE && token.text().contains('\n') {
+        if token.kind() == NEWLINE {
             return None;
         }
 
@@ -159,17 +159,6 @@ fn brace_contents_on_same_line(l_curly: &SyntaxToken) -> Option<(SyntaxToken, St
     }
 }
 
-fn followed_by_comment(comment: &ast::AnyComment) -> bool {
-    let ws = match comment.syntax().next_token().and_then(ast::Whitespace::cast) {
-        Some(it) => it,
-        None => return false,
-    };
-    if ws.spans_multiple_lines() {
-        return false;
-    }
-    ws.syntax().next_token().and_then(ast::AnyComment::cast).is_some()
-}
-
 fn node_indent(file: &SourceFile, token: &SyntaxToken) -> Option<SmolStr> {
     let ws = match file.syntax().token_at_offset(token.text_range().start()) {
         TokenAtOffset::Between(l, r) => {
@@ -182,12 +171,11 @@ fn node_indent(file: &SourceFile, token: &SyntaxToken) -> Option<SmolStr> {
         }
         TokenAtOffset::None => unreachable!(),
     };
-    if ws.kind() != WHITESPACE {
-        return None;
+    match ws.kind() {
+        WHITESPACE => Some(ws.text().into()),
+        NEWLINE => Some("".into()),
+        _ => None,
     }
-    let text = ws.text();
-    let pos = text.rfind('\n').map(|it| it + 1).unwrap_or(0);
-    Some(text[pos..].into())
 }
 
 #[cfg(test)]
