@@ -369,7 +369,7 @@ fn test_four_slash_line_comment() {
 #[test]
 fn test_where_predicates() {
     fn assert_bound(text: &str, bound: Option<TypeBound>) {
-        assert_eq!(text, bound.unwrap().syntax().text().to_string());
+        assert_eq!(text, bound.unwrap().syntax().text_without_outer_trivia().to_string());
     }
 
     let file = SourceFile::parse(
@@ -396,7 +396,7 @@ where
     let mut bounds = pred.type_bound_list().unwrap().bounds();
 
     assert!(pred.for_binder().is_none());
-    assert_eq!("T", pred.ty().unwrap().syntax().text().to_string());
+    assert_eq!("T", pred.ty().unwrap().syntax().text_without_outer_trivia().to_string());
     assert_bound("Clone", bounds.next());
     assert_bound("Copy", bounds.next());
     assert_bound("Debug", bounds.next());
@@ -413,20 +413,29 @@ where
     let pred = predicates.next().unwrap();
     let mut bounds = pred.type_bound_list().unwrap().bounds();
 
-    assert_eq!("Iterator::Item", pred.ty().unwrap().syntax().text().to_string());
+    assert_eq!(
+        "Iterator::Item",
+        pred.ty().unwrap().syntax().text_without_outer_trivia().to_string()
+    );
     assert_bound("'a", bounds.next());
 
     let pred = predicates.next().unwrap();
     let mut bounds = pred.type_bound_list().unwrap().bounds();
 
-    assert_eq!("Iterator::Item", pred.ty().unwrap().syntax().text().to_string());
+    assert_eq!(
+        "Iterator::Item",
+        pred.ty().unwrap().syntax().text_without_outer_trivia().to_string()
+    );
     assert_bound("Debug", bounds.next());
     assert_bound("'a", bounds.next());
 
     let pred = predicates.next().unwrap();
     let mut bounds = pred.type_bound_list().unwrap().bounds();
 
-    assert_eq!("<T as Iterator>::Item", pred.ty().unwrap().syntax().text().to_string());
+    assert_eq!(
+        "<T as Iterator>::Item",
+        pred.ty().unwrap().syntax().text_without_outer_trivia().to_string()
+    );
     assert_bound("Debug", bounds.next());
     assert_bound("'a", bounds.next());
 
@@ -435,8 +444,14 @@ where
 
     assert_eq!(
         "<'a>",
-        pred.for_binder().unwrap().generic_param_list().unwrap().syntax().text().to_string()
+        pred.for_binder()
+            .unwrap()
+            .generic_param_list()
+            .unwrap()
+            .syntax()
+            .text_without_outer_trivia()
+            .to_string()
     );
-    assert_eq!("F", pred.ty().unwrap().syntax().text().to_string());
+    assert_eq!("F", pred.ty().unwrap().syntax().text_without_outer_trivia().to_string());
     assert_bound("Fn(&'a str)", bounds.next());
 }

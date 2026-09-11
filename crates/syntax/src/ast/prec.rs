@@ -3,8 +3,7 @@
 use stdx::always;
 
 use crate::{
-    AstNode, Direction, SyntaxNode, T,
-    algo::skip_trivia_token,
+    AstNode, SyntaxNode, T,
     ast::{self, BinaryOp, Expr, HasArgList, RangeItem},
     match_ast,
 };
@@ -156,8 +155,7 @@ fn check_ancestry(ancestor: &SyntaxNode, descendent: &SyntaxNode) -> bool {
 }
 
 fn next_token_of(node: &SyntaxNode) -> Option<ast::SyntaxToken> {
-    let last = node.last_token()?;
-    skip_trivia_token(last.next_token()?, Direction::Next)
+    node.last_non_trivia_token()?.next_non_trivia_token()
 }
 
 impl Expr {
@@ -244,7 +242,11 @@ impl Expr {
         // Special-case `2 as x < 3`
         if let ast::Expr::CastExpr(it) = self
             && let Some(ty) = it.ty()
-            && ty.syntax().last_token().and_then(|it| ast::NameLike::cast(it.parent()?)).is_some()
+            && ty
+                .syntax()
+                .last_non_trivia_token()
+                .and_then(|it| ast::NameLike::cast(it.parent()?))
+                .is_some()
             && let Some(node) = place_of_parent()
             && let Some(next) = next_token_of(&node)
             && matches!(next.kind(), T![<] | T![<<])
