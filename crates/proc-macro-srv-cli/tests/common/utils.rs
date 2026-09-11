@@ -137,7 +137,7 @@ pub(crate) fn proc_macro_test_dylib_path() -> Utf8PathBuf {
 
 fn make_ctx() -> SyntaxContext {
     // SAFETY: Tests do not use a Database, so this won't ever be used within salsa.
-    unsafe { SyntaxContext::from_u32(0) }
+    unsafe { SyntaxContext::from_u32(1) }
 }
 
 /// Creates a simple empty token tree suitable for testing.
