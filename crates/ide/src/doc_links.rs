@@ -154,7 +154,6 @@ pub(crate) fn external_docs(
     let token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
         IDENT | INT_NUMBER | T![self] => 3,
         T!['('] | T![')'] => 2,
-        kind if kind.is_trivia() => 0,
         _ => 1,
     })?;
     let token = sema.descend_into_macros_single_exact(token);

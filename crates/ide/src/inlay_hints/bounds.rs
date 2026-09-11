@@ -29,7 +29,8 @@ pub(super) fn hints(
                 let has_bounds =
                     type_param.type_bound_list().is_some_and(|it| it.bounds().next().is_some());
                 acc.push(InlayHint {
-                    range: c.unwrap_or_else(|| type_param.syntax().text_range()),
+                    range: c
+                        .unwrap_or_else(|| type_param.syntax().text_range_without_outer_trivia()),
                     kind: InlayKind::Type,
                     label: {
                         let mut hint = InlayHintLabel::default();
@@ -68,7 +69,7 @@ pub(super) fn hints(
                     position: InlayHintPosition::After,
                     pad_left: c.is_some(),
                     pad_right: has_bounds,
-                    resolve_parent: Some(params.syntax().text_range()),
+                    resolve_parent: Some(params.syntax().text_range_without_outer_trivia()),
                 });
             }
             ast::TypeOrConstParam::Const(_) => (),

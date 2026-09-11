@@ -177,7 +177,6 @@ fn hover_offset(
         T!['['] | T![']'] | T![?] | T![*] | T![-] | T![!] | T![|] => 3,
         kind if kind.is_keyword(edition) => 2,
         T!['('] | T![')'] => 2,
-        kind if kind.is_trivia() => 0,
         _ => 1,
     })?;
 
@@ -442,8 +441,8 @@ fn hover_ranged(
         res.or_else(|| render::type_info_of(sema, config, &expr_or_pat, edition, display_target));
     res.map(|it| {
         let range = match expr_or_pat {
-            Either::Left(it) => it.syntax().text_range(),
-            Either::Right(it) => it.syntax().text_range(),
+            Either::Left(it) => it.syntax().text_range_without_outer_trivia(),
+            Either::Right(it) => it.syntax().text_range_without_outer_trivia(),
         };
         RangeInfo::new(range, it)
     })

@@ -110,7 +110,7 @@ fn highlight_closure_captures(
     file_id: EditionedFileId,
 ) -> Option<Vec<HighlightedRange>> {
     let closure = token.parent_ancestors().take(2).find_map(ast::ClosureExpr::cast)?;
-    let search_range = closure.body()?.syntax().text_range();
+    let search_range = closure.body()?.syntax().text_range_without_outer_trivia();
     let ty = &sema.type_of_expr(&closure.into())?.original;
     let c = ty.as_closure()?;
     Some(
@@ -244,7 +244,7 @@ fn highlight_references(
                 for_each_tail_expr(&block.into(), &mut |tail| {
                     if !matches!(tail, ast::Expr::BreakExpr(_)) {
                         res.insert(HighlightedRange {
-                            range: tail.syntax().text_range(),
+                            range: tail.syntax().text_range_without_outer_trivia(),
                             category: ReferenceCategory::empty(),
                         });
                     }
@@ -325,7 +325,7 @@ pub(crate) fn highlight_branch_exit_points(
 
         for_each_tail_expr(&tail, &mut |tail| {
             let file_id = sema.hir_file_for(tail.syntax());
-            let range = tail.syntax().text_range();
+            let range = tail.syntax().text_range_without_outer_trivia();
             push_to_highlights(file_id, Some(range), highlights);
         });
     };
@@ -415,7 +415,7 @@ fn hl_exit_points(
             ast::Expr::MethodCallExpr(_) | ast::Expr::CallExpr(_) | ast::Expr::MacroExpr(_)
                 if sema.type_of_expr(&expr).is_some_and(|ty| ty.original.is_never()) =>
             {
-                Some(expr.syntax().text_range())
+                Some(expr.syntax().text_range_without_outer_trivia())
             }
             _ => None,
         };
@@ -447,10 +447,11 @@ fn hl_exit_points(
         for_each_tail_expr(&tail, &mut |tail| {
             let file_id = sema.hir_file_for(tail.syntax());
             let range = match tail {
-                ast::Expr::BreakExpr(b) => b
-                    .break_token()
-                    .map_or_else(|| tail.syntax().text_range(), |tok| tok.text_range()),
-                _ => tail.syntax().text_range(),
+                ast::Expr::BreakExpr(b) => b.break_token().map_or_else(
+                    || tail.syntax().text_range_without_outer_trivia(),
+                    |tok| tok.text_range(),
+                ),
+                _ => tail.syntax().text_range_without_outer_trivia(),
             };
             push_to_highlights(file_id, Some(range));
         });
@@ -512,7 +513,7 @@ pub(crate) fn highlight_break_points(
 
         if let Some(range) = cover_range(
             loop_token.as_ref().map(|tok| tok.text_range()),
-            label.as_ref().map(|it| it.syntax().text_range()),
+            label.as_ref().map(|it| it.syntax().text_range_without_outer_trivia()),
         ) {
             let file_id = loop_token
                 .and_then(|tok| Some(sema.hir_file_for(&tok.parent()?)))
@@ -542,7 +543,7 @@ pub(crate) fn highlight_break_points(
 
                 let text_range = cover_range(
                     token.map(|it| it.text_range()),
-                    token_lt.map(|it| it.syntax().text_range()),
+                    token_lt.map(|it| it.syntax().text_range_without_outer_trivia()),
                 );
 
                 push_to_highlights(file_id, text_range);
@@ -555,7 +556,7 @@ pub(crate) fn highlight_break_points(
                 }
 
                 let file_id = sema.hir_file_for(tail.syntax());
-                let range = tail.syntax().text_range();
+                let range = tail.syntax().text_range_without_outer_trivia();
                 push_to_highlights(file_id, Some(range));
             });
         }
@@ -810,7 +811,10 @@ pub(crate) fn highlight_unsafe_points(
         if let Some(block) = block_expr {
             let unsafe_ops = sema.get_unsafe_ops_for_unsafe_block(block);
             for unsafe_op in unsafe_ops {
-                push_to_highlights(unsafe_op.file_id, Some(unsafe_op.value.text_range()));
+                let root = sema.parse_or_expand(unsafe_op.file_id);
+                let range =
+                    unsafe_op.value.to_node(&root).syntax().text_range_without_outer_trivia();
+                push_to_highlights(unsafe_op.file_id, Some(range));
             }
         }
 

@@ -59,8 +59,11 @@ fn variant_hints(
     let d = v.eval(sema.db);
 
     let range = match variant.field_list() {
-        Some(field_list) => name.syntax().text_range().cover(field_list.syntax().text_range()),
-        None => name.syntax().text_range(),
+        Some(field_list) => name
+            .syntax()
+            .text_range_without_outer_trivia()
+            .cover(field_list.syntax().text_range_without_outer_trivia()),
+        None => name.syntax().text_range_without_outer_trivia(),
     };
     let eq_ = if eq_token.is_none() { " =" } else { "" };
     let label = InlayHintLabel::simple(
@@ -95,7 +98,7 @@ fn variant_hints(
         position: InlayHintPosition::After,
         pad_left: false,
         pad_right: false,
-        resolve_parent: Some(enum_.syntax().text_range()),
+        resolve_parent: Some(enum_.syntax().text_range_without_outer_trivia()),
     });
 
     Some(())

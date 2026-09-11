@@ -22,7 +22,7 @@ use rustc_apfloat::{
 };
 use span::{Edition, TextSize};
 use stdx::format_to;
-use syntax::{AstNode, AstToken, Direction, SyntaxToken, T, algo, ast, match_ast};
+use syntax::{AstNode, AstToken, SyntaxElement, SyntaxToken, T, ast, match_ast};
 
 use crate::{
     HoverAction, HoverConfig, HoverResult, Markup, MemoryLayoutHoverConfig,
@@ -307,17 +307,18 @@ pub(super) fn struct_rest_pat(
 
 pub(super) fn try_for_lint(attr: &ast::Attr, token: &SyntaxToken) -> Option<HoverResult> {
     let (path, tt) = attr.as_simple_call()?;
-    if !tt.syntax().text_range().contains(token.text_range().start()) {
+    if !tt.syntax().text_range_without_outer_trivia().contains(token.text_range().start()) {
         return None;
     }
     let (is_clippy, lints) = match &*path {
         "feature" => (false, FEATURES),
         "allow" | "deny" | "expect" | "forbid" | "warn" => {
-            let is_clippy = algo::non_trivia_sibling(token.clone().into(), Direction::Prev)
+            let is_clippy = SyntaxElement::from(token.clone())
+                .prev_sibling_or_token()
                 .filter(|t| t.kind() == T![:])
-                .and_then(|t| algo::non_trivia_sibling(t, Direction::Prev))
+                .and_then(|t| t.prev_sibling_or_token())
                 .filter(|t| t.kind() == T![:])
-                .and_then(|t| algo::non_trivia_sibling(t, Direction::Prev))
+                .and_then(|t| t.prev_sibling_or_token())
                 .is_some_and(|t| {
                     t.kind() == T![ident] && t.into_token().is_some_and(|t| t.text() == "clippy")
                 });

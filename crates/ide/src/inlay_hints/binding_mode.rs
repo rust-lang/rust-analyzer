@@ -27,12 +27,13 @@ pub(super) fn hints(
         || match pat {
             // for ident patterns that @ bind a name, render the un-ref patterns in front of the inner pattern
             // instead of the name as that makes it more clear and doesn't really change the outcome
-            ast::Pat::IdentPat(it) => {
-                it.pat().map_or_else(|| it.syntax().text_range(), |it| it.syntax().text_range())
-            }
-            it => it.syntax().text_range(),
+            ast::Pat::IdentPat(it) => it.pat().map_or_else(
+                || it.syntax().text_range_without_outer_trivia(),
+                |it| it.syntax().text_range_without_outer_trivia(),
+            ),
+            it => it.syntax().text_range_without_outer_trivia(),
         },
-        |it| it.syntax().text_range(),
+        |it| it.syntax().text_range_without_outer_trivia(),
     );
     let mut hint = InlayHint {
         range,
@@ -42,7 +43,7 @@ pub(super) fn hints(
         position: InlayHintPosition::Before,
         pad_left: false,
         pad_right: false,
-        resolve_parent: Some(pat.syntax().text_range()),
+        resolve_parent: Some(pat.syntax().text_range_without_outer_trivia()),
     };
     let pattern_adjustments = sema.pattern_adjustments(pat);
     let mut was_mut_last = false;
@@ -70,14 +71,14 @@ pub(super) fn hints(
             };
             if let Some(bm) = bm {
                 acc.push(InlayHint {
-                    range: pat.syntax().text_range(),
+                    range: pat.syntax().text_range_without_outer_trivia(),
                     kind: InlayKind::BindingMode,
                     label: bm.into(),
                     text_edit: None,
                     position: InlayHintPosition::Before,
                     pad_left: false,
                     pad_right: true,
-                    resolve_parent: Some(pat.syntax().text_range()),
+                    resolve_parent: Some(pat.syntax().text_range_without_outer_trivia()),
                 });
             }
         }
@@ -86,7 +87,7 @@ pub(super) fn hints(
             was_mut_last = false;
             acc.push(InlayHint::closing_paren_after(
                 InlayKind::BindingMode,
-                pat.syntax().text_range(),
+                pat.syntax().text_range_without_outer_trivia(),
             ));
         }
         _ => (),

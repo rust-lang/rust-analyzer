@@ -287,7 +287,7 @@ fn find_related_tests_in_module(
     let mod_scope = SearchScope::file_range(hir::FileRange { file_id, range: mod_source.value });
     let fn_pos = FilePosition {
         file_id: file_id.file_id(sema.db),
-        offset: fn_name.syntax().text_range().start(),
+        offset: fn_name.syntax().text_range_without_outer_trivia().start(),
     };
     find_related_tests(sema, syntax, fn_pos, Some(mod_scope), tests)
 }

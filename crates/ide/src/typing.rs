@@ -24,7 +24,7 @@ use std::iter;
 use syntax::{
     AstNode, Parse, SourceFile, SyntaxKind, TextRange, TextSize,
     algo::{ancestors_at_offset, find_node_at_offset},
-    ast::{self, AstToken, edit::IndentLevel},
+    ast::{self, edit::IndentLevel},
 };
 
 use ide_db::text_edit::TextEdit;
@@ -159,13 +159,16 @@ fn on_opening_delimiter_typed(
 
 fn on_left_brace_typed(reparsed: &SourceFile, offset: TextSize) -> Option<TextEdit> {
     let segment: ast::PathSegment = find_node_at_offset(reparsed.syntax(), offset)?;
-    if segment.syntax().text_range().start() != offset {
+    if segment.syntax().text_range_without_outer_trivia().start() != offset {
         return None;
     }
 
     let tree: ast::UseTree = find_node_at_offset(reparsed.syntax(), offset)?;
 
-    Some(TextEdit::insert(tree.syntax().text_range().end() + TextSize::of("{"), "}".to_owned()))
+    Some(TextEdit::insert(
+        tree.syntax().text_range_without_outer_trivia().end() + TextSize::of("{"),
+        "}".to_owned(),
+    ))
 }
 
 fn on_delimited_node_typed(
@@ -181,11 +184,11 @@ fn on_delimited_node_typed(
     }
     let (filter, node) = t
         .parent_ancestors()
-        .take_while(|n| n.text_range().start() == offset)
+        .take_while(|n| n.text_range_without_outer_trivia().start() == offset)
         .find_map(|n| kinds.iter().find(|&kind_filter| kind_filter(n.kind())).zip(Some(n)))?;
     let mut node = node
         .ancestors()
-        .take_while(|n| n.text_range().start() == offset && filter(n.kind()))
+        .take_while(|n| n.text_range_without_outer_trivia().start() == offset && filter(n.kind()))
         .last()?;
 
     if let Some(parent) = node.parent().filter(|it| filter(it.kind())) {
@@ -193,9 +196,7 @@ fn on_delimited_node_typed(
             let mut node = node.clone();
             loop {
                 match node.prev_sibling() {
-                    Some(sib) if sib.kind().is_trivia() || sib.kind() == SyntaxKind::ATTR => {
-                        node = sib
-                    }
+                    Some(sib) if sib.kind() == SyntaxKind::ATTR => node = sib,
                     Some(_) => break false,
                     None => break true,
                 };
@@ -209,7 +210,7 @@ fn on_delimited_node_typed(
 
     // Insert the closing bracket right after the node.
     Some(TextEdit::insert(
-        node.text_range().end() + TextSize::of(opening_bracket),
+        node.text_range_without_outer_trivia().end() + TextSize::of(opening_bracket),
         closing_bracket.to_string(),
     ))
 }
@@ -256,14 +257,14 @@ fn on_eq_typed(file: &SourceFile, offset: TextSize) -> Option<TextEdit> {
         }
 
         let expr = binop.rhs()?;
-        let expr_range = expr.syntax().text_range();
+        let expr_range = expr.syntax().text_range_without_outer_trivia();
         if expr_range.contains(offset) && offset != expr_range.start() {
             return None;
         }
         if file.syntax().text().slice(offset..expr_range.start()).contains_char('\n') {
             return None;
         }
-        let offset = expr.syntax().text_range().end();
+        let offset = expr.syntax().text_range_without_outer_trivia().end();
         Some(TextEdit::insert(offset, ";".to_owned()))
     }
 
@@ -292,7 +293,7 @@ fn on_eq_typed(file: &SourceFile, offset: TextSize) -> Option<TextEdit> {
             return None;
         }
         let expr = let_stmt.initializer()?;
-        let expr_range = expr.syntax().text_range();
+        let expr_range = expr.syntax().text_range_without_outer_trivia();
         if expr_range.contains(offset) && offset != expr_range.start() {
             return None;
         }
@@ -303,26 +304,27 @@ fn on_eq_typed(file: &SourceFile, offset: TextSize) -> Option<TextEdit> {
         if expr.syntax().descendants().any(|it| it.kind() == SyntaxKind::ERROR) {
             return None;
         }
-        let offset = let_stmt.syntax().text_range().end();
+        let offset = let_stmt.syntax().text_range_without_outer_trivia().end();
         Some(TextEdit::insert(offset, ";".to_owned()))
     }
 }
 
 /// Returns an edit which should be applied when a dot ('.') is typed on a blank line, indenting the line appropriately.
 fn on_dot_typed(file: &SourceFile, offset: TextSize) -> Option<TextEdit> {
-    let whitespace =
-        file.syntax().token_at_offset(offset).left_biased().and_then(ast::Whitespace::cast)?;
+    let blank = file.syntax().token_at_offset(offset).left_biased()?;
+    if !matches!(blank.kind(), SyntaxKind::WHITESPACE | SyntaxKind::NEWLINE) {
+        return None;
+    }
+
+    let run = syntax::algo::blank_run(&blank).range;
+    let run = file.syntax().text().slice(TextRange::new(run.start(), offset)).to_string();
 
     // if prior is fn call over multiple lines dont indent
     // or if previous is method call over multiples lines keep that indent
-    let current_indent = {
-        let text = whitespace.text();
-        let (_prefix, suffix) = text.rsplit_once('\n')?;
-        suffix
-    };
+    let (_prefix, current_indent) = run.rsplit_once('\n')?;
     let current_indent_len = TextSize::of(current_indent);
 
-    let parent = whitespace.syntax().parent()?;
+    let parent = blank.owning_node()?;
     // Make sure dot is a part of call chain
     let receiver = if let Some(field_expr) = ast::FieldExpr::cast(parent.clone()) {
         field_expr.expr()?
@@ -330,7 +332,8 @@ fn on_dot_typed(file: &SourceFile, offset: TextSize) -> Option<TextEdit> {
         ast::MethodCallExpr::cast(parent.clone())?.receiver()?
     };
 
-    let receiver_is_multiline = receiver.syntax().text().find_char('\n').is_some();
+    let receiver_is_multiline =
+        receiver.syntax().text_without_outer_trivia().find_char('\n').is_some();
     let target_indent = match (receiver, receiver_is_multiline) {
         // if receiver is multiline field or method call, just take the previous `.` indentation
         (ast::Expr::MethodCallExpr(expr), true) => {
@@ -415,8 +418,9 @@ fn on_plus_typed(file: &SourceFile, offset: TextSize) -> Option<TextEdit> {
     if ast::RefType::can_cast(kind) || ast::PtrType::can_cast(kind) || ast::RetType::can_cast(kind)
     {
         let mut builder = TextEdit::builder();
-        builder.insert(trait_type.syntax().text_range().start(), "(".to_owned());
-        builder.insert(trait_type.syntax().text_range().end(), ")".to_owned());
+        builder
+            .insert(trait_type.syntax().text_range_without_outer_trivia().start(), "(".to_owned());
+        builder.insert(trait_type.syntax().text_range_without_outer_trivia().end(), ")".to_owned());
         Some(builder.finish())
     } else {
         None
