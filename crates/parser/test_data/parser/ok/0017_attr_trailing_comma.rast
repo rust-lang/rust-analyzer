@@ -13,18 +13,15 @@ SOURCE_FILE
           IDENT "a"
           COMMA ","
           R_PAREN ")"
-      R_BRACK "]"
-    WHITESPACE "\n"
-    FN_KW "fn"
-    WHITESPACE " "
+      R_BRACK "]" [] [NEWLINE("\n")]
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

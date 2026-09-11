@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "T" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -17,8 +14,7 @@ SOURCE_FILE
             CONST_ARG
               LITERAL
                 INT_NUMBER "0"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ERROR
               COMMA ","
             TYPE_ARG
@@ -28,16 +24,12 @@ SOURCE_FILE
                     NAME_REF
                       IDENT "T"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "T" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -49,8 +41,7 @@ SOURCE_FILE
             CONST_ARG
               LITERAL
                 INT_NUMBER "0"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ERROR
               COMMA ","
             TYPE_ARG
@@ -60,7 +51,7 @@ SOURCE_FILE
                     NAME_REF
                       IDENT "T"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""
 error 14: expected generic argument
 error 35: expected generic argument

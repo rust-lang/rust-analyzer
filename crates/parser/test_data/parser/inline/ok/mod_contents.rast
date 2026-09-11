@@ -1,29 +1,23 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
   MACRO_RULES
     MACRO_RULES_KW "macro_rules"
-    BANG "!"
-    WHITESPACE " "
+    BANG "!" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
-    WHITESPACE " "
+      IDENT "foo" [] [WHITESPACE(" ")]
     TOKEN_TREE
       L_CURLY "{"
-      R_CURLY "}"
-  WHITESPACE "\n"
+      R_CURLY "}" [] [NEWLINE("\n")]
   MACRO_CALL
     PATH
       PATH
@@ -38,8 +32,7 @@ SOURCE_FILE
     TOKEN_TREE
       L_PAREN "("
       R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   MACRO_CALL
     PATH
       PATH
@@ -50,16 +43,13 @@ SOURCE_FILE
       PATH_SEGMENT
         NAME_REF
           IDENT "baz"
-    BANG "!"
-    WHITESPACE " "
+    BANG "!" [] [WHITESPACE(" ")]
     TOKEN_TREE
       L_CURLY "{"
-      R_CURLY "}"
-  WHITESPACE "\n"
+      R_CURLY "}" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

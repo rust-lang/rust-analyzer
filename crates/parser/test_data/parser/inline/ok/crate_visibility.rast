@@ -8,14 +8,11 @@ SOURCE_FILE
           PATH_SEGMENT
             NAME_REF
               CRATE_KW "crate"
-        R_PAREN ")"
-    WHITESPACE " "
-    STRUCT_KW "struct"
-    WHITESPACE " "
+        R_PAREN ")" [] [WHITESPACE(" ")]
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
     VISIBILITY
       PUB_KW "pub"
@@ -25,14 +22,11 @@ SOURCE_FILE
           PATH_SEGMENT
             NAME_REF
               SELF_KW "self"
-        R_PAREN ")"
-    WHITESPACE " "
-    STRUCT_KW "struct"
-    WHITESPACE " "
+        R_PAREN ")" [] [WHITESPACE(" ")]
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
     VISIBILITY
       PUB_KW "pub"
@@ -42,11 +36,9 @@ SOURCE_FILE
           PATH_SEGMENT
             NAME_REF
               SUPER_KW "super"
-        R_PAREN ")"
-    WHITESPACE " "
-    STRUCT_KW "struct"
-    WHITESPACE " "
+        R_PAREN ")" [] [WHITESPACE(" ")]
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

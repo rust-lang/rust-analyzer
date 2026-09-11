@@ -1,7 +1,6 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "f"
     PARAM_LIST
@@ -15,22 +14,19 @@ SOURCE_FILE
               PATH_SEGMENT
                 NAME_REF
                   IDENT "attr1"
-          R_BRACK "]"
-        WHITESPACE " "
+          R_BRACK "]" [] [WHITESPACE(" ")]
         IDENT_PAT
           NAME
             IDENT "pat"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
                 IDENT "Type"
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

@@ -1,7 +1,6 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
@@ -9,6 +8,6 @@ SOURCE_FILE
             NAME_REF
               CRATE_KW "crate"
         COLON2 "::"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""
 error 11: expected identifier, `self`, `super`, `crate`, or `Self`
