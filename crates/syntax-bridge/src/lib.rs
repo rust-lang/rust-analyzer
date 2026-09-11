@@ -840,6 +840,17 @@ struct TtTreeSink<'a> {
     text_pos: TextSize,
     inner: SyntaxTreeBuilder,
     token_map: SpanMap,
+    float_split_stage: FloatSplitStage,
+    float_split_ends_in_dot: bool,
+}
+
+/// Mirrors the parser's in-flight float split over one TT float literal leaf.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FloatSplitStage {
+    None,
+    BeforeFirstInt,
+    BeforeDot,
+    BeforeSecondInt,
 }
 
 impl<'a> TtTreeSink<'a> {
@@ -850,6 +861,8 @@ impl<'a> TtTreeSink<'a> {
             text_pos: 0.into(),
             inner: SyntaxTreeBuilder::default(),
             token_map: SpanMap::empty(),
+            float_split_stage: FloatSplitStage::None,
+            float_split_ends_in_dot: false,
         }
     }
 
@@ -872,65 +885,35 @@ fn delim_to_str(d: tt::DelimiterKind, closing: bool) -> Option<&'static str> {
 }
 
 impl TtTreeSink<'_> {
-    /// Parses a float literal as if it was a one to two name ref nodes with a dot inbetween.
-    /// This occurs when a float literal is used as a field access.
-    fn float_split(&mut self, has_pseudo_dot: bool) {
-        let token_tree = self.cursor.token_tree();
-        let (text, span) = match &token_tree {
-            Some(tt::TokenTree::Leaf(tt::Leaf::Literal(
-                lit @ tt::Literal { span, kind: tt::LitKind::Float, .. },
-            ))) => (lit.text(), *span),
+    /// Begin an in-flight float split; tree shape still comes from Enter/Exit.
+    fn float_split(&mut self, ends_in_dot: bool) {
+        assert_eq!(self.float_split_stage, FloatSplitStage::None);
+        match self.cursor.token_tree() {
+            Some(tt::TokenTree::Leaf(tt::Leaf::Literal(lit))) if lit.kind == tt::LitKind::Float => {
+                debug_assert_eq!(ends_in_dot, lit.text().ends_with('.'));
+            }
             tt => unreachable!("{tt:?}"),
-        };
-        // FIXME: Span splitting
-        match text.split_once('.') {
-            Some((left, right)) => {
-                assert!(!left.is_empty());
-
-                self.inner.start_node(SyntaxKind::NAME_REF);
-                self.inner.token(SyntaxKind::INT_NUMBER, left);
-                self.inner.finish_node();
-                self.token_map.push(self.text_pos + TextSize::of(left), span);
-
-                // here we move the exit up, the original exit has been deleted in process
-                self.inner.finish_node();
-
-                self.inner.token(SyntaxKind::DOT, ".");
-                self.token_map.push(self.text_pos + TextSize::of(left) + TextSize::of("."), span);
-
-                if has_pseudo_dot {
-                    assert!(right.is_empty(), "{left}.{right}");
-                } else {
-                    assert!(!right.is_empty(), "{left}.{right}");
-                    self.inner.start_node(SyntaxKind::NAME_REF);
-                    self.inner.token(SyntaxKind::INT_NUMBER, right);
-                    self.token_map.push(self.text_pos + TextSize::of(text), span);
-                    self.inner.finish_node();
-
-                    // the parser creates an unbalanced start node, we are required to close it here
-                    self.inner.finish_node();
-                }
-                self.text_pos += TextSize::of(text);
-            }
-            None => {
-                self.error("illegal float literal".to_owned());
-                self.inner.start_node(SyntaxKind::ERROR);
-                self.inner.token(SyntaxKind::FLOAT_NUMBER, text);
-                self.token_map.push(self.text_pos + TextSize::of(text), span);
-                self.inner.finish_node();
-                self.inner.finish_node();
-
-                if !has_pseudo_dot {
-                    self.inner.finish_node();
-                }
-
-                self.text_pos += TextSize::of(text);
-            }
         }
-        self.cursor.bump();
+        self.float_split_ends_in_dot = ends_in_dot;
+        self.float_split_stage = FloatSplitStage::BeforeFirstInt;
     }
 
     fn token(&mut self, kind: SyntaxKind, mut n_tokens: u8) {
+        if n_tokens == 0 {
+            assert_ne!(
+                self.float_split_stage,
+                FloatSplitStage::None,
+                "Token with n_raw_tokens=0 is only valid during a float split"
+            );
+            self.do_synthetic_float_token(kind);
+            return;
+        }
+        assert_eq!(
+            self.float_split_stage,
+            FloatSplitStage::None,
+            "nonzero Token during an active float split"
+        );
+
         if kind == LIFETIME_IDENT {
             n_tokens = 2;
         }
@@ -1023,6 +1006,65 @@ impl TtTreeSink<'_> {
                 self.inner.token(WHITESPACE, " ");
                 self.text_pos += TextSize::of(' ');
                 self.token_map.push(self.text_pos, curr.span);
+            }
+        }
+    }
+
+    /// Emit one synthetic piece; advance the TT cursor only on the last piece.
+    fn do_synthetic_float_token(&mut self, kind: SyntaxKind) {
+        let token_tree = self.cursor.token_tree();
+        let (text, span) = match &token_tree {
+            Some(tt::TokenTree::Leaf(tt::Leaf::Literal(
+                lit @ tt::Literal { span, kind: tt::LitKind::Float, .. },
+            ))) => (lit.text().to_owned(), *span),
+            tt => unreachable!("{tt:?}"),
+        };
+        // FIXME: Span splitting — each piece still maps to the whole float span.
+        let (left, right) = match text.split_once('.') {
+            Some((left, right)) => (left, right),
+            None => (text.as_str(), ""),
+        };
+        assert!(!left.is_empty(), "float split left part must be non-empty: {text:?}");
+
+        let piece = match self.float_split_stage {
+            FloatSplitStage::None => unreachable!(),
+            FloatSplitStage::BeforeFirstInt => {
+                assert_eq!(kind, SyntaxKind::INT_NUMBER);
+                left
+            }
+            FloatSplitStage::BeforeDot => {
+                assert_eq!(kind, SyntaxKind::DOT);
+                "."
+            }
+            FloatSplitStage::BeforeSecondInt => {
+                assert_eq!(kind, SyntaxKind::INT_NUMBER);
+                assert!(!self.float_split_ends_in_dot);
+                assert!(!right.is_empty(), "expected fractional part: {text:?}");
+                right
+            }
+        };
+
+        self.inner.token(kind, piece);
+        self.text_pos += TextSize::of(piece);
+        self.token_map.push(self.text_pos, span);
+
+        match self.float_split_stage {
+            FloatSplitStage::None => unreachable!(),
+            FloatSplitStage::BeforeFirstInt => {
+                self.float_split_stage = FloatSplitStage::BeforeDot;
+            }
+            FloatSplitStage::BeforeDot if self.float_split_ends_in_dot => {
+                self.float_split_stage = FloatSplitStage::None;
+                self.float_split_ends_in_dot = false;
+                self.cursor.bump();
+            }
+            FloatSplitStage::BeforeDot => {
+                self.float_split_stage = FloatSplitStage::BeforeSecondInt;
+            }
+            FloatSplitStage::BeforeSecondInt => {
+                self.float_split_stage = FloatSplitStage::None;
+                self.float_split_ends_in_dot = false;
+                self.cursor.bump();
             }
         }
     }
