@@ -119,15 +119,14 @@ pub(crate) fn json_in_items(
 ) {
     (|| {
         if node.kind() == SyntaxKind::ERROR
-            && node.first_token().map(|x| x.kind()) == Some(SyntaxKind::L_CURLY)
-            && node.last_token().map(|x| x.kind()) == Some(SyntaxKind::R_CURLY)
+            && node.first_non_trivia_token().map(|x| x.kind()) == Some(SyntaxKind::L_CURLY)
+            && node.last_non_trivia_token().map(|x| x.kind()) == Some(SyntaxKind::R_CURLY)
         {
-            let node_string = node.to_string();
+            let node_string = node.text_without_outer_trivia().to_string();
             if let Ok(serde_json::Value::Object(it)) = serde_json::from_str(&node_string) {
                 let import_scope = ImportScope::find_insert_use_container(node, sema)?;
-                let range = node.text_range();
+                let range = node.text_range_without_outer_trivia();
                 let mut edit = TextEdit::builder();
-                edit.delete(range);
                 let mut state = State::default();
                 let semantics_scope = sema.scope(node)?;
                 let scope_resolve =
@@ -139,7 +138,7 @@ pub(crate) fn json_in_items(
                 state.has_serialize = serialize_resolved.is_some();
                 state.edition = Some(edition);
                 state.build_struct("Root", &it);
-                edit.insert(range.start(), state.result);
+                edit.replace(range, state.result);
                 let vfs_file_id = file_id.file_id(sema.db);
                 acc.push(
                     Diagnostic::new(

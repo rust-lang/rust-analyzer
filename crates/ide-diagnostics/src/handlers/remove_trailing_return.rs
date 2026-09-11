@@ -23,7 +23,7 @@ pub(crate) fn remove_trailing_return(
             .syntax()
             .parent()
             .and_then(ast::ExprStmt::cast)
-            .map(|stmt| stmt.syntax().text_range())
+            .map(|stmt| stmt.syntax().text_range_without_outer_trivia())
     });
     Some(
         Diagnostic::new(
@@ -47,8 +47,9 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &RemoveTrailingReturn) -> Option<V
         return None;
     }
 
-    let replacement =
-        return_expr.expr().map_or_else(String::new, |expr| format!("{}", expr.syntax().text()));
+    let replacement = return_expr
+        .expr()
+        .map_or_else(String::new, |expr| format!("{}", expr.syntax().text_without_outer_trivia()));
     let edit = TextEdit::replace(range, replacement);
     let source_change = SourceChange::from_text_edit(file_id.file_id(ctx.sema.db), edit);
 

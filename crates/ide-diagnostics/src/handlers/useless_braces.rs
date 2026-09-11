@@ -29,8 +29,8 @@ pub(crate) fn useless_braces(
             return Some(());
         }
 
-        let use_range = use_tree_list.syntax().text_range();
-        let to_replace = single_use_tree.syntax().text().to_string();
+        let use_range = use_tree_list.syntax().text_range_without_outer_trivia();
+        let to_replace = single_use_tree.syntax().text_without_outer_trivia().to_string();
         let mut edit_builder = TextEdit::builder();
         edit_builder.delete(use_range);
         edit_builder.insert(use_range.start(), to_replace);
