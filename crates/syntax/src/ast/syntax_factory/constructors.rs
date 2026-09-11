@@ -2111,10 +2111,6 @@ impl SyntaxFactory {
         make::token(kind)
     }
 
-    pub fn whitespace(&self, text: &str) -> SyntaxToken {
-        make::tokens::whitespace(text)
-    }
-
     pub fn ident(&self, text: &str) -> SyntaxToken {
         make::tokens::ident(text)
     }

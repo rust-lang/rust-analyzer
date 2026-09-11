@@ -276,33 +276,3 @@ impl Eq for String {}
 impl PartialEq for String {
     fn eq(&self, other: &Self) -> bool { self.syntax == other.syntax }
 }
-pub struct Whitespace {
-    pub(crate) syntax: SyntaxToken,
-}
-impl std::fmt::Display for Whitespace {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
-    }
-}
-impl AstToken for Whitespace {
-    fn can_cast(kind: SyntaxKind) -> bool { kind == WHITESPACE }
-    fn cast(syntax: SyntaxToken) -> Option<Self> {
-        if Self::can_cast(syntax.kind()) { Some(Self { syntax }) } else { None }
-    }
-    fn syntax(&self) -> &SyntaxToken { &self.syntax }
-}
-impl fmt::Debug for Whitespace {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Whitespace").field("syntax", &self.syntax).finish()
-    }
-}
-impl Clone for Whitespace {
-    fn clone(&self) -> Self { Self { syntax: self.syntax.clone() } }
-}
-impl hash::Hash for Whitespace {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) { self.syntax.hash(state); }
-}
-impl Eq for Whitespace {}
-impl PartialEq for Whitespace {
-    fn eq(&self, other: &Self) -> bool { self.syntax == other.syntax }
-}
