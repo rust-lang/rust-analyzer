@@ -46,18 +46,18 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::GenericArgsProhibited) -> Op
     let file_id = d.args.file_id.file_id()?;
     let syntax = d.args.to_node(ctx.sema.db);
     let range = match &syntax {
-        Either::Left(_) => syntax.syntax().text_range(),
+        Either::Left(_) => syntax.syntax().text_range_without_outer_trivia(),
         Either::Right(param_list) => {
             let path_segment = ast::PathSegment::cast(param_list.syntax().parent()?)?;
             let start = if let Some(coloncolon) = path_segment.coloncolon_token() {
                 coloncolon.text_range().start()
             } else {
-                param_list.syntax().text_range().start()
+                param_list.syntax().text_range_without_outer_trivia().start()
             };
             let end = if let Some(ret_type) = path_segment.ret_type() {
-                ret_type.syntax().text_range().end()
+                ret_type.syntax().text_range_without_outer_trivia().end()
             } else {
-                param_list.syntax().text_range().end()
+                param_list.syntax().text_range_without_outer_trivia().end()
             };
             TextRange::new(start, end)
         }
@@ -66,7 +66,7 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::GenericArgsProhibited) -> Op
         "remove_generic_args",
         "Remove these generics",
         SourceChange::from_text_edit(file_id.file_id(ctx.sema.db), TextEdit::delete(range)),
-        syntax.syntax().text_range(),
+        syntax.syntax().text_range_without_outer_trivia(),
     )])
 }
 

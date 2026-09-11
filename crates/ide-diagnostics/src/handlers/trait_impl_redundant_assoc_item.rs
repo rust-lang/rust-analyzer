@@ -33,7 +33,10 @@ pub(crate) fn trait_impl_redundant_assoc_item(
             let function = id;
             (
                 format!("`fn {redundant_assoc_item_name}`"),
-                function.source(db).map(|it| it.syntax().text_range()).unwrap_or(default_range),
+                function
+                    .source(db)
+                    .map(|it| it.value.syntax().text_range_without_outer_trivia())
+                    .unwrap_or(default_range),
                 format!("\n{};", function.display(db, ctx.display_target)),
             )
         }
@@ -41,7 +44,10 @@ pub(crate) fn trait_impl_redundant_assoc_item(
             let constant = id;
             (
                 format!("`const {redundant_assoc_item_name}`"),
-                constant.source(db).map(|it| it.syntax().text_range()).unwrap_or(default_range),
+                constant
+                    .source(db)
+                    .map(|it| it.value.syntax().text_range_without_outer_trivia())
+                    .unwrap_or(default_range),
                 format!("\n{};", constant.display(db, ctx.display_target)),
             )
         }
@@ -49,7 +55,10 @@ pub(crate) fn trait_impl_redundant_assoc_item(
             let type_alias = id;
             (
                 format!("`type {redundant_assoc_item_name}`"),
-                type_alias.source(db).map(|it| it.syntax().text_range()).unwrap_or(default_range),
+                type_alias
+                    .source(db)
+                    .map(|it| it.value.syntax().text_range_without_outer_trivia())
+                    .unwrap_or(default_range),
                 // FIXME cannot generate generic parameter and bounds
                 format!("\ntype {};", type_alias.name(ctx.sema.db).display_no_db(ctx.edition)),
             )
@@ -124,7 +133,9 @@ fn find_insert_after(
     let impl_items_before_redundant = impl_def
         .assoc_item_list()?
         .assoc_items()
-        .take_while(|it| it.syntax().text_range().start() < redundant_range.start())
+        .take_while(|it| {
+            it.syntax().text_range_without_outer_trivia().start() < redundant_range.start()
+        })
         .filter_map(|it| name_of(&it))
         .collect::<Vec<_>>();
 
@@ -137,7 +148,7 @@ fn find_insert_after(
             })
         })
         .last()
-        .map(|it| it.syntax().text_range());
+        .map(|it| it.syntax().text_range_without_outer_trivia());
 
     return after_item.or_else(|| Some(trait_def.assoc_item_list()?.l_curly_token()?.text_range()));
 

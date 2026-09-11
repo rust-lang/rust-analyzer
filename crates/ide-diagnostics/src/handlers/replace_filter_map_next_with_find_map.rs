@@ -37,10 +37,12 @@ fn fixes(
     let filter_map_name_range = filter_map_call.name_ref()?.ident_token()?.text_range();
     let filter_map_args = filter_map_call.arg_list()?;
 
-    let range_to_replace =
-        TextRange::new(filter_map_name_range.start(), next_expr.syntax().text_range().end());
-    let replacement = format!("find_map{}", filter_map_args.syntax().text());
-    let trigger_range = next_expr.syntax().text_range();
+    let range_to_replace = TextRange::new(
+        filter_map_name_range.start(),
+        next_expr.syntax().text_range_without_outer_trivia().end(),
+    );
+    let replacement = format!("find_map{}", filter_map_args.syntax().text_without_outer_trivia());
+    let trigger_range = next_expr.syntax().text_range_without_outer_trivia();
 
     let edit = TextEdit::replace(range_to_replace, replacement);
 
