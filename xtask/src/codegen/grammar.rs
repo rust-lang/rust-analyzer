@@ -398,7 +398,7 @@ fn generate_nodes(kinds: KindsSrc, grammar: &AstSrc) -> String {
             quote! {
                 impl std::fmt::Display for #name {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        std::fmt::Display::fmt(self.syntax(), f)
+                        std::fmt::Display::fmt(&self.syntax().text_without_outer_trivia(), f)
                     }
                 }
             }
