@@ -4,7 +4,6 @@ use std::cmp::Ordering;
 use itertools::{EitherOrBoth, Itertools};
 use parser::T;
 use syntax::{
-    ToSmolStr,
     ast::{
         self, AstNode, HasAttrs, HasName, HasVisibility, PathSegmentKind,
         syntax_factory::SyntaxFactory,
@@ -475,7 +474,9 @@ pub fn common_prefix(lhs: &ast::Path, rhs: &ast::Path) -> Option<(ast::Path, ast
     let mut rhs_curr = rhs.first_qualifier_or_self();
     loop {
         match (lhs_curr.segment(), rhs_curr.segment()) {
-            (Some(lhs), Some(rhs)) if lhs.syntax().text() == rhs.syntax().text() => (),
+            (Some(lhs), Some(rhs))
+                if lhs.syntax().text_without_outer_trivia()
+                    == rhs.syntax().text_without_outer_trivia() => {}
             _ => break res,
         }
         res = Some((lhs_curr.clone(), rhs_curr.clone()));
@@ -656,8 +657,10 @@ pub fn eq_attrs(
     attrs0: impl Iterator<Item = ast::Attr>,
     attrs1: impl Iterator<Item = ast::Attr>,
 ) -> bool {
-    let mut attrs0: Vec<_> = attrs0.map(|attr| attr.syntax().text().to_smolstr()).collect();
-    let mut attrs1: Vec<_> = attrs1.map(|attr| attr.syntax().text().to_smolstr()).collect();
+    let mut attrs0: Vec<_> =
+        attrs0.map(|attr| attr.syntax().text_without_outer_trivia().to_string()).collect();
+    let mut attrs1: Vec<_> =
+        attrs1.map(|attr| attr.syntax().text_without_outer_trivia().to_string()).collect();
     attrs0.sort_unstable();
     attrs1.sort_unstable();
 
@@ -700,51 +703,51 @@ fn make_use_tree_list(
     let source_l_curly = style_source.l_curly_token()?;
     let source_r_curly = style_source.r_curly_token()?;
 
-    let leading_ws = source_l_curly.next_token().filter(|token| token.kind().is_trivia());
-
-    let trailing_ws = source_r_curly.prev_token().filter(|token| token.kind().is_trivia());
-
-    let source_trailing_token = trailing_ws
-        .as_ref()
-        .and_then(|token| token.prev_token())
-        .or_else(|| source_r_curly.prev_token());
+    let leading_ws =
+        source_l_curly.trivia_after().map(|it| it.text().to_owned()).collect::<String>();
+    let trailing_ws =
+        source_r_curly.trivia_before().map(|it| it.text().to_owned()).collect::<String>();
 
     let source_has_trailing_comma =
-        source_trailing_token.is_some_and(|token| token.kind() == T![,]);
+        source_r_curly.prev_non_trivia_token().is_some_and(|token| token.kind() == T![,]);
 
     let (editor, use_tree_list) = SyntaxEditor::with_ast_node(&use_tree_list);
     let make = editor.make();
 
-    if let Some(leading_ws) = leading_ws {
-        editor.insert(
-            Position::after(use_tree_list.l_curly_token()?),
-            make.whitespace(leading_ws.text()),
-        );
-    }
-
     let r_curly = use_tree_list.r_curly_token()?;
 
-    let generated_has_trailing_comma = r_curly
-        .prev_token()
-        .and_then(|token| if token.kind().is_trivia() { token.prev_token() } else { Some(token) })
-        .is_some_and(|token| token.kind() == T![,]);
+    if let Some(l_curly) = use_tree_list.l_curly_token() {
+        let (trailing, leading) = leading_ws
+            .find('\n')
+            .map_or(("", &*leading_ws), |index| (&leading_ws[..=index], &leading_ws[index + 1..]));
+        editor.splice_trailing_trivia(&l_curly, .., ast::make::tokens::trivia(trailing));
+        if let Some(first) = l_curly.next_non_trivia_token() {
+            editor.splice_leading_trivia(&first, .., ast::make::tokens::trivia(leading));
+        }
+    }
 
-    let mut trailing = Vec::new();
+    let generated_has_trailing_comma =
+        r_curly.prev_non_trivia_token().is_some_and(|token| token.kind() == T![,]);
 
+    let (trailing, leading) = trailing_ws
+        .find('\n')
+        .map_or(("", &*trailing_ws), |index| (&trailing_ws[..=index], &trailing_ws[index + 1..]));
+    let prev = r_curly.prev_non_trivia_token();
     if source_has_trailing_comma
         && !generated_has_trailing_comma
         && use_tree_list.use_trees().next().is_some()
     {
-        trailing.push(make.token(T![,]).into());
+        if let Some(prev) = &prev {
+            editor.splice_trailing_trivia(prev, .., []);
+        }
+        editor.insert(
+            Position::before(&r_curly),
+            make.with_trailing_trivia(make.token(T![,]), trailing),
+        );
+    } else if let Some(prev) = &prev {
+        editor.splice_trailing_trivia(prev, .., ast::make::tokens::trivia(trailing));
     }
-
-    if let Some(trailing_ws) = trailing_ws {
-        trailing.push(make.whitespace(trailing_ws.text()).into());
-    }
-
-    if !trailing.is_empty() {
-        editor.insert_all(Position::before(r_curly), trailing);
-    }
+    editor.splice_leading_trivia(&r_curly, .., ast::make::tokens::trivia(leading));
 
     let edit = editor.finish();
     ast::UseTreeList::cast(edit.new_root().clone())
