@@ -545,6 +545,21 @@ fn overloaded_binop() {
     );
     check_number(
         r#"
+    //- minicore: eq
+    struct AlwaysEqual(u32);
+
+    impl PartialEq for AlwaysEqual {
+        fn eq(&self, _other: &Self) -> bool {
+            true
+        }
+    }
+
+    const GOAL: bool = AlwaysEqual(1) == AlwaysEqual(2);
+    "#,
+        1,
+    );
+    check_number(
+        r#"
     //- minicore: add
     impl core::ops::Add for usize {
         type Output = usize;
