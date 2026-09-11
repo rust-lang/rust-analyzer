@@ -52,7 +52,7 @@ pub(crate) fn generate_documentation_template(
     }
 
     let parent_syntax = ast_func.syntax();
-    let text_range = parent_syntax.text_range();
+    let text_range = parent_syntax.text_range_without_outer_trivia();
     let indent_level = IndentLevel::from_node(parent_syntax);
 
     acc.add(
@@ -100,7 +100,7 @@ pub(crate) fn generate_doc_example(acc: &mut Assists, ctx: &AssistContext<'_, '_
     let node = doc_at_cursor.syntax().parent()?;
     let last_doc_comment = ast::AnyHasAttrs::cast(node.clone())?.doc_comments().last()?;
     let next_token = skip_whitespace_token(
-        last_doc_comment.syntax().last_token()?.next_token()?,
+        last_doc_comment.syntax().last_non_trivia_token()?.next_token()?,
         syntax::Direction::Next,
     )?;
 

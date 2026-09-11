@@ -59,10 +59,10 @@ pub(crate) fn into_to_qualified_from(acc: &mut Assists, ctx: &AssistContext<'_, 
         acc.add(
             AssistId::generate("into_to_qualified_from"),
             "Convert `into` to fully qualified `from`",
-            nameref.syntax().text_range(),
+            nameref.syntax().text_range_without_outer_trivia(),
             |edit| {
                 edit.replace(
-                    method_call.syntax().text_range(),
+                    method_call.syntax().text_range_without_outer_trivia(),
                     if sc.chars().all(|c| c.is_alphanumeric() || c == ':') {
                         format!("{sc}::from({receiver})")
                     } else {

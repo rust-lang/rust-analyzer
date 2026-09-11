@@ -1,10 +1,7 @@
 use ide_db::assists::AssistId;
 use itertools::Itertools;
 use syntax::{
-    AstNode, SyntaxElement,
-    SyntaxKind::WHITESPACE,
-    T,
-    algo::previous_non_trivia_token,
+    AstNode, SyntaxElement, T,
     ast::{
         self, HasArgList, HasLoopBody, HasName, RangeItem, edit::AstNodeEdit,
         syntax_factory::SyntaxFactory,
@@ -12,7 +9,10 @@ use syntax::{
     syntax_editor::{Element, Position, SyntaxEditor},
 };
 
-use crate::assist_context::{AssistContext, Assists};
+use crate::{
+    assist_context::{AssistContext, Assists},
+    utils::insert_before_with_separator,
+};
 
 // Assist: convert_range_for_to_while
 //
@@ -58,18 +58,17 @@ pub(crate) fn convert_range_for_to_while(
     acc.add(
         AssistId::refactor("convert_range_for_to_while"),
         description,
-        for_.syntax().text_range(),
+        for_.syntax().text_range_without_outer_trivia(),
         |builder| {
             let make = editor.make();
             let indent = for_.indent_level();
             let pat = make.ident_pat(pat.ref_token().is_some(), true, name.clone());
             let let_stmt = make.let_stmt(pat.into(), None, Some(start));
-            editor.insert_all(
-                Position::before(for_.syntax()),
-                vec![
-                    let_stmt.syntax().syntax_element(),
-                    make.whitespace(&format!("\n{}", indent)).syntax_element(),
-                ],
+            insert_before_with_separator(
+                &editor,
+                for_.syntax(),
+                let_stmt.syntax(),
+                &format!("\n{}", indent),
             );
 
             let mut elements = vec![];
@@ -82,8 +81,10 @@ pub(crate) fn convert_range_for_to_while(
             if let Some(end) = end {
                 elements.extend([
                     make.token(T![while]).syntax_element(),
-                    make.whitespace(" ").syntax_element(),
-                    make.expr_bin(var_expr.clone(), op, end).syntax().syntax_element(),
+                    make.with_leading_trivia(
+                        make.expr_bin(var_expr.clone(), op, end).syntax(),
+                        " ",
+                    ),
                 ]);
             } else {
                 elements.push(make.token(T![loop]).syntax_element());
@@ -96,8 +97,10 @@ pub(crate) fn convert_range_for_to_while(
 
             let op = ast::BinaryOp::Assignment { op: Some(ast::ArithOp::Add) };
             let incrementer = vec![
-                make.whitespace(&format!("\n{}", indent + 1)).syntax_element(),
-                make.expr_bin(var_expr, op, step).syntax().syntax_element(),
+                make.with_leading_trivia(
+                    make.expr_bin(var_expr, op, step).syntax(),
+                    &format!("\n{}", indent + 1),
+                ),
                 make.token(T![;]).syntax_element(),
             ];
             process_loop_body(body, label, &editor, incrementer);
@@ -132,7 +135,7 @@ fn process_loop_body(
     incrementer: Vec<SyntaxElement>,
 ) -> Option<()> {
     let make = editor.make();
-    let last = previous_non_trivia_token(body.r_curly_token()?)?.syntax_element();
+    let last = body.r_curly_token()?.prev_non_trivia_token()?.syntax_element();
 
     let new_body = body.indent(1.into());
     let mut continues = vec![];
@@ -148,10 +151,8 @@ fn process_loop_body(
         return Some(());
     }
 
-    let mut children = body
-        .syntax()
-        .children_with_tokens()
-        .filter(|it| !matches!(it.kind(), WHITESPACE | T!['{'] | T!['}']));
+    let mut children =
+        body.syntax().children_with_tokens().filter(|it| !matches!(it.kind(), T!['{'] | T!['}']));
     let first = children.next()?;
     let block_content = first.clone()..=children.last().unwrap_or(first);
 
@@ -161,13 +162,12 @@ fn process_loop_body(
     for continue_expr in &continues {
         new_edit.replace(continue_expr.syntax(), break_expr.syntax());
     }
-    let new_body = new_edit.finish().new_root().clone();
+    let new_body = make.with_trailing_trivia(new_edit.finish().new_root(), "");
     let elements = itertools::chain(
         [
             continue_label.syntax().syntax_element(),
-            make.token(T![:]).syntax_element(),
-            make.whitespace(" ").syntax_element(),
-            new_body.syntax_element(),
+            make.with_trailing_trivia(make.token(T![:]), " "),
+            new_body,
         ],
         incrementer,
     );

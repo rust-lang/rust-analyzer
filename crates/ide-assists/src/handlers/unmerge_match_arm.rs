@@ -1,5 +1,5 @@
 use syntax::{
-    Direction, SyntaxKind, T,
+    Direction, T,
     ast::{self, AstNode, edit::IndentLevel},
     syntax_editor::{Element, Position},
 };
@@ -65,17 +65,11 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
                 make.or_pat(pats_after, or_pat.leading_pipe().is_some()).into()
             };
             let new_match_arm = make.match_arm(new_pat, match_arm.guard(), match_arm_body);
-            let mut pipe_index = pipe_token.index();
-            if pipe_token
-                .prev_sibling_or_token()
-                .is_some_and(|it| it.kind() == SyntaxKind::WHITESPACE)
-            {
-                pipe_index -= 1;
-            }
+            let Some(pipe_index) = pipe_token.index() else { return };
             for child in or_pat
                 .syntax()
                 .children_with_tokens()
-                .skip_while(|child| child.index() < pipe_index)
+                .skip_while(|child| child.index().is_some_and(|index| index < pipe_index))
             {
                 editor.delete(child.syntax_element());
             }
@@ -96,9 +90,8 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
             }
 
             let indent = IndentLevel::from_node(match_arm.syntax());
-            insert_after_old_arm.push(make.whitespace(&format!("\n{indent}")).into());
-
-            insert_after_old_arm.push(new_match_arm.syntax().clone().into());
+            insert_after_old_arm
+                .push(make.with_leading_trivia(new_match_arm.syntax(), &format!("\n{indent}")));
 
             editor.insert_all(Position::after(match_arm.syntax()), insert_after_old_arm);
             edit.add_file_edits(ctx.vfs_file_id(), editor);

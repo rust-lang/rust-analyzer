@@ -38,17 +38,18 @@ pub(crate) fn add_label_to_loop(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
     acc.add(
         AssistId::generate("add_label_to_loop"),
         "Add Label",
-        loop_expr.syntax().text_range(),
+        loop_expr.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(loop_expr.syntax());
             let make = editor.make();
 
             let label = make.lifetime("'l");
+            let leading: String = loop_kw.leading_trivia().map(|it| it.text().to_owned()).collect();
             let elements = vec![
-                label.syntax().clone().into(),
-                make.token(T![:]).into(),
-                make.whitespace(" ").into(),
+                make.with_leading_trivia(label.syntax(), &leading),
+                make.with_trailing_trivia(make.token(T![:]), " "),
             ];
+            editor.splice_leading_trivia(&loop_kw, .., []);
             editor.insert_all(Position::before(&loop_kw), elements);
 
             let annotation =
@@ -92,8 +93,7 @@ fn insert_label_after_token(
 ) {
     let make = editor.make();
     let label = make.lifetime("'l");
-    let elements = vec![make.whitespace(" ").into(), label.syntax().clone().into()];
-    editor.insert_all(Position::after(token), elements);
+    editor.insert(Position::after(token), make.prepend_leading_trivia(label.syntax(), " "));
 
     editor.add_annotation(label.syntax(), annotation);
 }

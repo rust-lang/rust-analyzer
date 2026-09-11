@@ -1,7 +1,8 @@
 use crate::assist_context::{AssistContext, Assists};
+use crate::utils::insert_before_with_separator;
 use ide_db::{assists::AssistId, defs::Definition, search::SearchScope};
 use syntax::{
-    AstNode, SyntaxKind, T,
+    AstNode, T,
     ast::{
         self, HasAttrs, HasGenericParams, HasName, HasVisibility, edit::AstNodeEdit,
         syntax_factory::SyntaxFactory,
@@ -99,7 +100,7 @@ pub(crate) fn generate_trait_from_impl(
     acc.add(
         AssistId::generate("generate_trait_from_impl"),
         "Generate trait from impl",
-        impl_ast.syntax().text_range(),
+        impl_ast.syntax().text_range_without_outer_trivia(),
         |builder| {
             let trait_items: ast::AssocItemList = {
                 let (trait_items_editor, trait_items) =
@@ -129,9 +130,7 @@ pub(crate) fn generate_trait_from_impl(
             // Change `impl Foo` to `impl NewTrait for Foo`
             let mut elements = vec![
                 trait_name_ref.syntax().clone().into(),
-                make.whitespace(" ").into(),
-                make.token(T![for]).into(),
-                make.whitespace(" ").into(),
+                make.with_trailing_trivia(make.with_leading_trivia(make.token(T![for]), " "), " "),
             ];
 
             if let Some(params) = params {
@@ -147,12 +146,11 @@ pub(crate) fn generate_trait_from_impl(
             editor.insert_all(Position::before(impl_name.syntax()), elements);
 
             // Insert trait before TraitImpl
-            editor.insert_all(
-                Position::before(impl_ast.syntax()),
-                vec![
-                    trait_ast.syntax().clone().into(),
-                    make.whitespace(&format!("\n\n{}", impl_ast.indent_level())).into(),
-                ],
+            insert_before_with_separator(
+                &editor,
+                impl_ast.syntax(),
+                trait_ast.syntax(),
+                &format!("\n\n{}", impl_ast.indent_level()),
             );
 
             // Link the trait name & trait ref names together as a placeholder snippet group
@@ -178,10 +176,10 @@ fn used_params(
         .into_iter()
         .flat_map(|list| list.assoc_items())
         .filter_map(|item| match item {
-            ast::AssocItem::Fn(f) => Some(f.body()?.syntax().text_range()),
+            ast::AssocItem::Fn(f) => Some(f.body()?.syntax().text_range_without_outer_trivia()),
             _ => None,
         })
-        .chain(impl_ast.self_ty().map(|it| it.syntax().text_range()))
+        .chain(impl_ast.self_ty().map(|it| it.syntax().text_range_without_outer_trivia()))
         .collect::<Vec<_>>();
     let used_in_impl = |param: &ast::GenericParam| {
         let Some(def) = ctx.sema.to_def(param) else { return true };
@@ -211,26 +209,15 @@ fn trait_name(items: &ast::AssocItemList, make: &SyntaxFactory) -> ast::Name {
 
 /// `E0449` Trait items always share the visibility of their trait
 fn remove_items_visibility(editor: &SyntaxEditor, item: &ast::AssocItem) {
-    if let Some(has_vis) = ast::AnyHasVisibility::cast(item.syntax().clone()) {
-        if let Some(vis) = has_vis.visibility()
-            && let Some(token) = vis.syntax().next_sibling_or_token()
-            && token.kind() == SyntaxKind::WHITESPACE
-        {
-            editor.delete(token);
-        }
-        if let Some(vis) = has_vis.visibility() {
-            editor.delete(vis.syntax());
-        }
+    if let Some(has_vis) = ast::AnyHasVisibility::cast(item.syntax().clone())
+        && let Some(vis) = has_vis.visibility()
+    {
+        editor.delete_keeping_leading(vis.syntax());
     }
 }
 
 fn remove_doc_comments(editor: &SyntaxEditor, item: &ast::AssocItem) {
     for doc in item.doc_comments() {
-        if let Some(next) = doc.syntax().last_token().and_then(|it| it.next_token())
-            && next.kind() == SyntaxKind::WHITESPACE
-        {
-            editor.delete(next);
-        }
         editor.delete(doc.syntax());
     }
 }
@@ -242,12 +229,9 @@ fn strip_body(editor: &SyntaxEditor, item: &ast::AssocItem) {
     {
         // In contrast to function bodies, we want to see no ws before a semicolon.
         // So let's remove them if we see any.
-        if let Some(prev) = body.syntax().prev_sibling_or_token()
-            && prev.kind() == SyntaxKind::WHITESPACE
-        {
-            editor.delete(prev);
+        if let Some(prev) = body.syntax().prev_non_trivia_token() {
+            editor.strip_trailing_blank_trivia(&prev);
         }
-
         editor.replace(body.syntax(), make.token(T![;]));
     };
 }

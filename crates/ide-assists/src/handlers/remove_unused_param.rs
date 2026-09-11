@@ -1,12 +1,10 @@
 use ide_db::{EditionedFileId, defs::Definition, search::FileReference};
 use syntax::{
-    AstNode, SourceFile, SyntaxElement, SyntaxKind, SyntaxNode, T, TextRange,
+    AstNode, Direction, NodeOrToken, SourceFile, SyntaxElement, SyntaxNode, T, TextRange,
     algo::{find_node_at_range, least_common_ancestor_element},
     ast::{self, HasArgList},
     syntax_editor::Element,
 };
-
-use SyntaxKind::WHITESPACE;
 
 use crate::{
     AssistContext, AssistId, Assists, assist_context::SourceChangeBuilder, utils::next_prev,
@@ -78,7 +76,7 @@ pub(crate) fn remove_unused_param(acc: &mut Assists, ctx: &AssistContext<'_, '_>
     acc.add(
         AssistId::refactor("remove_unused_param"),
         "Remove unused parameter",
-        param.syntax().text_range(),
+        param.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(&parent);
             let elements = elements_to_remove(param.syntax());
@@ -133,7 +131,7 @@ fn process_usage(
 ) -> Option<Vec<SyntaxElement>> {
     let call_expr_opt: Option<ast::CallExpr> = find_node_at_range(source_file.syntax(), range);
     if let Some(call_expr) = call_expr_opt {
-        let call_expr_range = call_expr.expr()?.syntax().text_range();
+        let call_expr_range = call_expr.expr()?.syntax().text_range_without_outer_trivia();
         if !call_expr_range.contains_range(range) {
             return None;
         }
@@ -145,7 +143,8 @@ fn process_usage(
     let method_call_expr_opt: Option<ast::MethodCallExpr> =
         find_node_at_range(source_file.syntax(), range);
     if let Some(method_call_expr) = method_call_expr_opt {
-        let method_call_expr_range = method_call_expr.name_ref()?.syntax().text_range();
+        let method_call_expr_range =
+            method_call_expr.name_ref()?.syntax().text_range_without_outer_trivia();
         if !method_call_expr_range.contains_range(range) {
             return None;
         }
@@ -168,21 +167,22 @@ pub(crate) fn range_to_remove(node: &SyntaxNode) -> TextRange {
             .find(|it| it.kind() == T![,])
             .map(|it| (dir, it))
     });
-    if let Some((dir, token)) = up_to_comma {
-        if node.next_sibling().is_some() {
-            let up_to_space = token
-                .siblings_with_tokens(dir)
-                .skip(1)
-                .take_while(|it| it.kind() == WHITESPACE)
-                .last()
-                .and_then(|it| it.into_token());
-            return node
-                .text_range()
-                .cover(up_to_space.map_or(token.text_range(), |it| it.text_range()));
-        }
-        node.text_range().cover(token.text_range())
-    } else {
-        node.text_range()
+    let range = node.text_range_without_outer_trivia();
+    let Some((dir, token)) = up_to_comma else { return range };
+    let range = range.cover(token.text_range());
+    if node.next_sibling().is_none() {
+        return range;
+    }
+    match token.siblings_with_tokens(dir).nth(1) {
+        Some(NodeOrToken::Node(next)) => range.cover_offset(match dir {
+            Direction::Next => next.text_range_without_outer_trivia().start(),
+            Direction::Prev => next.text_range_without_outer_trivia().end(),
+        }),
+        Some(NodeOrToken::Token(next)) => range.cover_offset(match dir {
+            Direction::Next => next.text_range().start(),
+            Direction::Prev => next.text_range().end(),
+        }),
+        None => range,
     }
 }
 
@@ -195,15 +195,7 @@ pub(crate) fn elements_to_remove(node: &SyntaxNode) -> Vec<SyntaxElement> {
     });
     if let Some((dir, token)) = up_to_comma {
         let after = token.siblings_with_tokens(dir).nth(1).unwrap();
-        let mut result: Vec<_> =
-            node.siblings_with_tokens(dir).take_while(|it| it != &after).collect();
-        if node.next_sibling().is_some() {
-            result.extend(
-                token.siblings_with_tokens(dir).skip(1).take_while(|it| it.kind() == WHITESPACE),
-            );
-        }
-
-        result
+        node.siblings_with_tokens(dir).take_while(|it| it != &after).collect()
     } else {
         vec![node.syntax_element()]
     }
@@ -261,7 +253,7 @@ fn b() { foo(1, ) }
             r#"
 fn foo() { 0; }
 fn a() { foo() }
-fn b() { foo( ) }
+fn b() { foo() }
 "#,
         );
     }

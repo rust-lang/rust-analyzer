@@ -7,7 +7,10 @@ use syntax::{
     ast::{self, HasName},
 };
 
-use crate::{AssistContext, AssistId, Assists, utils::get_methods};
+use crate::{
+    AssistContext, AssistId, Assists,
+    utils::{get_methods, repositioned},
+};
 
 // Assist: sort_items
 //
@@ -126,15 +129,21 @@ impl AddRewrite for Assists {
         new: Vec<T>,
         target: &SyntaxNode,
     ) -> Option<()> {
-        self.add(AssistId::refactor_rewrite("sort_items"), label, target.text_range(), |builder| {
-            let editor = builder.make_editor(target);
+        self.add(
+            AssistId::refactor_rewrite("sort_items"),
+            label,
+            target.text_range_without_outer_trivia(),
+            |builder| {
+                let editor = builder.make_editor(target);
 
-            old.into_iter()
-                .zip(new)
-                .for_each(|(old, new)| editor.replace(old.syntax(), new.syntax()));
+                old.into_iter().zip(new).for_each(|(old, new)| {
+                    let new = repositioned(editor.make(), old.syntax(), new.syntax());
+                    editor.replace(old.syntax(), new);
+                });
 
-            builder.add_file_edits(builder.file_id, editor)
-        })
+                builder.add_file_edits(builder.file_id, editor)
+            },
+        )
     }
 }
 
@@ -156,7 +165,9 @@ fn add_sort_methods_assist(
     let selection = ctx.selection_trimmed();
 
     // ignore assist if the selection intersects with an associated item.
-    if item_list.assoc_items().any(|item| item.syntax().text_range().intersect(selection).is_some())
+    if item_list
+        .assoc_items()
+        .any(|item| item.syntax().text_range_without_outer_trivia().intersect(selection).is_some())
     {
         return None;
     }

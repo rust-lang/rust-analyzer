@@ -61,7 +61,7 @@ pub(crate) fn generate_enum_is_method(
     // Return early if we've found an existing new fn
     let impl_def = find_struct_impl(ctx, &parent_enum, &fn_names)?;
 
-    let target = variant.syntax().text_range();
+    let target = variant.syntax().text_range_without_outer_trivia();
     acc.add_group(
         &GroupLabel("Generate an `is_`,`as_`, or `try_into_` for this enum variant".to_owned()),
         AssistId::generate("generate_enum_is_method"),
@@ -87,12 +87,9 @@ pub(crate) fn generate_enum_is_method(
             let indent = parent_enum.indent_level();
             let assoc_list = make.assoc_item_list(fn_items);
             let new_impl = generate_impl_with_item(make, &parent_enum, Some(assoc_list));
-            editor.insert_all(
+            editor.insert(
                 Position::after(parent_enum.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                    new_impl.syntax().clone().into(),
-                ],
+                make.with_leading_trivia(new_impl.syntax().clone(), &format!("\n\n{indent}")),
             );
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },

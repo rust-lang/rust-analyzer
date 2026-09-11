@@ -3,7 +3,7 @@ use ide_db::FxHashMap;
 use itertools::Itertools;
 use syntax::{AstNode, SmolStr, SyntaxElement, ToSmolStr, ast, syntax_editor::SyntaxEditor};
 
-use crate::{AssistContext, AssistId, Assists};
+use crate::{AssistContext, AssistId, Assists, utils::repositioned};
 
 // Assist: reorder_fields
 //
@@ -90,9 +90,10 @@ fn replace<T: AstNode + PartialEq>(
     fields: impl Iterator<Item = T>,
     sorted_fields: impl IntoIterator<Item = T>,
 ) {
-    fields
-        .zip(sorted_fields)
-        .for_each(|(field, sorted_field)| editor.replace(field.syntax(), sorted_field.syntax()));
+    fields.zip(sorted_fields).for_each(|(field, sorted_field)| {
+        let sorted_field = repositioned(editor.make(), field.syntax(), sorted_field.syntax());
+        editor.replace(field.syntax(), sorted_field);
+    });
 }
 
 fn compute_fields_ranks(

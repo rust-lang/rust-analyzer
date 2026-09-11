@@ -1,12 +1,9 @@
 use either::Either;
 use hir::HirDisplay;
 use ide_db::syntax_helpers::{node_ext::walk_ty, suggest_name::NameGenerator};
-use syntax::{
-    ast::{self, AstNode, HasGenericArgs, HasGenericParams, HasName, edit::IndentLevel},
-    syntax_editor,
-};
+use syntax::ast::{self, AstNode, HasGenericArgs, HasGenericParams, HasName, edit::IndentLevel};
 
-use crate::{AssistContext, AssistId, Assists};
+use crate::{AssistContext, AssistId, Assists, utils::insert_before_with_separator};
 
 // Assist: extract_type_alias
 //
@@ -38,7 +35,7 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         || item.syntax(),
         |impl_| impl_.as_ref().either(AstNode::syntax, AstNode::syntax),
     );
-    let target = ty.syntax().text_range();
+    let target = ty.syntax().text_range_without_outer_trivia();
 
     let scope = ctx.sema.scope(ty.syntax())?;
     let resolved_ty = ctx.sema.resolve_type(&ty)?;
@@ -94,12 +91,11 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
             }
 
             let indent = IndentLevel::from_node(node);
-            editor.insert_all(
-                syntax_editor::Position::before(node),
-                vec![
-                    ty_alias.syntax().clone().into(),
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                ],
+            insert_before_with_separator(
+                &editor,
+                node,
+                ty_alias.syntax(),
+                &format!("\n\n{indent}"),
             );
 
             builder.add_file_edits(ctx.vfs_file_id(), editor);

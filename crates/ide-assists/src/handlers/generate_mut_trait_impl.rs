@@ -1,11 +1,11 @@
 use ide_db::{famous_defs::FamousDefs, traits::resolve_target_trait};
 use syntax::{
-    AstNode, SyntaxElement, SyntaxNode, T,
+    AstNode, SyntaxKind, SyntaxNode, T,
     ast::{self, edit::AstNodeEdit, syntax_factory::SyntaxFactory},
-    syntax_editor::{Element, Position, SyntaxEditor},
+    syntax_editor::{Position, SyntaxEditor},
 };
 
-use crate::{AssistContext, AssistId, Assists};
+use crate::{AssistContext, AssistId, Assists, utils::insert_before_with_separator};
 
 // FIXME: Generate proper `index_mut` method body refer to `index` method body may impossible due to the unpredictable case [#15581].
 // Here just leave the `index_mut` method body be same as `index` method body, user can modify it manually to meet their need.
@@ -63,7 +63,7 @@ pub(crate) fn generate_mut_trait_impl(
     let trait_ = resolve_target_trait(&ctx.sema, &impl_def)?;
     let trait_new = get_trait_mut(&trait_, famous)?;
 
-    let target = impl_def.syntax().text_range();
+    let target = impl_def.syntax().text_range_without_outer_trivia();
 
     acc.add(
         AssistId::generate("generate_mut_trait_impl"),
@@ -82,13 +82,11 @@ pub(crate) fn generate_mut_trait_impl(
             let new_impl = new_impl.indent(indent);
 
             let editor = edit.make_editor(impl_def.syntax());
-            let make = editor.make();
-            editor.insert_all(
-                Position::before(impl_def.syntax()),
-                vec![
-                    new_impl.syntax().syntax_element(),
-                    make.whitespace(&format!("\n\n{indent}")).syntax_element(),
-                ],
+            insert_before_with_separator(
+                &editor,
+                impl_def.syntax(),
+                new_impl.syntax(),
+                &format!("\n\n{indent}"),
             );
 
             if let Some(cap) = ctx.config.snippet_cap {
@@ -102,16 +100,12 @@ pub(crate) fn generate_mut_trait_impl(
 }
 
 fn delete_with_trivia(editor: &SyntaxEditor, node: &SyntaxNode) {
-    let mut end: SyntaxElement = node.clone().into();
-
-    if let Some(next) = node.next_sibling_or_token()
-        && let SyntaxElement::Token(tok) = &next
-        && tok.kind().is_trivia()
+    if let Some(next) = node.last_non_trivia_token().and_then(|it| it.next_non_trivia_token())
+        && let Some(index) = next.leading_trivia().rposition(|it| it.kind() == SyntaxKind::NEWLINE)
     {
-        end = next.clone();
+        editor.splice_leading_trivia(&next, ..=index, []);
     }
-
-    editor.delete_all(node.clone().into()..=end);
+    editor.delete(node);
 }
 
 fn apply_generate_mut_impl(
@@ -175,11 +169,9 @@ fn process_ref_mut(editor: &SyntaxEditor, fn_: &ast::Fn) {
 
     let Some(amp) = ref_expr.amp_token() else { return };
 
-    let mut_kw = make.token(T![mut]);
-    let space = make.whitespace(" ");
+    let mut_kw = make.with_trailing_trivia(make.token(T![mut]), " ");
 
-    editor.insert(Position::after(amp.clone()), space.syntax_element());
-    editor.insert(Position::after(amp), mut_kw.syntax_element());
+    editor.insert(Position::after(amp), mut_kw);
 }
 
 fn process_ret_type(factory: &SyntaxFactory, ref_ty: &ast::RetType) -> Option<ast::Type> {

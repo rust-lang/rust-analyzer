@@ -39,7 +39,7 @@ pub(crate) fn move_bounds_to_where_clause(
 
     let parent = type_param_list.syntax().parent()?;
 
-    let target = type_param_list.syntax().text_range();
+    let target = type_param_list.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("move_bounds_to_where_clause"),
         "Move to where clause",

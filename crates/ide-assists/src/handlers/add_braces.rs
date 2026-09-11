@@ -54,7 +54,7 @@ pub(crate) fn add_braces(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opti
             ParentType::MatchArmExpr => "Add braces to this match arm expression",
             ParentType::Assignment => "Add braces to this assignment expression",
         },
-        expr.syntax().text_range(),
+        expr.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(expr.syntax());
             let make = editor.make();

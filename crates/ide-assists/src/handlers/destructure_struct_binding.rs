@@ -57,7 +57,7 @@ pub(crate) fn destructure_struct_binding(
     acc.add(
         AssistId::refactor_rewrite("destructure_struct_binding"),
         "Destructure struct binding",
-        data.target.syntax().text_range(),
+        data.target.syntax().text_range_without_outer_trivia(),
         |edit| destructure_struct_binding_impl(ctx, edit, &data),
     );
 
@@ -164,12 +164,11 @@ impl StructEditData {
             }
             Target::SelfParam { insert_after, .. } => {
                 let indent = IndentLevel::from_token(insert_after) + 1;
-                let newline = make.whitespace(&format!("\n{indent}"));
                 let initializer = make.expr_path(make.ident_path("self"));
                 let let_stmt = make.let_stmt(new_pat, None, Some(initializer));
-                editor.insert_all(
+                editor.insert(
                     Position::after(insert_after),
-                    vec![newline.into(), let_stmt.syntax().clone().into()],
+                    make.with_leading_trivia(let_stmt.syntax(), &format!("\n{indent}")),
                 );
             }
         }

@@ -1,5 +1,7 @@
 use syntax::{
-    AstNode, AstToken,
+    AstNode,
+    SyntaxKind::{COMMENT, NEWLINE},
+    TextRange,
     ast::{self, HasAttrs, edit::AstNodeEdit},
 };
 
@@ -33,32 +35,50 @@ pub(crate) fn toggle_ignore(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
         None => acc.add(
             AssistId::refactor("toggle_ignore"),
             "Ignore this test",
-            attr.syntax().text_range(),
+            attr.syntax().text_range_without_outer_trivia(),
             |builder| {
-                builder.insert(attr.syntax().text_range().end(), format!("\n{indent}#[ignore]"))
+                let end = attr
+                    .syntax()
+                    .last_non_trivia_token()
+                    .and_then(|it| {
+                        it.trailing_trivia().take_while(|it| it.kind() != NEWLINE).last()
+                    })
+                    .map_or(attr.syntax().text_range_without_outer_trivia().end(), |it| {
+                        it.text_range().end()
+                    });
+                builder.insert(end, format!("\n{indent}#[ignore]"))
             },
         ),
         Some(ignore_attr) => acc.add(
             AssistId::refactor("toggle_ignore"),
             "Re-enable this test",
-            ignore_attr.syntax().text_range(),
+            ignore_attr.syntax().text_range_without_outer_trivia(),
             |builder| {
-                builder.delete(ignore_attr.syntax().text_range());
-                let whitespace = ignore_attr
+                let range = ignore_attr.syntax().text_range_without_outer_trivia();
+                let end = ignore_attr
                     .syntax()
-                    .next_sibling_or_token()
-                    .and_then(|x| x.into_token())
-                    .and_then(ast::Whitespace::cast);
-                if let Some(whitespace) = whitespace {
-                    builder.delete(whitespace.syntax().text_range());
-                }
+                    .last_non_trivia_token()
+                    .and_then(|last| {
+                        let next = last.next_non_trivia_token()?;
+                        let comment = last
+                            .trailing_trivia()
+                            .chain(next.leading_trivia())
+                            .find(|it| it.kind() == COMMENT);
+                        Some(
+                            comment.map_or(next.text_range().start(), |it| it.text_range().start()),
+                        )
+                    })
+                    .unwrap_or(range.end());
+                builder.delete(TextRange::new(range.start(), end));
             },
         ),
     }
 }
 
 fn has_ignore_attribute(fn_def: &ast::Fn) -> Option<ast::Attr> {
-    fn_def.attrs().find(|attr| attr.path().is_some_and(|it| it.syntax().text() == "ignore"))
+    fn_def.attrs().find(|attr| {
+        attr.path().is_some_and(|it| it.syntax().text_without_outer_trivia() == "ignore")
+    })
 }
 
 #[cfg(test)]

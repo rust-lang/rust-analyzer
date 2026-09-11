@@ -38,7 +38,7 @@ pub(crate) fn add_lifetime_to_type(acc: &mut Assists, ctx: &AssistContext<'_, '_
     }
 
     let changes = fetch_borrowed_types(&node)?;
-    let target = node.syntax().text_range();
+    let target = node.syntax().text_range_without_outer_trivia();
 
     acc.add(AssistId::quick_fix("add_lifetime_to_type"), "Add lifetime", target, |builder| {
         match node.generic_param_list() {
@@ -49,7 +49,7 @@ pub(crate) fn add_lifetime_to_type(acc: &mut Assists, ctx: &AssistContext<'_, '_
             }
             None => {
                 if let Some(name) = node.name() {
-                    builder.insert(name.syntax().text_range().end(), "<'a>");
+                    builder.insert(name.syntax().text_range_without_outer_trivia().end(), "<'a>");
                 }
             }
         }

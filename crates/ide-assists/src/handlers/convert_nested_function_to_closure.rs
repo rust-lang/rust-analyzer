@@ -38,7 +38,7 @@ pub(crate) fn convert_nested_function_to_closure(
         return None;
     }
 
-    let target = function.syntax().text_range();
+    let target = function.syntax().text_range_without_outer_trivia();
     let body = function.body()?;
     let name = function.name()?;
     let param_list = function.param_list()?;
@@ -48,7 +48,7 @@ pub(crate) fn convert_nested_function_to_closure(
         "Convert nested function to closure",
         target,
         |edit| {
-            let params = &param_list.syntax().text().to_string();
+            let params = &param_list.syntax().text_without_outer_trivia().to_string();
             let params = params.strip_prefix('(').unwrap_or(params);
             let params = params.strip_suffix(')').unwrap_or(params);
 

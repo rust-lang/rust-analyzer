@@ -62,7 +62,7 @@ fn generate_unique_lifetime_param_name(
     let used_lifetime_param: FxHashSet<SmolStr> = existing_params
         .iter()
         .flat_map(|params| params.lifetime_params())
-        .map(|p| p.syntax().text().to_smolstr())
+        .map(|p| p.syntax().text_without_outer_trivia().to_smolstr())
         .collect();
     ('a'..='z').map(|c| format_smolstr!("'{c}")).find(|lt| !used_lifetime_param.contains(lt))
 }
@@ -112,12 +112,9 @@ fn generate_fn_def_assist(
         editor.replace(lifetime.syntax(), make.lifetime(&new_lifetime_name).syntax());
 
         if let Some(pos) = loc_needing_lifetime.and_then(|l| l.to_position()) {
-            editor.insert_all(
+            editor.insert(
                 pos,
-                vec![
-                    make.lifetime(&new_lifetime_name).syntax().clone().into(),
-                    make.whitespace(" ").into(),
-                ],
+                make.with_trailing_trivia(make.lifetime(&new_lifetime_name).syntax().clone(), " "),
             );
         }
 
@@ -216,8 +213,7 @@ fn insert_lifetime_param(
     let mut elements = Vec::new();
 
     if needs_comma {
-        elements.push(make.token(T![,]).syntax_element());
-        elements.push(make.whitespace(" ").syntax_element());
+        elements.push(make.with_trailing_trivia(make.token(T![,]), " "));
     }
 
     let lifetime = make.lifetime(lifetime_name);

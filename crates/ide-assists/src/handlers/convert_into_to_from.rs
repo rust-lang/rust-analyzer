@@ -87,7 +87,7 @@ pub(crate) fn convert_into_to_from(acc: &mut Assists, ctx: &AssistContext<'_, '_
     acc.add(
         AssistId::refactor_rewrite("convert_into_to_from"),
         "Convert Into to From",
-        impl_.syntax().text_range(),
+        impl_.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(impl_.syntax());
             let make = editor.make();

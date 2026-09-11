@@ -70,7 +70,7 @@ pub(crate) fn convert_let_else_to_match(
         } else {
             "Convert let-else to let and match"
         },
-        let_stmt.syntax().text_range(),
+        let_stmt.syntax().text_range_without_outer_trivia(),
         |builder| {
             let make = editor.make();
             let binding_paths = bindings

@@ -1,6 +1,6 @@
 use syntax::{
     SyntaxKind, T,
-    ast::{self, AstNode, BinExpr, RangeItem},
+    ast::{self, AstNode, BinExpr, RangeItem, edit::AstNodeEdit},
     syntax_editor::Position,
 };
 
@@ -53,8 +53,9 @@ pub(crate) fn flip_binexpr(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
             if let FlipAction::FlipAndReplaceOp(binary_op) = action {
                 editor.replace(op_token, make.token(binary_op))
             };
-            editor.replace(lhs.syntax(), rhs.syntax());
-            editor.replace(rhs.syntax(), lhs.syntax());
+            let (left, right) = (lhs.detached(), rhs.detached());
+            editor.replace(lhs.syntax(), right.syntax());
+            editor.replace(rhs.syntax(), left.syntax());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
@@ -136,8 +137,9 @@ pub(crate) fn flip_range_expr(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
 
             match (start, end) {
                 (Some(start), Some(end)) => {
-                    editor.replace(start.syntax(), end.syntax());
-                    editor.replace(end.syntax(), start.syntax());
+                    let (first, second) = (start.detached(), end.detached());
+                    editor.replace(start.syntax(), second.syntax());
+                    editor.replace(end.syntax(), first.syntax());
                 }
                 (Some(start), None) => {
                     editor.delete(start.syntax());

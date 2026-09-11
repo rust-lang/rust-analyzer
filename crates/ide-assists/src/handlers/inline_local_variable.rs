@@ -6,9 +6,9 @@ use ide_db::{
     search::{FileReference, UsageSearchResult},
 };
 use syntax::{
-    Direction, T, TextRange,
-    ast::{self, AstNode, AstToken, HasName},
-    syntax_editor::{Element, Position, SyntaxEditor},
+    T, TextRange,
+    ast::{self, AstNode, HasName, edit::AstNodeEdit},
+    syntax_editor::Position,
 };
 
 use crate::{
@@ -80,20 +80,14 @@ pub(crate) fn inline_local_variable(acc: &mut Assists, ctx: &AssistContext<'_, '
                     && let Some(op_token) = bin_expr.op_token()
                 {
                     editor.delete(&op_token);
-                    remove_whitespace(op_token, Direction::Prev, &editor);
-                    remove_whitespace(place.start(), Direction::Prev, &editor);
-                } else {
-                    remove_whitespace(place.end(), Direction::Next, &editor);
                 }
             }
 
             for FileReference { range, name, .. } in references {
                 let Some(name) = name.as_name_ref().cloned() else { continue };
-                let replacement = if needs_parens(&name) {
-                    make.expr_paren(initializer_expr.clone()).into()
-                } else {
-                    initializer_expr.clone()
-                };
+                let detached = initializer_expr.detached();
+                let replacement =
+                    if needs_parens(&name) { make.expr_paren(detached).into() } else { detached };
 
                 let place = cover_edit_range(source, range);
                 if ast::RecordExprField::for_field_name(&name).is_some() {
@@ -102,8 +96,7 @@ pub(crate) fn inline_local_variable(acc: &mut Assists, ctx: &AssistContext<'_, '
                         Position::after(place.end()),
                         vec![
                             make.token(T![:]).into(),
-                            make.whitespace(" ").into(),
-                            replacement.syntax().clone().into(),
+                            make.with_leading_trivia(replacement.syntax().clone(), " "),
                         ],
                     );
                 } else {
@@ -194,23 +187,6 @@ fn inline_usage(
     references.retain(|fref| fref.name.as_name_ref() == Some(&name));
 
     Some(InlineData { let_stmt, delete_let, target, references })
-}
-
-fn remove_whitespace(elem: impl Element, dir: Direction, editor: &SyntaxEditor) {
-    let token = match elem.syntax_element() {
-        syntax::NodeOrToken::Node(node) => match dir {
-            Direction::Next => node.last_token(),
-            Direction::Prev => node.first_token(),
-        },
-        syntax::NodeOrToken::Token(t) => Some(t),
-    };
-    let next_token = match dir {
-        Direction::Next => token.and_then(|it| it.next_token()),
-        Direction::Prev => token.and_then(|it| it.prev_token()),
-    };
-    if let Some(whitespace) = next_token.and_then(ast::Whitespace::cast) {
-        editor.delete(whitespace.syntax());
-    }
 }
 
 #[cfg(test)]

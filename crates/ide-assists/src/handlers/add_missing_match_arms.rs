@@ -285,7 +285,7 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, 
 
             arms_edit.remove_wildcard_arms(ctx, &editor);
             arms_edit.add_comma_after_last_arm(ctx, &make, &editor);
-            arms_edit.append_arms(&missing_arms, &make, &editor);
+            arms_edit.append_arms(&missing_arms, &editor);
 
             if let Some(cap) = ctx.config.snippet_cap {
                 if let Some(it) = missing_arms
@@ -340,7 +340,7 @@ fn cursor_at_trivial_match_arm_list(
 
         if ast::Expr::cast(last_node.clone()).is_some_and(is_empty_expr)
             && last_node_range.contains(ctx.offset())
-            && !last_node.text().contains_char('\n')
+            && !last_node.text_without_outer_trivia().contains_char('\n')
         {
             cov_mark::hit!(add_missing_match_arms_end_of_last_empty_arm);
             return Some(());
@@ -379,48 +379,33 @@ impl ArmsEdit {
             }
             let Some(range) = self.cover_edit_range(ctx, &arm) else { continue };
 
-            let prev = match range.start() {
-                syntax::NodeOrToken::Node(node) => {
-                    node.first_token().and_then(|it| it.prev_token())
-                }
-                syntax::NodeOrToken::Token(tok) => tok.prev_token(),
-            };
-            if let Some(prev) = prev
-                && prev.kind() == SyntaxKind::WHITESPACE
+            if arm.syntax().text_range_without_outer_trivia()
+                == ctx.sema.original_range(arm.syntax()).range
             {
-                editor.delete(prev);
+                editor.delete(arm.syntax())
+            } else {
+                editor.delete_all(range)
             }
-
-            editor.delete_all(range);
         }
     }
 
-    fn append_arms(&self, arms: &[ast::MatchArm], make: &SyntaxFactory, editor: &SyntaxEditor) {
-        let Some(mut before) = self.place.last_token() else {
+    fn append_arms(&self, arms: &[ast::MatchArm], editor: &SyntaxEditor) {
+        let Some(before) = self.place.last_non_trivia_token() else {
             stdx::never!("match arm list not contain any token");
             return;
         };
-        if let Some(prev) = before.prev_token()
-            && prev.kind() == SyntaxKind::WHITESPACE
-        {
-            before = prev;
-        }
-        let open_curly =
-            !self.place.text().contains_char('\n') || before.kind() == SyntaxKind::WHITESPACE;
         let indent = IndentLevel::from_node(&self.place);
-        let arm_indent = indent + 1;
-        let indent = make.whitespace(&format!("\n{indent}"));
-        let arm_indent = make.whitespace(&format!("\n{arm_indent}"));
-        let elements = arms
+        let arm_separator = format!("\n{}", indent + 1);
+        let elements: Vec<_> = arms
             .iter()
-            .flat_map(|arm| [arm_indent.clone().into(), arm.syntax().clone().into()])
-            .chain(open_curly.then(|| indent.clone().into()))
+            .map(|arm| editor.make().with_leading_trivia(arm.syntax(), &arm_separator))
             .collect();
+        editor.insert_all(Position::before(&before), elements);
 
-        if before.kind() == SyntaxKind::WHITESPACE {
-            editor.replace_with_many(before, elements);
-        } else {
-            editor.insert_all(Position::before(before), elements);
+        let Some(pending) = editor.pending_token(&before) else { return };
+        if pending.leading_trivia().all(|it| it.kind() != SyntaxKind::NEWLINE) {
+            let separator = format!("\n{indent}");
+            editor.splice_leading_trivia(&before, .., ast::make::tokens::trivia(&separator));
         }
     }
 
