@@ -61,17 +61,23 @@ fn invalid_args_range(
             Either::Left(ast::Expr::CallExpr(call)) => {
                 let arg_list = call.arg_list()?;
                 (
-                    arg_list.syntax().text_range(),
+                    arg_list.syntax().text_range_without_outer_trivia(),
                     arg_list.r_paren_token(),
-                    arg_list.args().nth(expected).map(|it| it.syntax().text_range()),
+                    arg_list
+                        .args()
+                        .nth(expected)
+                        .map(|it| it.syntax().text_range_without_outer_trivia()),
                 )
             }
             Either::Left(ast::Expr::MethodCallExpr(call)) => {
                 let arg_list = call.arg_list()?;
                 (
-                    arg_list.syntax().text_range(),
+                    arg_list.syntax().text_range_without_outer_trivia(),
                     arg_list.r_paren_token(),
-                    arg_list.args().nth(expected).map(|it| it.syntax().text_range()),
+                    arg_list
+                        .args()
+                        .nth(expected)
+                        .map(|it| it.syntax().text_range_without_outer_trivia()),
                 )
             }
             Either::Right(ast::Pat::TupleStructPat(pat)) => {
@@ -80,7 +86,9 @@ fn invalid_args_range(
                 (
                     l_paren.text_range().cover(r_paren.text_range()),
                     Some(r_paren),
-                    pat.fields().nth(expected).map(|it| it.syntax().text_range()),
+                    pat.fields()
+                        .nth(expected)
+                        .map(|it| it.syntax().text_range_without_outer_trivia()),
                 )
             }
             _ => return None,

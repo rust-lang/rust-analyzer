@@ -103,7 +103,7 @@ fn missing_record_expr_field_fixes(
     );
 
     let after = if let Some(last_field) = record_fields.fields().last() {
-        last_field.syntax().last_token()?
+        last_field.syntax().last_non_trivia_token()?
     } else {
         record_fields.l_curly_token()?
     };
@@ -114,7 +114,7 @@ fn missing_record_expr_field_fixes(
 
     let (comma, indent, postfix) = match after.kind() {
         syntax::SyntaxKind::L_CURLY => {
-            let newline = !after.next_token().is_some_and(|it| it.text().contains('\n'));
+            let newline = !after.trivia_after().any(|it| it.kind() == syntax::SyntaxKind::NEWLINE);
             ("", indent + 1, if newline { format!(",\n{indent}") } else { ",".into() })
         }
         _ => (",", indent, String::new()),

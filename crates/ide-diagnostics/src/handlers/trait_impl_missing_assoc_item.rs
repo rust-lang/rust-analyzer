@@ -26,7 +26,7 @@ pub(crate) fn trait_impl_missing_assoc_item(
         adjusted_display_range::<ast::Impl>(
             ctx,
             InFile { file_id: d.file_id, value: d.impl_ },
-            &|impl_| impl_.trait_().map(|t| t.syntax().text_range()),
+            &|impl_| impl_.trait_().map(|t| t.syntax().text_range_without_outer_trivia()),
         ),
     )
     .stable()

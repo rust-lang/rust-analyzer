@@ -42,7 +42,7 @@ pub(crate) fn unresolved_method(
                     _ => None,
                 }?
                 .syntax()
-                .text_range(),
+                .text_range_without_outer_trivia(),
             )
         }),
     )
@@ -122,7 +122,7 @@ fn assoc_func_fix(
         let expr: ast::Expr = expr_ptr.value.to_node(&root).left()?;
 
         let call = ast::MethodCallExpr::cast(expr.syntax().clone())?;
-        let range = InFile::new(expr_ptr.file_id, call.syntax().text_range())
+        let range = InFile::new(expr_ptr.file_id, call.syntax().text_range_without_outer_trivia())
             .original_node_file_range_rooted_opt(db)?;
 
         let receiver = call.receiver()?;

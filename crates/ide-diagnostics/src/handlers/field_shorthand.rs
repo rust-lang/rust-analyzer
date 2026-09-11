@@ -39,19 +39,20 @@ fn check_expr_field_shorthand(
             None => continue,
         };
 
-        let field_name = name_ref.syntax().text().to_string();
-        let field_expr = expr.syntax().text().to_string();
+        let field_name = name_ref.syntax().text_without_outer_trivia().to_string();
+        let field_expr = expr.syntax().text_without_outer_trivia().to_string();
         let field_name_is_tup_index = name_ref.as_tuple_field().is_some();
         if field_name != field_expr || field_name_is_tup_index {
             continue;
         }
 
         let mut edit_builder = TextEdit::builder();
-        edit_builder.delete(record_field.syntax().text_range());
-        edit_builder.insert(record_field.syntax().text_range().start(), field_name);
+        edit_builder.delete(record_field.syntax().text_range_without_outer_trivia());
+        edit_builder
+            .insert(record_field.syntax().text_range_without_outer_trivia().start(), field_name);
         let edit = edit_builder.finish();
 
-        let field_range = record_field.syntax().text_range();
+        let field_range = record_field.syntax().text_range_without_outer_trivia();
         let vfs_file_id = file_id.file_id(db);
         acc.push(
             Diagnostic::new(
@@ -85,19 +86,22 @@ fn check_pat_field_shorthand(
             None => continue,
         };
 
-        let field_name = name_ref.syntax().text().to_string();
-        let field_pat = pat.syntax().text().to_string();
+        let field_name = name_ref.syntax().text_without_outer_trivia().to_string();
+        let field_pat = pat.syntax().text_without_outer_trivia().to_string();
         let field_name_is_tup_index = name_ref.as_tuple_field().is_some();
         if field_name != field_pat || field_name_is_tup_index {
             continue;
         }
 
         let mut edit_builder = TextEdit::builder();
-        edit_builder.delete(record_pat_field.syntax().text_range());
-        edit_builder.insert(record_pat_field.syntax().text_range().start(), field_name);
+        edit_builder.delete(record_pat_field.syntax().text_range_without_outer_trivia());
+        edit_builder.insert(
+            record_pat_field.syntax().text_range_without_outer_trivia().start(),
+            field_name,
+        );
         let edit = edit_builder.finish();
 
-        let field_range = record_pat_field.syntax().text_range();
+        let field_range = record_pat_field.syntax().text_range_without_outer_trivia();
         let vfs_file_id = file_id.file_id(db);
         acc.push(
             Diagnostic::new(
