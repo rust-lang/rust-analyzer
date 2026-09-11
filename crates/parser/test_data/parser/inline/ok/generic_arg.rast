@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "T" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -20,12 +17,10 @@ SOURCE_FILE
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "i32"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             TYPE_ARG
               DYN_TRAIT_TYPE
-                DYN_KW "dyn"
-                WHITESPACE " "
+                DYN_KW "dyn" [] [WHITESPACE(" ")]
                 TYPE_BOUND_LIST
                   TYPE_BOUND
                     PATH_TYPE
@@ -33,8 +28,7 @@ SOURCE_FILE
                         PATH_SEGMENT
                           NAME_REF
                             IDENT "T"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             TYPE_ARG
               FN_PTR_TYPE
                 FN_KW "fn"
@@ -42,5 +36,5 @@ SOURCE_FILE
                   L_PAREN "("
                   R_PAREN ")"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

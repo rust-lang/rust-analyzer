@@ -1,7 +1,6 @@
 SOURCE_FILE
   TRAIT
-    TRAIT_KW "trait"
-    WHITESPACE " "
+    TRAIT_KW "trait" [] [WHITESPACE(" ")]
     NAME
       IDENT "Z"
     GENERIC_PARAM_LIST
@@ -9,10 +8,8 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "U"
-      R_ANGLE ">"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      R_ANGLE ">" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     TYPE_BOUND_LIST
       TYPE_BOUND
         PATH_TYPE
@@ -28,19 +25,16 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "U"
-                R_ANGLE ">"
-    WHITESPACE " "
+                R_ANGLE ">" [] [WHITESPACE(" ")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE " "
+      WHERE_KW "where" [] [WHITESPACE(" ")]
       WHERE_PRED
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
                 IDENT "U"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -48,11 +42,9 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Copy"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TRAIT
-    TRAIT_KW "trait"
-    WHITESPACE " "
+    TRAIT_KW "trait" [] [WHITESPACE(" ")]
     NAME
       IDENT "Z"
     GENERIC_PARAM_LIST
@@ -60,22 +52,18 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "U"
-      R_ANGLE ">"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      R_ANGLE ">" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     TYPE_BOUND_LIST
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE " "
+      WHERE_KW "where" [] [WHITESPACE(" ")]
       WHERE_PRED
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
                 SELF_TYPE_KW "Self"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -92,5 +80,5 @@ SOURCE_FILE
                             NAME_REF
                               IDENT "U"
                     R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

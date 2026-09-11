@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "X"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "X" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -16,16 +13,12 @@ SOURCE_FILE
               L_PAREN "("
               R_PAREN ")"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "Y"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "Y" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -35,17 +28,15 @@ SOURCE_FILE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "A"
-            WHITESPACE " "
-            AS_KW "as"
-            WHITESPACE " "
+                    IDENT "A" [] [WHITESPACE(" ")]
+            AS_KW "as" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "B"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""
 error 13: expected `::`
 error 32: expected `::`

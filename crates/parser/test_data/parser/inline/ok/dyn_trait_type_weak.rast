@@ -1,17 +1,11 @@
 SOURCE_FILE
   TYPE_ALIAS
-    COMMENT "// 2015"
-    WHITESPACE "\n"
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [COMMENT("// 2015"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "DynPlain"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "DynPlain" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     DYN_TRAIT_TYPE
-      DYN_KW "dyn"
-      WHITESPACE " "
+      DYN_KW "dyn" [] [WHITESPACE(" ")]
       TYPE_BOUND_LIST
         TYPE_BOUND
           PATH_TYPE
@@ -19,21 +13,16 @@ SOURCE_FILE
               PATH_SEGMENT
                 NAME_REF
                   IDENT "Path"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "DynRef"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "DynRef" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     REF_TYPE
       AMP "&"
       DYN_TRAIT_TYPE
-        DYN_KW "dyn"
-        WHITESPACE " "
+        DYN_KW "dyn" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -41,45 +30,33 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Path"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "DynLt"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "DynLt" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     DYN_TRAIT_TYPE
-      DYN_KW "dyn"
-      WHITESPACE " "
+      DYN_KW "dyn" [] [WHITESPACE(" ")]
       TYPE_BOUND_LIST
         TYPE_BOUND
           LIFETIME
-            LIFETIME_IDENT "'a"
-        WHITESPACE " "
-        PLUS "+"
-        WHITESPACE " "
+            LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
+        PLUS "+" [] [WHITESPACE(" ")]
         TYPE_BOUND
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
                   IDENT "Path"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "DynQuestion"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "DynQuestion" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     DYN_TRAIT_TYPE
-      DYN_KW "dyn"
-      WHITESPACE " "
+      DYN_KW "dyn" [] [WHITESPACE(" ")]
       TYPE_BOUND_LIST
         TYPE_BOUND
           QUESTION "?"
@@ -88,19 +65,14 @@ SOURCE_FILE
               PATH_SEGMENT
                 NAME_REF
                   IDENT "Path"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "DynFor"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "DynFor" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     DYN_TRAIT_TYPE
-      DYN_KW "dyn"
-      WHITESPACE " "
+      DYN_KW "dyn" [] [WHITESPACE(" ")]
       TYPE_BOUND_LIST
         TYPE_BOUND
           FOR_BINDER
@@ -110,23 +82,18 @@ SOURCE_FILE
               LIFETIME_PARAM
                 LIFETIME
                   LIFETIME_IDENT "'a"
-              R_ANGLE ">"
-          WHITESPACE " "
+              R_ANGLE ">" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
                   IDENT "Path"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "DynParen"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "DynParen" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     DYN_TRAIT_TYPE
       DYN_KW "dyn"
       TYPE_BOUND_LIST
@@ -138,16 +105,12 @@ SOURCE_FILE
                 NAME_REF
                   IDENT "Path"
           R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "Path"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "Path" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH
@@ -158,16 +121,12 @@ SOURCE_FILE
         PATH_SEGMENT
           NAME_REF
             IDENT "Path"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "Generic"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "Generic" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -182,5 +141,5 @@ SOURCE_FILE
                     NAME_REF
                       IDENT "Path"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

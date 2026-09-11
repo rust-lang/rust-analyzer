@@ -1,16 +1,12 @@
 SOURCE_FILE
   EXTERN_BLOCK
     ABI
-      EXTERN_KW "extern"
-      WHITESPACE " "
-      STRING "\"C\""
-    WHITESPACE " "
+      EXTERN_KW "extern" [] [WHITESPACE(" ")]
+      STRING "\"C\"" [] [WHITESPACE(" ")]
     EXTERN_ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
           IDENT "a"
         PARAM_LIST
@@ -18,28 +14,23 @@ SOURCE_FILE
           PARAM
             WILDCARD_PAT
               UNDERSCORE "_"
-            COLON ":"
-            WHITESPACE " "
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
               STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "u8"
-          COMMA ","
-          WHITESPACE " "
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             DOT3 "..."
           COMMA ","
           R_PAREN ")"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
           IDENT "b"
         PARAM_LIST
@@ -47,31 +38,25 @@ SOURCE_FILE
           PARAM
             WILDCARD_PAT
               UNDERSCORE "_"
-            COLON ":"
-            WHITESPACE " "
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
               STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "u8"
-          COMMA ","
-          WHITESPACE " "
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             WILDCARD_PAT
               UNDERSCORE "_"
-            COLON ":"
-            WHITESPACE " "
+            COLON ":" [] [WHITESPACE(" ")]
             DOT3 "..."
           R_PAREN ")"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
           IDENT "c"
         PARAM_LIST
@@ -79,19 +64,16 @@ SOURCE_FILE
           PARAM
             WILDCARD_PAT
               UNDERSCORE "_"
-            COLON ":"
-            WHITESPACE " "
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
               STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "u8"
-          COMMA ","
-          WHITESPACE " "
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             ATTR
               POUND "#"
@@ -102,30 +84,25 @@ SOURCE_FILE
                 CFG_ATOM
                   IDENT "never"
                 R_PAREN ")"
-              R_BRACK "]"
-            WHITESPACE " "
+              R_BRACK "]" [] [WHITESPACE(" ")]
             SLICE_PAT
               L_BRACK "["
               IDENT_PAT
                 NAME
                   IDENT "w"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               IDENT_PAT
                 NAME
                   IDENT "t"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               IDENT_PAT
                 NAME
                   IDENT "f"
               R_BRACK "]"
-            COLON ":"
-            WHITESPACE " "
+            COLON ":" [] [WHITESPACE(" ")]
             DOT3 "..."
           COMMA ","
           R_PAREN ")"
-        SEMICOLON ";"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n"
+        SEMICOLON ";" [] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

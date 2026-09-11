@@ -1,31 +1,23 @@
 SOURCE_FILE
   ERROR
-    UNSAFE_KW "unsafe"
-  WHITESPACE " "
+    UNSAFE_KW "unsafe" [] [WHITESPACE(" ")]
   FN
-    ASYNC_KW "async"
-    WHITESPACE " "
-    FN_KW "fn"
-    WHITESPACE " "
+    ASYNC_KW "async" [] [WHITESPACE(" ")]
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
   CONST
-    UNSAFE_KW "unsafe"
-    WHITESPACE " "
-    CONST_KW "const"
-    WHITESPACE " "
+    UNSAFE_KW "unsafe" [] [WHITESPACE(" ")]
+    CONST_KW "const" [] [WHITESPACE(" ")]
     ERROR
-      FN_KW "fn"
-  WHITESPACE " "
+      FN_KW "fn" [] [WHITESPACE(" ")]
   ERROR
     PATH
       PATH_SEGMENT
@@ -34,12 +26,11 @@ SOURCE_FILE
   ERROR
     L_PAREN "("
   ERROR
-    R_PAREN ")"
-  WHITESPACE " "
+    R_PAREN ")" [] [WHITESPACE(" ")]
   ERROR
     L_CURLY "{"
-    R_CURLY "}"
-  WHITESPACE "\n"
+    R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 6: expected fn, trait or impl
 error 38: expected a name
 error 40: missing type for `const`

@@ -8,22 +8,23 @@ fn source_file() {
         TopEntryPoint::SourceFile,
         "",
         expect![[r#"
-        SOURCE_FILE
-    "#]],
+            SOURCE_FILE
+              EOF ""
+        "#]],
     );
 
     check(
         TopEntryPoint::SourceFile,
         "struct S;",
         expect![[r#"
-        SOURCE_FILE
-          STRUCT
-            STRUCT_KW "struct"
-            WHITESPACE " "
-            NAME
-              IDENT "S"
-            SEMICOLON ";"
-    "#]],
+            SOURCE_FILE
+              STRUCT
+                STRUCT_KW "struct" [] [WHITESPACE(" ")]
+                NAME
+                  IDENT "S"
+                SEMICOLON ";"
+              EOF ""
+        "#]],
     );
 
     check(
@@ -40,6 +41,7 @@ fn source_file() {
                       IDENT "error"
               ERROR
                 AT "@"
+              EOF ""
             error 0: expected an item
             error 6: expected an item
             error 6: expected an item
@@ -54,6 +56,7 @@ fn macro_stmt() {
         "",
         expect![[r#"
             MACRO_STMTS
+              EOF ""
         "#]],
     );
     check(
@@ -63,6 +66,7 @@ fn macro_stmt() {
             MACRO_STMTS
               ERROR
                 SHEBANG "#!/usr/bin/rust"
+              EOF ""
             error 0: expected expression, item or let statement
         "##]],
     );
@@ -72,27 +76,22 @@ fn macro_stmt() {
         expect![[r#"
             MACRO_STMTS
               LET_STMT
-                LET_KW "let"
-                WHITESPACE " "
+                LET_KW "let" [] [WHITESPACE(" ")]
                 IDENT_PAT
                   NAME
-                    IDENT "x"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
+                    IDENT "x" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
                 LITERAL
-                  INT_NUMBER "1"
-              WHITESPACE " "
+                  INT_NUMBER "1" [] [WHITESPACE(" ")]
               EXPR_STMT
                 LITERAL
-                  INT_NUMBER "2"
-              WHITESPACE " "
+                  INT_NUMBER "2" [] [WHITESPACE(" ")]
               STRUCT
-                STRUCT_KW "struct"
-                WHITESPACE " "
+                STRUCT_KW "struct" [] [WHITESPACE(" ")]
                 NAME
                   IDENT "S"
                 SEMICOLON ";"
+              EOF ""
         "#]],
     );
 }
@@ -104,6 +103,7 @@ fn macro_items() {
         "",
         expect![[r#"
             MACRO_ITEMS
+              EOF ""
         "#]],
     );
     check(
@@ -113,6 +113,7 @@ fn macro_items() {
             MACRO_ITEMS
               ERROR
                 SHEBANG "#!/usr/bin/rust"
+              EOF ""
             error 0: expected an item
         "##]],
     );
@@ -122,12 +123,10 @@ fn macro_items() {
         expect![[r#"
             MACRO_ITEMS
               STRUCT
-                STRUCT_KW "struct"
-                WHITESPACE " "
+                STRUCT_KW "struct" [] [WHITESPACE(" ")]
                 NAME
                   IDENT "S"
-                SEMICOLON ";"
-              WHITESPACE " "
+                SEMICOLON ";" [] [WHITESPACE(" ")]
               MACRO_CALL
                 PATH
                   PATH_SEGMENT
@@ -137,6 +136,7 @@ fn macro_items() {
                 TOKEN_TREE
                   L_CURLY "{"
                   R_CURLY "}"
+              EOF ""
         "#]],
     );
 }
@@ -148,6 +148,7 @@ fn macro_pattern() {
         "",
         expect![[r#"
             ERROR
+              EOF ""
             error 0: expected pattern
         "#]],
     );
@@ -164,6 +165,7 @@ fn macro_pattern() {
               WILDCARD_PAT
                 UNDERSCORE "_"
               R_PAREN ")"
+              EOF ""
         "#]],
     );
 
@@ -174,11 +176,10 @@ fn macro_pattern() {
             ERROR
               IDENT_PAT
                 NAME
-                  IDENT "None"
-              WHITESPACE " "
-              IDENT "leftover"
-              WHITESPACE " "
+                  IDENT "None" [] [WHITESPACE(" ")]
+              IDENT "leftover" [] [WHITESPACE(" ")]
               IDENT "tokens"
+              EOF ""
         "#]],
     );
 
@@ -190,6 +191,7 @@ fn macro_pattern() {
               ERROR
                 AT "@"
               IDENT "err"
+              EOF ""
             error 0: expected pattern
         "#]],
     );
@@ -199,17 +201,15 @@ fn macro_pattern() {
         "| 42 | 43",
         expect![[r#"
             OR_PAT
-              PIPE "|"
-              WHITESPACE " "
+              PIPE "|" [] [WHITESPACE(" ")]
               LITERAL_PAT
                 LITERAL
-                  INT_NUMBER "42"
-              WHITESPACE " "
-              PIPE "|"
-              WHITESPACE " "
+                  INT_NUMBER "42" [] [WHITESPACE(" ")]
+              PIPE "|" [] [WHITESPACE(" ")]
               LITERAL_PAT
                 LITERAL
                   INT_NUMBER "43"
+              EOF ""
         "#]],
     );
 
@@ -218,11 +218,11 @@ fn macro_pattern() {
         "| 42",
         expect![[r#"
             OR_PAT
-              PIPE "|"
-              WHITESPACE " "
+              PIPE "|" [] [WHITESPACE(" ")]
               LITERAL_PAT
                 LITERAL
                   INT_NUMBER "42"
+              EOF ""
         "#]],
     );
 }
@@ -234,6 +234,7 @@ fn type_() {
         "",
         expect![[r#"
             ERROR
+              EOF ""
             error 0: expected type
         "#]],
     );
@@ -253,6 +254,7 @@ fn type_() {
                       NEVER_TYPE
                         BANG "!"
                     R_ANGLE ">"
+              EOF ""
         "#]],
     );
     check(
@@ -262,13 +264,12 @@ fn type_() {
             ERROR
               TUPLE_TYPE
                 L_PAREN "("
-                R_PAREN ")"
-              WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+              L_PAREN "("
+              R_PAREN ")" [] [WHITESPACE(" ")]
               L_PAREN "("
               R_PAREN ")"
-              WHITESPACE " "
-              L_PAREN "("
-              R_PAREN ")"
+              EOF ""
         "#]],
     );
     check(
@@ -280,6 +281,7 @@ fn type_() {
                 DOLLAR "$"
               DOLLAR "$"
               DOLLAR "$"
+              EOF ""
             error 0: expected type
         "#]],
     );
@@ -292,6 +294,7 @@ fn expr() {
         "",
         expect![[r#"
             ERROR
+              EOF ""
             error 0: expected expression
         "#]],
     );
@@ -299,21 +302,18 @@ fn expr() {
         TopEntryPoint::Expr,
         "2 + 2 == 5",
         expect![[r#"
-        BIN_EXPR
-          BIN_EXPR
-            LITERAL
-              INT_NUMBER "2"
-            WHITESPACE " "
-            PLUS "+"
-            WHITESPACE " "
-            LITERAL
-              INT_NUMBER "2"
-          WHITESPACE " "
-          EQ2 "=="
-          WHITESPACE " "
-          LITERAL
-            INT_NUMBER "5"
-    "#]],
+            BIN_EXPR
+              BIN_EXPR
+                LITERAL
+                  INT_NUMBER "2" [] [WHITESPACE(" ")]
+                PLUS "+" [] [WHITESPACE(" ")]
+                LITERAL
+                  INT_NUMBER "2" [] [WHITESPACE(" ")]
+              EQ2 "==" [] [WHITESPACE(" ")]
+              LITERAL
+                INT_NUMBER "5"
+              EOF ""
+        "#]],
     );
     check(
         TopEntryPoint::Expr,
@@ -321,16 +321,14 @@ fn expr() {
         expect![[r#"
             ERROR
               LET_EXPR
-                LET_KW "let"
-                WHITESPACE " "
+                LET_KW "let" [] [WHITESPACE(" ")]
                 WILDCARD_PAT
-                  UNDERSCORE "_"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
+                  UNDERSCORE "_" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
                 LITERAL
                   INT_NUMBER "0"
               SEMICOLON ";"
+              EOF ""
         "#]],
     );
 }

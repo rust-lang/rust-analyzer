@@ -7,11 +7,9 @@ SOURCE_FILE
       CFG_KW "cfg"
       L_PAREN "("
       CFG_ATOM
-        IDENT "key"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
+        IDENT "key" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
         STRING "\"value\""
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
+  EOF ""

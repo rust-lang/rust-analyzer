@@ -1,13 +1,11 @@
 SOURCE_FILE
   ERROR
     ABI
-      EXTERN_KW "extern"
-  WHITESPACE " "
+      EXTERN_KW "extern" [] [WHITESPACE(" ")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "Foo"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""
 error 6: expected fn, trait or impl

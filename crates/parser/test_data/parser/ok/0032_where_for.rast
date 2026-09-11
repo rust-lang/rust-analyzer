@@ -1,7 +1,6 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "test_serialization"
     GENERIC_PARAM_LIST
@@ -12,29 +11,24 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE "\n"
+      R_PAREN ")" [] [NEWLINE("\n")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE "\n    "
+      WHERE_KW "where" [] [NEWLINE("\n")]
       WHERE_PRED
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "SER"
-        COLON ":"
-        WHITESPACE " "
+                IDENT "SER" [WHITESPACE("    ")] []
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "Serialize"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+                    IDENT "Serialize" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             FOR_BINDER
               FOR_KW "for"
@@ -43,8 +37,7 @@ SOURCE_FILE
                 LIFETIME_PARAM
                   LIFETIME
                     LIFETIME_IDENT "'de"
-                R_ANGLE ">"
-            WHITESPACE " "
+                R_ANGLE ">" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
@@ -55,19 +48,15 @@ SOURCE_FILE
                     LIFETIME_ARG
                       LIFETIME
                         LIFETIME_IDENT "'de"
-                    R_ANGLE ">"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+                    R_ANGLE ">" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "PartialEq"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+                    IDENT "PartialEq" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             PATH_TYPE
               PATH
@@ -84,10 +73,9 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Debug"
-      COMMA ","
-    WHITESPACE "\n"
+      COMMA "," [] [NEWLINE("\n")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

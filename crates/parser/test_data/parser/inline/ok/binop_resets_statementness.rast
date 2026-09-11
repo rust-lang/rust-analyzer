@@ -1,27 +1,22 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "f"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "v"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                    IDENT "v" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             BIN_EXPR
               BLOCK_EXPR
                 STMT_LIST
@@ -32,7 +27,6 @@ SOURCE_FILE
               AMP "&"
               LITERAL
                 INT_NUMBER "2"
-          SEMICOLON ";"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

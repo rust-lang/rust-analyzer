@@ -1,21 +1,17 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "F"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
-    UNSAFE_KW "unsafe"
-  WHITESPACE " "
+      IDENT "F" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
+    UNSAFE_KW "unsafe" [] [WHITESPACE(" ")]
   ERROR
     L_PAREN "("
   ERROR
     R_PAREN ")"
   ERROR
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""
 error 15: expected `fn`
 error 15: expected SEMICOLON
 error 16: expected an item
