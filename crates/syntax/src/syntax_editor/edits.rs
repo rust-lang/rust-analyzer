@@ -1,9 +1,9 @@
 //! Structural editing for ast using `SyntaxEditor`
 
 use crate::{
-    AstToken, Direction, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
+    Direction, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
     algo::neighbor,
-    ast::{self, AstNode, HasGenericParams, HasName, edit::IndentLevel},
+    ast::{self, AstNode, HasGenericParams, HasName, edit::IndentLevel, make},
     syntax_editor::{Position, SyntaxEditor},
 };
 
@@ -24,10 +24,7 @@ pub trait GetOrCreateWhereClause: ast::HasGenericParams {
         if let Some(existing) = &existing {
             editor.replace(existing.syntax(), new_where.syntax());
         } else if let Some(pos) = self.where_clause_position() {
-            editor.insert_all(
-                pos,
-                vec![make.whitespace(" ").into(), new_where.syntax().clone().into()],
-            );
+            editor.insert(pos, make.with_leading_trivia(new_where.syntax(), " "));
         }
     }
 }
@@ -129,8 +126,7 @@ impl SyntaxEditor {
                     if is_lifetime {
                         if let Some(last_lt) = last_lifetime {
                             let elements = vec![
-                                make.token(SyntaxKind::COMMA).into(),
-                                make.token(SyntaxKind::WHITESPACE).into(),
+                                make.with_trailing_trivia(make.token(T![,]), " "),
                                 new_param.syntax().clone().into(),
                             ];
                             self.insert_all(Position::after(last_lt.syntax()), elements);
@@ -138,16 +134,14 @@ impl SyntaxEditor {
                             // Insert before the first parameter
                             let elements = vec![
                                 new_param.syntax().clone().into(),
-                                make.token(SyntaxKind::COMMA).into(),
-                                make.token(SyntaxKind::WHITESPACE).into(),
+                                make.with_trailing_trivia(make.token(T![,]), " "),
                             ];
                             self.insert_all(Position::before(first_param.syntax()), elements);
                         }
                     } else {
                         let last_param = generic_param_list.generic_params().last().unwrap();
                         let elements = vec![
-                            make.token(SyntaxKind::COMMA).into(),
-                            make.token(SyntaxKind::WHITESPACE).into(),
+                            make.with_trailing_trivia(make.token(T![,]), " "),
                             new_param.syntax().clone().into(),
                         ];
                         self.insert_all(Position::after(last_param.syntax()), elements);
@@ -226,12 +220,10 @@ impl ast::AssocItemList {
         let elements: Vec<SyntaxElement> = items
             .into_iter()
             .enumerate()
-            .flat_map(|(i, item)| {
+            .map(|(i, item)| {
                 let whitespace = if i != 0 { "\n\n" } else { whitespace };
-                vec![
-                    make.whitespace(&format!("{whitespace}{indent}")).into(),
-                    item.syntax().clone().into(),
-                ]
+                let item = make.with_trailing_trivia(item.syntax(), "");
+                make.with_leading_trivia(item, &format!("{whitespace}{indent}"))
             })
             .collect();
         editor.insert_all(position, elements);
@@ -283,14 +275,10 @@ fn add_record_fields(
     }
 
     let make = editor.make();
-    let is_multiline = field_list.text().contains_char('\n');
-    let whitespace = || {
-        if is_multiline {
-            let indent = IndentLevel::from_node(field_list) + 1;
-            make.whitespace(&format!("\n{indent}"))
-        } else {
-            make.whitespace(" ")
-        }
+    let is_multiline = field_list.text_without_outer_trivia().contains_char('\n');
+    let separator = match is_multiline {
+        true => format!("\n{}", IndentLevel::from_node(field_list) + 1),
+        false => " ".to_owned(),
     };
 
     if is_multiline {
@@ -325,14 +313,16 @@ fn add_record_fields(
 
     let fields_len = fields.len();
     for (idx, field) in fields.into_iter().enumerate() {
-        elements.push(whitespace().into());
-        elements.push(field);
+        elements.push(make.with_leading_trivia(&field, &separator));
         if is_multiline || idx + 1 != fields_len {
             elements.push(make.token(T![,]).into());
         }
     }
-    if !is_multiline && next_after_insert.is_some_and(|it| it.kind() != SyntaxKind::WHITESPACE) {
-        elements.push(make.whitespace(" ").into());
+    if !is_multiline
+        && next_after_insert.is_some_and(|it| it.trivia_before().next().is_none())
+        && let Some(last) = elements.pop()
+    {
+        elements.push(make.with_trailing_trivia(&last, " "));
     }
 
     editor.insert_all(position, elements);
@@ -355,9 +345,9 @@ impl ast::Impl {
             list
         } else {
             let list = make.assoc_item_list_empty();
-            editor.insert_all(
+            editor.insert(
                 Position::last_child_of(self.syntax()),
-                vec![make.whitespace(" ").into(), list.syntax().clone().into()],
+                make.with_leading_trivia(list.syntax(), " "),
             );
             list
         }
@@ -380,9 +370,8 @@ impl ast::VariantList {
                 None => (IndentLevel::zero(), Position::last_child_of(self.syntax())),
             },
         };
-        let elements: Vec<SyntaxElement> = vec![
-            make.whitespace(&format!("{}{indent}", "\n")).into(),
-            variant.syntax().clone().into(),
+        let elements = vec![
+            make.with_leading_trivia(variant.syntax(), &format!("\n{indent}")),
             make.token(T![,]).into(),
         ];
         editor.insert_all(position, elements);
@@ -395,20 +384,21 @@ impl ast::Fn {
         if let Some(old_body) = self.body() {
             editor.replace(old_body.syntax(), body.syntax());
         } else {
-            let single_space = make.whitespace(" ");
-            let elements = vec![single_space.into(), body.syntax().clone().into()];
-
-            if let Some(semicolon) = self.semicolon_token() {
-                editor.replace_with_many(semicolon, elements);
-            } else {
-                editor.insert_all(Position::last_child_of(self.syntax()), elements);
+            let body = make.with_leading_trivia(body.syntax(), " ");
+            match self.semicolon_token() {
+                Some(semicolon) => editor.replace(semicolon, body),
+                None => {
+                    if let Some(last) = self.syntax().last_non_trivia_token() {
+                        editor.splice_trailing_trivia(&last, .., []);
+                    }
+                    editor.insert(Position::last_child_of(self.syntax()), body);
+                }
             }
         }
     }
 }
 
 fn normalize_ws_between_braces(editor: &SyntaxEditor, node: &SyntaxNode) -> Option<()> {
-    let make = editor.make();
     let l = node
         .children_with_tokens()
         .filter_map(|it| it.into_token())
@@ -418,20 +408,19 @@ fn normalize_ws_between_braces(editor: &SyntaxEditor, node: &SyntaxNode) -> Opti
         .filter_map(|it| it.into_token())
         .find(|it| it.kind() == T!['}'])?;
 
-    let indent = IndentLevel::from_node(node);
-
-    match l.next_sibling_or_token() {
-        Some(ws)
-            if ws.kind() == SyntaxKind::WHITESPACE
-                && ws.next_sibling_or_token()?.into_token()? == r =>
-        {
-            editor.replace(ws, make.whitespace(&format!("\n{indent}")));
-        }
-        Some(ws) if ws.kind() == T!['}'] => {
-            editor.insert(Position::after(l), make.whitespace(&format!("\n{indent}")));
-        }
-        _ => (),
+    if l.next_sibling_or_token()?.into_token()? != r {
+        return Some(());
     }
+
+    if r.green().leading_trivia().iter().any(|it| {
+        !matches!(SyntaxKind::from(it.kind().0), SyntaxKind::WHITESPACE | SyntaxKind::NEWLINE)
+    }) {
+        return Some(());
+    }
+
+    let indent = IndentLevel::from_node(node).to_string();
+    editor.splice_trailing_trivia(&l, .., [(SyntaxKind::NEWLINE, "\n")]);
+    editor.splice_leading_trivia(&r, .., make::tokens::trivia(&indent));
     Some(())
 }
 
@@ -450,46 +439,7 @@ impl Removable for ast::TypeBoundList {
 
 impl Removable for ast::Use {
     fn remove(&self, editor: &SyntaxEditor) {
-        let make = editor.make();
-        let next_ws = self
-            .syntax()
-            .next_sibling_or_token()
-            .and_then(|it| it.into_token())
-            .and_then(ast::Whitespace::cast);
-        if let Some(next_ws) = next_ws {
-            let ws_text = next_ws.syntax().text();
-            if let Some(rest) = ws_text.strip_prefix('\n') {
-                let next_use_removed = next_ws
-                    .syntax()
-                    .next_sibling_or_token()
-                    .and_then(|it| it.into_node())
-                    .and_then(ast::Use::cast)
-                    .and_then(|use_| use_.use_tree())
-                    .is_some_and(|use_tree| editor.deleted(use_tree.syntax()));
-                if rest.is_empty() || next_use_removed {
-                    editor.delete(next_ws.syntax());
-                } else {
-                    editor.replace(next_ws.syntax(), make.whitespace(rest));
-                }
-            }
-        }
-        let prev_ws = self
-            .syntax()
-            .prev_sibling_or_token()
-            .and_then(|it| it.into_token())
-            .and_then(ast::Whitespace::cast);
-        if let Some(prev_ws) = prev_ws {
-            let ws_text = prev_ws.syntax().text();
-            let prev_newline = ws_text.rfind('\n').map(|x| x + 1).unwrap_or(0);
-            let rest = &ws_text[0..prev_newline];
-            if rest.is_empty() {
-                editor.delete(prev_ws.syntax());
-            } else {
-                editor.replace(prev_ws.syntax(), make.whitespace(rest));
-            }
-        }
-
-        editor.delete(self.syntax());
+        editor.delete_keeping_lines(self.syntax());
     }
 }
 
