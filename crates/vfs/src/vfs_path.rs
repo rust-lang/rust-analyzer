@@ -364,10 +364,12 @@ impl VirtualPath {
     /// ```
     fn pop(&mut self) -> bool {
         let pos = match self.0.rfind('/') {
-            Some(pos) if pos + 1 != self.0.len() => pos,
-            None | Some(_) => return false,
+            None => return false,
+            Some(0) if self.0.len() == 1 => return false,
+            Some(0) => 1,
+            Some(pos) => pos,
         };
-        self.0 = self.0[..pos].to_string();
+        self.0.truncate(pos);
         true
     }
 

@@ -82,7 +82,7 @@ pub struct RegionConstraintData<'db> {
     ///
     /// An example is a `A <= B` where neither `A` nor `B` are
     /// inference variables.
-    pub verifys: Vec<Verify<'db>>,
+    pub verifies: Vec<Verify<'db>>,
 }
 
 /// Represents a constraint that influences the inference process.
@@ -675,8 +675,8 @@ impl<'db> RegionConstraintData<'db> {
     /// Returns `true` if this region constraint data contains no constraints, and `false`
     /// otherwise.
     pub fn is_empty(&self) -> bool {
-        let RegionConstraintData { constraints, member_constraints, verifys } = self;
-        constraints.is_empty() && member_constraints.is_empty() && verifys.is_empty()
+        let RegionConstraintData { constraints, member_constraints, verifies } = self;
+        constraints.is_empty() && member_constraints.is_empty() && verifies.is_empty()
     }
 }
 
@@ -692,8 +692,8 @@ impl<'db> Rollback<UndoLog<'db>> for RegionConstraintStorage<'db> {
                 assert_eq!(self.data.constraints.len(), index);
             }
             AddVerify(index) => {
-                self.data.verifys.pop();
-                assert_eq!(self.data.verifys.len(), index);
+                self.data.verifies.pop();
+                assert_eq!(self.data.verifies.len(), index);
             }
             AddCombination(Glb, ref regions) => {
                 self.glbs.remove(regions);

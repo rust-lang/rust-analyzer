@@ -35,6 +35,8 @@ jod = "jod"
 tructure = "tructure"
 taits = "taits"
 inh = "inh"
+implicits = "implicits"
+feaures = "feaures"
 
 [default.extend-identifiers]
 anc = "anc"
