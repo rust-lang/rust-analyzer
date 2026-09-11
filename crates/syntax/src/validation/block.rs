@@ -20,7 +20,7 @@ pub(crate) fn validate_block_expr(block: ast::BlockExpr, errors: &mut Vec<Syntax
         errors.extend(stmt_list.attrs().filter(|attr| attr.kind().is_inner()).map(|attr| {
             SyntaxError::new(
                 "A block in this position cannot accept inner attributes",
-                attr.syntax().text_range(),
+                attr.syntax().text_range_without_outer_trivia(),
             )
         }));
     }

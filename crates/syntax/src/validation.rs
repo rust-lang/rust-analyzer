@@ -5,7 +5,6 @@
 mod block;
 
 use itertools::Itertools;
-use rowan::Direction;
 use rustc_literal_escaper::{
     EscapeError, unescape_byte, unescape_byte_str, unescape_c_str, unescape_char, unescape_str,
 };
@@ -13,7 +12,7 @@ use rustc_literal_escaper::{
 use crate::{
     AstNode, SyntaxError,
     SyntaxKind::{CONST, FN, INT_NUMBER, TYPE_ALIAS},
-    SyntaxNode, SyntaxToken, T, TextSize, algo,
+    SyntaxNode, SyntaxToken, T, TextSize,
     ast::{self, HasAttrs, HasVisibility, IsString, RangeItem},
     match_ast,
 };
@@ -251,7 +250,10 @@ fn validate_visibility(vis: ast::Visibility, errors: &mut Vec<SyntaxError>) {
         false
     };
     if path_without_in_token {
-        errors.push(SyntaxError::new("incorrect visibility restriction", vis.syntax.text_range()));
+        errors.push(SyntaxError::new(
+            "incorrect visibility restriction",
+            vis.syntax.text_range_without_outer_trivia(),
+        ));
     }
     let parent = match vis.syntax().parent() {
         Some(it) => it,
@@ -269,7 +271,10 @@ fn validate_visibility(vis: ast::Visibility, errors: &mut Vec<SyntaxError>) {
     // FIXME: disable validation if there's an attribute, since some proc macros use this syntax.
     // ideally the validation would run only on the fully expanded code, then this wouldn't be necessary.
     if impl_def.trait_().is_some() && impl_def.attrs().next().is_none() {
-        errors.push(SyntaxError::new("Unnecessary visibility qualifier", vis.syntax.text_range()));
+        errors.push(SyntaxError::new(
+            "Unnecessary visibility qualifier",
+            vis.syntax.text_range_without_outer_trivia(),
+        ));
     }
 }
 
@@ -277,7 +282,7 @@ fn validate_range_expr(expr: ast::RangeExpr, errors: &mut Vec<SyntaxError>) {
     if expr.op_kind() == Some(ast::RangeOp::Inclusive) && expr.end().is_none() {
         errors.push(SyntaxError::new(
             "An inclusive range must have an end expression",
-            expr.syntax().text_range(),
+            expr.syntax().text_range_without_outer_trivia(),
         ));
     }
 }
@@ -378,7 +383,7 @@ fn validate_trait_object_ty(ty: ast::DynTraitType) -> Option<SyntaxError> {
     match no_bounds {
         true => Some(SyntaxError::new(
             "At least one trait is required for an object type",
-            ty.syntax().text_range(),
+            ty.syntax().text_range_without_outer_trivia(),
         )),
         false => None,
     }
@@ -391,7 +396,7 @@ fn validate_impl_object_ty(ty: ast::ImplTraitType) -> Option<SyntaxError> {
     match no_bounds {
         true => Some(SyntaxError::new(
             "At least one trait is required for an object type",
-            ty.syntax().text_range(),
+            ty.syntax().text_range_without_outer_trivia(),
         )),
         false => None,
     }
@@ -400,12 +405,15 @@ fn validate_impl_object_ty(ty: ast::ImplTraitType) -> Option<SyntaxError> {
 // FIXME: This is not a validation error, this is a context dependent parse error
 fn validate_trait_object_ty_plus(ty: ast::DynTraitType) -> Option<SyntaxError> {
     let dyn_token = ty.dyn_token()?;
-    let preceding_token = algo::skip_trivia_token(dyn_token.prev_token()?, Direction::Prev)?;
+    let preceding_token = dyn_token.prev_non_trivia_token()?;
     let tbl = ty.type_bound_list()?;
     let more_than_one_bound = tbl.bounds().next_tuple::<(_, _)>().is_some();
 
     if more_than_one_bound && !matches!(preceding_token.kind(), T!['('] | T![<] | T![=]) {
-        Some(SyntaxError::new("ambiguous `+` in a type", ty.syntax().text_range()))
+        Some(SyntaxError::new(
+            "ambiguous `+` in a type",
+            ty.syntax().text_range_without_outer_trivia(),
+        ))
     } else {
         None
     }
@@ -414,12 +422,15 @@ fn validate_trait_object_ty_plus(ty: ast::DynTraitType) -> Option<SyntaxError> {
 // FIXME: This is not a validation error, this is a context dependent parse error
 fn validate_impl_object_ty_plus(ty: ast::ImplTraitType) -> Option<SyntaxError> {
     let dyn_token = ty.impl_token()?;
-    let preceding_token = algo::skip_trivia_token(dyn_token.prev_token()?, Direction::Prev)?;
+    let preceding_token = dyn_token.prev_non_trivia_token()?;
     let tbl = ty.type_bound_list()?;
     let more_than_one_bound = tbl.bounds().next_tuple::<(_, _)>().is_some();
 
     if more_than_one_bound && !matches!(preceding_token.kind(), T!['('] | T![<] | T![=]) {
-        Some(SyntaxError::new("ambiguous `+` in a type", ty.syntax().text_range()))
+        Some(SyntaxError::new(
+            "ambiguous `+` in a type",
+            ty.syntax().text_range_without_outer_trivia(),
+        ))
     } else {
         None
     }
@@ -429,17 +440,14 @@ fn validate_macro_rules(mac: ast::MacroRules, errors: &mut Vec<SyntaxError>) {
     if let Some(vis) = mac.visibility() {
         errors.push(SyntaxError::new(
             "visibilities are not allowed on `macro_rules!` items",
-            vis.syntax().text_range(),
+            vis.syntax().text_range_without_outer_trivia(),
         ));
     }
 }
 
 fn validate_const(const_: ast::Const, errors: &mut Vec<SyntaxError>) {
-    if let Some(mut_token) = const_
-        .const_token()
-        .and_then(|t| t.next_token())
-        .and_then(|t| algo::skip_trivia_token(t, Direction::Next))
-        .filter(|t| t.kind() == T![mut])
+    if let Some(mut_token) =
+        const_.const_token().and_then(|t| t.next_non_trivia_token()).filter(|t| t.kind() == T![mut])
     {
         errors.push(SyntaxError::new("const globals cannot be mutable", mut_token.text_range()));
     }
@@ -471,6 +479,6 @@ fn validate_let_expr(let_: ast::LetExpr, errors: &mut Vec<SyntaxError>) {
     }
     errors.push(SyntaxError::new(
         "`let` expressions are not supported here",
-        let_.syntax().text_range(),
+        let_.syntax().text_range_without_outer_trivia(),
     ));
 }
