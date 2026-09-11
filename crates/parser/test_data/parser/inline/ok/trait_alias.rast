@@ -1,7 +1,6 @@
 SOURCE_FILE
   TRAIT
-    TRAIT_KW "trait"
-    WHITESPACE " "
+    TRAIT_KW "trait" [] [WHITESPACE(" ")]
     NAME
       IDENT "Z"
     GENERIC_PARAM_LIST
@@ -9,10 +8,8 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "U"
-      R_ANGLE ">"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      R_ANGLE ">" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     TYPE_BOUND_LIST
       TYPE_BOUND
         PATH_TYPE
@@ -29,5 +26,5 @@ SOURCE_FILE
                         NAME_REF
                           IDENT "U"
                 R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

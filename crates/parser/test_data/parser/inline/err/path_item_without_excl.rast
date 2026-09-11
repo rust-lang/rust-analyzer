@@ -3,6 +3,6 @@ SOURCE_FILE
     PATH
       PATH_SEGMENT
         NAME_REF
-          IDENT "foo"
-  WHITESPACE "\n"
+          IDENT "foo" [] [NEWLINE("\n")]
+  EOF ""
 error 3: expected an item

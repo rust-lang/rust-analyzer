@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "Plain"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "Plain" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -20,8 +17,7 @@ SOURCE_FILE
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "Item"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             TYPE_ARG
               PATH_TYPE
                 PATH
@@ -33,13 +29,11 @@ SOURCE_FILE
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "Item"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
-              COLON ":"
-              WHITESPACE " "
+              COLON ":" [] [WHITESPACE(" ")]
               TYPE_BOUND_LIST
                 TYPE_BOUND
                   PATH_TYPE
@@ -47,30 +41,23 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "Bound"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
-                IDENT "Item"
-              WHITESPACE " "
-              EQ "="
-              WHITESPACE " "
+                IDENT "Item" [] [WHITESPACE(" ")]
+              EQ "=" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "Item"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "GenericArgs"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "GenericArgs" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -93,8 +80,7 @@ SOURCE_FILE
                               NAME_REF
                                 IDENT "T"
                       R_ANGLE ">"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             TYPE_ARG
               PATH_TYPE
                 PATH
@@ -111,8 +97,7 @@ SOURCE_FILE
                               NAME_REF
                                 IDENT "T"
                       R_ANGLE ">"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
@@ -125,8 +110,7 @@ SOURCE_FILE
                         NAME_REF
                           IDENT "T"
                 R_ANGLE ">"
-              COLON ":"
-              WHITESPACE " "
+              COLON ":" [] [WHITESPACE(" ")]
               TYPE_BOUND_LIST
                 TYPE_BOUND
                   PATH_TYPE
@@ -134,8 +118,7 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "Bound"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
@@ -149,8 +132,7 @@ SOURCE_FILE
                         NAME_REF
                           IDENT "T"
                 R_ANGLE ">"
-              COLON ":"
-              WHITESPACE " "
+              COLON ":" [] [WHITESPACE(" ")]
               TYPE_BOUND_LIST
                 TYPE_BOUND
                   PATH_TYPE
@@ -158,8 +140,7 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "Bound"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
@@ -171,17 +152,14 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "T"
-                R_ANGLE ">"
-              WHITESPACE " "
-              EQ "="
-              WHITESPACE " "
+                R_ANGLE ">" [] [WHITESPACE(" ")]
+              EQ "=" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "Item"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
@@ -194,26 +172,20 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "T"
-                R_ANGLE ">"
-              WHITESPACE " "
-              EQ "="
-              WHITESPACE " "
+                R_ANGLE ">" [] [WHITESPACE(" ")]
+              EQ "=" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "Item"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "ParenthesizedArgs"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "ParenthesizedArgs" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -236,8 +208,7 @@ SOURCE_FILE
                               NAME_REF
                                 IDENT "T"
                       R_PAREN ")"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             TYPE_ARG
               PATH_TYPE
                 PATH
@@ -254,8 +225,7 @@ SOURCE_FILE
                               NAME_REF
                                 IDENT "T"
                       R_PAREN ")"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
@@ -268,8 +238,7 @@ SOURCE_FILE
                         NAME_REF
                           IDENT "T"
                 R_PAREN ")"
-              COLON ":"
-              WHITESPACE " "
+              COLON ":" [] [WHITESPACE(" ")]
               TYPE_BOUND_LIST
                 TYPE_BOUND
                   PATH_TYPE
@@ -277,8 +246,7 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "Bound"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
@@ -292,8 +260,7 @@ SOURCE_FILE
                         NAME_REF
                           IDENT "T"
                 R_PAREN ")"
-              COLON ":"
-              WHITESPACE " "
+              COLON ":" [] [WHITESPACE(" ")]
               TYPE_BOUND_LIST
                 TYPE_BOUND
                   PATH_TYPE
@@ -301,8 +268,7 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "Bound"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
@@ -314,17 +280,14 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "T"
-                R_PAREN ")"
-              WHITESPACE " "
-              EQ "="
-              WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+              EQ "=" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "Item"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
@@ -337,26 +300,20 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "T"
-                R_PAREN ")"
-              WHITESPACE " "
-              EQ "="
-              WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+              EQ "=" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "Item"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "RTN"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "RTN" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -374,8 +331,7 @@ SOURCE_FILE
                       L_PAREN "("
                       DOT2 ".."
                       R_PAREN ")"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             TYPE_ARG
               PATH_TYPE
                 PATH
@@ -386,8 +342,7 @@ SOURCE_FILE
                       L_PAREN "("
                       DOT2 ".."
                       R_PAREN ")"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
@@ -395,8 +350,7 @@ SOURCE_FILE
                 L_PAREN "("
                 DOT2 ".."
                 R_PAREN ")"
-              COLON ":"
-              WHITESPACE " "
+              COLON ":" [] [WHITESPACE(" ")]
               TYPE_BOUND_LIST
                 TYPE_BOUND
                   PATH_TYPE
@@ -404,8 +358,7 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "Bound"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
@@ -413,8 +366,7 @@ SOURCE_FILE
                 L_PAREN "("
                 DOT2 ".."
                 R_PAREN ")"
-              COLON ":"
-              WHITESPACE " "
+              COLON ":" [] [WHITESPACE(" ")]
               TYPE_BOUND_LIST
                 TYPE_BOUND
                   PATH_TYPE
@@ -422,40 +374,34 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "Bound"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
               RETURN_TYPE_SYNTAX
                 L_PAREN "("
                 DOT2 ".."
-                R_PAREN ")"
-              WHITESPACE " "
-              EQ "="
-              WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+              EQ "=" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "Item"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ASSOC_TYPE_ARG
               NAME_REF
                 IDENT "Item"
               RETURN_TYPE_SYNTAX
                 L_PAREN "("
                 DOT2 ".."
-                R_PAREN ")"
-              WHITESPACE " "
-              EQ "="
-              WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+              EQ "=" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "Item"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

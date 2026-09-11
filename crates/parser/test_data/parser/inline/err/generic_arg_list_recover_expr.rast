@@ -1,16 +1,12 @@
 SOURCE_FILE
   CONST
-    CONST_KW "const"
-    WHITESPACE " "
+    CONST_KW "const" [] [WHITESPACE(" ")]
     UNDERSCORE "_"
-    COLON ":"
-    WHITESPACE " "
+    COLON ":" [] [WHITESPACE(" ")]
     TUPLE_TYPE
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_EXPR
       PATH
         PATH_SEGMENT
@@ -22,8 +18,7 @@ SOURCE_FILE
             CONST_ARG
               LITERAL
                 INT_NUMBER "0"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             ERROR
               COMMA ","
             TYPE_ARG
@@ -33,20 +28,15 @@ SOURCE_FILE
                     NAME_REF
                       IDENT "T"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   CONST
-    CONST_KW "const"
-    WHITESPACE " "
+    CONST_KW "const" [] [WHITESPACE(" ")]
     UNDERSCORE "_"
-    COLON ":"
-    WHITESPACE " "
+    COLON ":" [] [WHITESPACE(" ")]
     TUPLE_TYPE
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     CALL_EXPR
       PATH_EXPR
         PATH
@@ -59,8 +49,7 @@ SOURCE_FILE
               CONST_ARG
                 LITERAL
                   INT_NUMBER "0"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               ERROR
                 COMMA ","
               TYPE_ARG
@@ -73,7 +62,7 @@ SOURCE_FILE
       ARG_LIST
         L_PAREN "("
         R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""
 error 21: expected generic argument
 error 47: expected generic argument

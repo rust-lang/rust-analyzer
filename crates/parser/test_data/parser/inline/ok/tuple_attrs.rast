@@ -1,11 +1,9 @@
 SOURCE_FILE
   CONST
-    CONST_KW "const"
-    WHITESPACE " "
+    CONST_KW "const" [] [WHITESPACE(" ")]
     NAME
       IDENT "A"
-    COLON ":"
-    WHITESPACE " "
+    COLON ":" [] [WHITESPACE(" ")]
     TUPLE_TYPE
       L_PAREN "("
       PATH_TYPE
@@ -13,23 +11,19 @@ SOURCE_FILE
           PATH_SEGMENT
             NAME_REF
               IDENT "i64"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       PATH_TYPE
         PATH
           PATH_SEGMENT
             NAME_REF
               IDENT "i64"
-      R_PAREN ")"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     TUPLE_EXPR
       L_PAREN "("
       LITERAL
         INT_NUMBER "1"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       LITERAL
         ATTR
           POUND "#"
@@ -40,9 +34,8 @@ SOURCE_FILE
             CFG_ATOM
               IDENT "test"
             R_PAREN ")"
-          R_BRACK "]"
-        WHITESPACE " "
+          R_BRACK "]" [] [WHITESPACE(" ")]
         INT_NUMBER "2"
       R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

@@ -1,16 +1,13 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "a"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       PATH_TYPE
         PATH
           PATH_SEGMENT
@@ -29,16 +26,13 @@ SOURCE_FILE
                     PATH_SEGMENT
                       NAME_REF
                         IDENT "Baz"
-              R_ANGLE ">"
-    WHITESPACE " "
+              R_ANGLE ">" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
       IDENT "b"
     PARAM_LIST
@@ -46,11 +40,9 @@ SOURCE_FILE
       PARAM
         WILDCARD_PAT
           UNDERSCORE "_"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         IMPL_TRAIT_TYPE
-          IMPL_KW "impl"
-          WHITESPACE " "
+          IMPL_KW "impl" [] [WHITESPACE(" ")]
           TYPE_BOUND_LIST
             TYPE_BOUND
               PATH_TYPE
@@ -72,16 +64,13 @@ SOURCE_FILE
                               NAME_REF
                                 IDENT "Y"
                       R_PAREN ")"
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
       IDENT "c"
     PARAM_LIST
@@ -89,11 +78,9 @@ SOURCE_FILE
       PARAM
         WILDCARD_PAT
           UNDERSCORE "_"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         IMPL_TRAIT_TYPE
-          IMPL_KW "impl"
-          WHITESPACE " "
+          IMPL_KW "impl" [] [WHITESPACE(" ")]
           TYPE_BOUND_LIST
             TYPE_BOUND
               PATH_TYPE
@@ -117,10 +104,9 @@ SOURCE_FILE
                                 NAME_REF
                                   IDENT "Y"
                       R_PAREN ")"
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

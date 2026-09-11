@@ -1,7 +1,6 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S"
     TUPLE_FIELD_LIST
@@ -12,8 +11,7 @@ SOURCE_FILE
             PATH_SEGMENT
               NAME_REF
                 IDENT "i32"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       TUPLE_FIELD
         PATH_TYPE
           PATH
@@ -21,30 +19,23 @@ SOURCE_FILE
               NAME_REF
                 IDENT "i32"
       R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "f"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "s"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "s" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           CALL_EXPR
             PATH_EXPR
               PATH
@@ -55,22 +46,17 @@ SOURCE_FILE
               L_PAREN "("
               LITERAL
                 INT_NUMBER "1"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               LITERAL
                 INT_NUMBER "2"
               R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "a"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "a" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           FIELD_EXPR
             FIELD_EXPR
               PATH_EXPR
@@ -81,8 +67,7 @@ SOURCE_FILE
               DOT "."
               ERROR
                 FLOAT_NUMBER "1e0"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
-error 42: illegal float literal
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
+error 64: illegal float literal

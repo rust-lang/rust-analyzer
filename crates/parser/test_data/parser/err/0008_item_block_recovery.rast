@@ -1,81 +1,60 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   ERROR
     PATH
       PATH_SEGMENT
         NAME_REF
-          IDENT "bar"
+          IDENT "bar" [NEWLINE("\n")] []
   ERROR
     L_PAREN "("
   ERROR
-    R_PAREN ")"
-  WHITESPACE " "
+    R_PAREN ")" [] [WHITESPACE(" ")]
   ERROR
-    L_CURLY "{"
-    WHITESPACE "\n    "
+    L_CURLY "{" [] [NEWLINE("\n")]
     IF_EXPR
-      IF_KW "if"
-      WHITESPACE " "
+      IF_KW "if" [WHITESPACE("    ")] [WHITESPACE(" ")]
       LITERAL
-        TRUE_KW "true"
-      WHITESPACE " "
+        TRUE_KW "true" [] [WHITESPACE(" ")]
       BLOCK_EXPR
         STMT_LIST
-          L_CURLY "{"
-          WHITESPACE "\n        "
+          L_CURLY "{" [] [NEWLINE("\n")]
           LITERAL
-            INT_NUMBER "1"
-          WHITESPACE "\n    "
-          R_CURLY "}"
-      WHITESPACE " "
-      ELSE_KW "else"
-      WHITESPACE " "
+            INT_NUMBER "1" [WHITESPACE("        ")] [NEWLINE("\n")]
+          R_CURLY "}" [WHITESPACE("    ")] [WHITESPACE(" ")]
+      ELSE_KW "else" [] [WHITESPACE(" ")]
       BLOCK_EXPR
         STMT_LIST
-          L_CURLY "{"
-          WHITESPACE "\n        "
+          L_CURLY "{" [] [NEWLINE("\n")]
           BIN_EXPR
             LITERAL
-              INT_NUMBER "2"
-            WHITESPACE " "
-            PLUS "+"
-            WHITESPACE " "
+              INT_NUMBER "2" [WHITESPACE("        ")] [WHITESPACE(" ")]
+            PLUS "+" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "3"
-          WHITESPACE "\n    "
-          R_CURLY "}"
-    WHITESPACE "\n"
-    R_CURLY "}"
-  WHITESPACE "\n\n"
+              INT_NUMBER "3" [] [NEWLINE("\n")]
+          R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+    R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
       IDENT "baz"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 17: expected an item
 error 17: expected an item
 error 18: expected an item

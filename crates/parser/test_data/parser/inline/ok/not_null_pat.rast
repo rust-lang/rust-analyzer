@@ -1,20 +1,16 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "main"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           PAREN_PAT
             L_PAREN "("
             OR_PAT
@@ -22,10 +18,8 @@ SOURCE_FILE
                 BANG "!"
                 IDENT_PAT
                   NAME
-                    IDENT "a"
-              WHITESPACE " "
-              PIPE "|"
-              WHITESPACE " "
+                    IDENT "a" [] [WHITESPACE(" ")]
+              PIPE "|" [] [WHITESPACE(" ")]
               NOT_NULL
                 BANG "!"
                 REF_PAT
@@ -33,14 +27,11 @@ SOURCE_FILE
                   LITERAL_PAT
                     LITERAL
                       INT_NUMBER "0"
-            R_PAREN ")"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
             L_PAREN "("
             R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

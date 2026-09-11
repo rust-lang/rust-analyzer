@@ -1,19 +1,15 @@
 SOURCE_FILE
   IMPL
-    IMPL_KW "impl"
-    WHITESPACE " "
+    IMPL_KW "impl" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "FnScopes"
-    WHITESPACE " "
+            IDENT "FnScopes" [] [WHITESPACE(" ")]
     ASSOC_ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
           IDENT "new_scope"
         PARAM_LIST
@@ -21,30 +17,23 @@ SOURCE_FILE
           PARAM
             REF_PAT
               AMP "&"
-          R_PAREN ")"
-        WHITESPACE " "
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "ScopeId"
-        WHITESPACE " "
+                  IDENT "ScopeId" [] [WHITESPACE(" ")]
         BLOCK_EXPR
           STMT_LIST
-            L_CURLY "{"
-            WHITESPACE "\n        "
+            L_CURLY "{" [] [NEWLINE("\n")]
             LET_STMT
-              LET_KW "let"
-              WHITESPACE " "
+              LET_KW "let" [WHITESPACE("        ")] [WHITESPACE(" ")]
               IDENT_PAT
                 NAME
-                  IDENT "res"
-              WHITESPACE " "
-              EQ "="
-              WHITESPACE " "
+                  IDENT "res" [] [WHITESPACE(" ")]
+              EQ "=" [] [WHITESPACE(" ")]
               METHOD_CALL_EXPR
                 FIELD_EXPR
                   PATH_EXPR
@@ -61,15 +50,14 @@ SOURCE_FILE
                 ARG_LIST
                   L_PAREN "("
                   R_PAREN ")"
-              SEMICOLON ";"
-            WHITESPACE "\n        "
+              SEMICOLON ";" [] [NEWLINE("\n")]
             METHOD_CALL_EXPR
               FIELD_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        SELF_KW "self"
+                        SELF_KW "self" [WHITESPACE("        ")] []
                 DOT "."
                 NAME_REF
                   IDENT "scopes"
@@ -82,28 +70,23 @@ SOURCE_FILE
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "ScopeData"
-                  WHITESPACE " "
+                        IDENT "ScopeData" [] [WHITESPACE(" ")]
                   RECORD_EXPR_FIELD_LIST
-                    L_CURLY "{"
-                    WHITESPACE " "
+                    L_CURLY "{" [] [WHITESPACE(" ")]
                     RECORD_EXPR_FIELD
                       NAME_REF
                         IDENT "parent"
-                      COLON ":"
-                      WHITESPACE " "
+                      COLON ":" [] [WHITESPACE(" ")]
                       PATH_EXPR
                         PATH
                           PATH_SEGMENT
                             NAME_REF
                               IDENT "None"
-                    COMMA ","
-                    WHITESPACE " "
+                    COMMA "," [] [WHITESPACE(" ")]
                     RECORD_EXPR_FIELD
                       NAME_REF
                         IDENT "entries"
-                      COLON ":"
-                      WHITESPACE " "
+                      COLON ":" [] [WHITESPACE(" ")]
                       MACRO_EXPR
                         MACRO_CALL
                           PATH
@@ -113,21 +96,16 @@ SOURCE_FILE
                           BANG "!"
                           TOKEN_TREE
                             L_BRACK "["
-                            R_BRACK "]"
-                    WHITESPACE " "
+                            R_BRACK "]" [] [WHITESPACE(" ")]
                     R_CURLY "}"
-                R_PAREN ")"
-            WHITESPACE "\n    "
-            R_CURLY "}"
-      WHITESPACE "\n\n    "
+                R_PAREN ")" [] [NEWLINE("\n")]
+            R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [NEWLINE("\n"), WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
-          IDENT "set_parent"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n"
+          IDENT "set_parent" [] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 34: expected pattern
 error 34: missing type for function parameter
 error 180: expected function arguments

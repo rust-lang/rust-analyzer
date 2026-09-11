@@ -8,8 +8,7 @@ SOURCE_FILE
         PATH_SEGMENT
           NAME_REF
             IDENT "attr"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -23,8 +22,7 @@ SOURCE_FILE
         L_PAREN "("
         TRUE_KW "true"
         R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -38,8 +36,7 @@ SOURCE_FILE
         L_PAREN "("
         IDENT "ident"
         R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -52,39 +49,28 @@ SOURCE_FILE
       TOKEN_TREE
         L_PAREN "("
         IDENT "ident"
-        COMMA ","
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
         INT_NUMBER "100"
-        COMMA ","
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
         TRUE_KW "true"
-        COMMA ","
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
         STRING "\"true\""
-        COMMA ","
-        WHITESPACE " "
-        IDENT "ident"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
+        IDENT "ident" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
         INT_NUMBER "100"
-        COMMA ","
-        WHITESPACE " "
-        IDENT "ident"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
+        IDENT "ident" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
         STRING "\"hello\""
-        COMMA ","
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
         IDENT "ident"
         TOKEN_TREE
           L_PAREN "("
           INT_NUMBER "100"
           R_PAREN ")"
         R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -98,8 +84,7 @@ SOURCE_FILE
         L_PAREN "("
         INT_NUMBER "100"
         R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -111,14 +96,11 @@ SOURCE_FILE
             IDENT "attr"
       TOKEN_TREE
         L_PAREN "("
-        IDENT "enabled"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
+        IDENT "enabled" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
         TRUE_KW "true"
         R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -132,8 +114,7 @@ SOURCE_FILE
         L_PAREN "("
         TRUE_KW "true"
         R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -147,8 +128,7 @@ SOURCE_FILE
         L_PAREN "("
         STRING "\"hello\""
         R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -161,16 +141,12 @@ SOURCE_FILE
       TOKEN_TREE
         L_PAREN "("
         IDENT "C"
-        COMMA ","
-        WHITESPACE " "
-        IDENT "align"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
+        IDENT "align" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
         INT_NUMBER "4"
         R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -183,8 +159,7 @@ SOURCE_FILE
       TOKEN_TREE
         L_PAREN "("
         IDENT "C"
-        COMMA ","
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
         IDENT "align"
         TOKEN_TREE
           L_PAREN "("
@@ -192,3 +167,4 @@ SOURCE_FILE
           R_PAREN ")"
         R_PAREN ")"
     R_BRACK "]"
+  EOF ""

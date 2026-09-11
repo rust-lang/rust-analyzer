@@ -1,20 +1,16 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "main"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [] [WHITESPACE(" ")]
           PATH_PAT
             PATH
               PATH
@@ -27,14 +23,11 @@ SOURCE_FILE
               COLON2 "::"
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "Foo"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+                  IDENT "Foo" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
             L_PAREN "("
             R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

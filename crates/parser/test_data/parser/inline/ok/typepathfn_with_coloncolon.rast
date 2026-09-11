@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "F"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "F" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH
@@ -22,11 +19,9 @@ SOURCE_FILE
                     PATH_SEGMENT
                       NAME_REF
                         IDENT "Middle"
-              R_PAREN ")"
-            WHITESPACE " "
+              R_PAREN ")" [] [WHITESPACE(" ")]
             RET_TYPE
-              THIN_ARROW "->"
-              WHITESPACE " "
+              THIN_ARROW "->" [] [WHITESPACE(" ")]
               PAREN_TYPE
                 L_PAREN "("
                 PATH_TYPE
@@ -39,16 +34,12 @@ SOURCE_FILE
         PATH_SEGMENT
           NAME_REF
             IDENT "End"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "GenericArg"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "GenericArg" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -77,5 +68,5 @@ SOURCE_FILE
                     NAME_REF
                       IDENT "End"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

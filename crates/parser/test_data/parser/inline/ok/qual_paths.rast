@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "X"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "X" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH
@@ -17,10 +14,8 @@ SOURCE_FILE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "A"
-              WHITESPACE " "
-              AS_KW "as"
-              WHITESPACE " "
+                      IDENT "A" [] [WHITESPACE(" ")]
+              AS_KW "as" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
@@ -31,21 +26,17 @@ SOURCE_FILE
         PATH_SEGMENT
           NAME_REF
             IDENT "Output"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
@@ -58,10 +49,8 @@ SOURCE_FILE
                         PATH
                           PATH_SEGMENT
                             NAME_REF
-                              IDENT "usize"
-                      WHITESPACE " "
-                      AS_KW "as"
-                      WHITESPACE " "
+                              IDENT "usize" [] [WHITESPACE(" ")]
+                      AS_KW "as" [] [WHITESPACE(" ")]
                       PATH_TYPE
                         PATH
                           PATH_SEGMENT
@@ -75,7 +64,6 @@ SOURCE_FILE
             ARG_LIST
               L_PAREN "("
               R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

@@ -1,19 +1,15 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "f"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       IMPL_TRAIT_TYPE
-        IMPL_KW "impl"
-        WHITESPACE " "
+        IMPL_KW "impl" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -25,24 +21,18 @@ SOURCE_FILE
                     L_ANGLE "<"
                     ASSOC_TYPE_ARG
                       NAME_REF
-                        IDENT "Item"
-                      WHITESPACE " "
-                      EQ "="
-                    WHITESPACE " "
-                    COMMA ","
-                    WHITESPACE " "
+                        IDENT "Item" [] [WHITESPACE(" ")]
+                      EQ "=" [] [WHITESPACE(" ")]
+                    COMMA "," [] [WHITESPACE(" ")]
                     ASSOC_TYPE_ARG
                       NAME_REF
-                        IDENT "Item"
-                      WHITESPACE " "
-                      EQ "="
-                    WHITESPACE " "
-                    R_ANGLE ">"
-    WHITESPACE " "
+                        IDENT "Item" [] [WHITESPACE(" ")]
+                      EQ "=" [] [WHITESPACE(" ")]
+                    R_ANGLE ">" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 30: missing associated item binding
 error 39: missing associated item binding

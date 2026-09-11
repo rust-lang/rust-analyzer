@@ -1,8 +1,7 @@
 SOURCE_FILE
   MACRO_RULES
     DOC_COMMENT
-      OUTER_DOC_COMMENT "/// Some docs"
-    WHITESPACE "\n"
+      OUTER_DOC_COMMENT "/// Some docs" [] [NEWLINE("\n")]
     ATTR
       POUND "#"
       L_BRACK "["
@@ -11,28 +10,21 @@ SOURCE_FILE
           PATH_SEGMENT
             NAME_REF
               IDENT "macro_export"
-      R_BRACK "]"
-    WHITESPACE "\n"
+      R_BRACK "]" [] [NEWLINE("\n")]
     MACRO_RULES_KW "macro_rules"
-    BANG "!"
-    WHITESPACE " "
+    BANG "!" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
-    WHITESPACE " "
+      IDENT "foo" [] [WHITESPACE(" ")]
     TOKEN_TREE
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       TOKEN_TREE
-        L_PAREN "("
-        R_PAREN ")"
-      WHITESPACE " "
+        L_PAREN "(" [WHITESPACE("    ")] []
+        R_PAREN ")" [] [WHITESPACE(" ")]
       EQ "="
-      R_ANGLE ">"
-      WHITESPACE " "
+      R_ANGLE ">" [] [WHITESPACE(" ")]
       TOKEN_TREE
         L_CURLY "{"
         R_CURLY "}"
-      SEMICOLON ";"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n"
+      SEMICOLON ";" [] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

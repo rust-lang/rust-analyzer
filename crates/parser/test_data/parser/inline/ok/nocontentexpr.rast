@@ -1,7 +1,6 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
@@ -9,9 +8,8 @@ SOURCE_FILE
       R_PAREN ")"
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
-        SEMICOLON ";"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        SEMICOLON ";" [WHITESPACE("    ")] []
         SEMICOLON ";"
         SEMICOLON ";"
         EXPR_STMT
@@ -51,7 +49,6 @@ SOURCE_FILE
             TUPLE_EXPR
               L_PAREN "("
               R_PAREN ")"
-            R_PAREN ")"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+            R_PAREN ")" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

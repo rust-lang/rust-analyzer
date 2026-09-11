@@ -6,5 +6,5 @@ SOURCE_FILE
     L_PAREN "("
     LITERAL
       STRING "\"\""
-    R_PAREN ")"
-  WHITESPACE "\n"
+    R_PAREN ")" [] [NEWLINE("\n")]
+  EOF ""

@@ -1,15 +1,12 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       COLON2 "::"
       STAR "*"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
@@ -22,5 +19,5 @@ SOURCE_FILE
           COLON2 "::"
           STAR "*"
         R_CURLY "}"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "A"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "A" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     DYN_TRAIT_TYPE
       TYPE_BOUND_LIST
         TYPE_BOUND
@@ -18,8 +15,7 @@ SOURCE_FILE
                 LIFETIME_PARAM
                   LIFETIME
                     LIFETIME_IDENT "'a"
-                R_ANGLE ">"
-            WHITESPACE " "
+                R_ANGLE ">" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
@@ -30,15 +26,13 @@ SOURCE_FILE
                     LIFETIME_ARG
                       LIFETIME
                         LIFETIME_IDENT "'a"
-                    R_ANGLE ">"
-        WHITESPACE " "
-        PLUS "+"
-        WHITESPACE " "
+                    R_ANGLE ">" [] [WHITESPACE(" ")]
+        PLUS "+" [] [WHITESPACE(" ")]
         TYPE_BOUND
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
                   IDENT "Send"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

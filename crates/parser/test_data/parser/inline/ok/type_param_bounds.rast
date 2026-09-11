@@ -1,7 +1,6 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S"
     GENERIC_PARAM_LIST
@@ -9,25 +8,20 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'a"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+              LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             QUESTION "?"
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "Sized"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+                    IDENT "Sized" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             L_PAREN "("
             PATH_TYPE
@@ -35,20 +29,17 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Copy"
-            R_PAREN ")"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             L_BRACK "["
             CONST_KW "const"
-            R_BRACK "]"
-            WHITESPACE " "
+            R_BRACK "]" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Drop"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

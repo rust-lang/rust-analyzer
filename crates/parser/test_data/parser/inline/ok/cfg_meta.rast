@@ -9,8 +9,7 @@ SOURCE_FILE
       CFG_ATOM
         IDENT "foo"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -19,12 +18,10 @@ SOURCE_FILE
       CFG_KW "cfg"
       L_PAREN "("
       CFG_ATOM
-        IDENT "foo"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
+        IDENT "foo" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
         STRING "\"bar\""
       COMMA ","
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
+  EOF ""
