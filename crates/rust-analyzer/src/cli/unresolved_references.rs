@@ -152,7 +152,7 @@ fn all_unresolved_references(
         let Some(name_ref) = ast::NameRef::cast(syntax) else {
             continue;
         };
-        let Some(descended_name_ref) = name_ref.syntax().first_token().and_then(|tok| {
+        let Some(descended_name_ref) = name_ref.syntax().first_non_trivia_token().and_then(|tok| {
             sema.descend_into_macros_single_exact(tok).parent().and_then(ast::NameRef::cast)
         }) else {
             continue;
