@@ -2296,8 +2296,7 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 [[package]]
 name = "rowan"
 version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14b574c58582fa59fa43a2feb6608b8744184659f08a2e0117e4b8224d95ed61"
+source = "git+https://github.com/bit-aloo/rowan?branch=2026-09-08-more-trivia-changes#eddf3c3ff40aa2695798ebdf66c3a49b49424fcd"
 dependencies = [
  "countme",
  "hashbrown 0.14.5",
