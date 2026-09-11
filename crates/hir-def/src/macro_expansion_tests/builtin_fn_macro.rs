@@ -262,6 +262,7 @@ macro_rules! compile_error {
     ($msg:expr,) => ({ /* compiler built-in */ })
 }
 
+// This expands to nothing (since it's in item position), but emits an error.
 /* error: error, with an escaped quote: " */
 /* error: this is a raw string */
 "##]],
