@@ -906,9 +906,7 @@ impl<'a, 'db> CompletionContext<'a, 'db> {
                 )
             })
         {
-            let next_token = iter::successors(token.next_token(), |it| it.next_token())
-                .map(|it| it.kind())
-                .find(|kind| !kind.is_trivia());
+            let next_token = token.next_non_trivia_token().map(|it| it.kind());
             match term_node.kind() {
                 MATCH_ARM if next_token != Some(T![,]) => CompleteSemicolon::CompleteComma,
                 BLOCK_EXPR if next_token != Some(T![;]) => CompleteSemicolon::CompleteSemi,

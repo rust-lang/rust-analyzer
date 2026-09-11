@@ -10,7 +10,7 @@ use crate::{NodeOrToken, SyntaxElement, SyntaxNode};
 
 use super::{
     Change, ChangeKind, PositionRepr, SyntaxAnnotation, SyntaxEdit, SyntaxEditor, SyntaxMapping,
-    mapping::MissingMapping,
+    TriviaSide, mapping::MissingMapping,
 };
 
 /// A validated batch of changes in the exact order in which it must execute.
@@ -89,20 +89,13 @@ impl EditPlan {
                 .then(left.change_kind().cmp(&right.change_kind()))
         });
 
-        if !Self::replacements_are_disjoint(&changes, &mut node_depth) {
-            return Err(InvalidEditPlan { changes });
-        }
-
         let mut entries = vec![PlanEntry::default(); changes.len()];
         let mut regions_by_tree = FxHashMap::<SyntaxNode, Vec<ChangedRegion>>::default();
 
         for (index, change) in changes.iter().enumerate() {
             let target_tree = change.target_parent().tree_top();
             let regions = regions_by_tree.entry(target_tree).or_default();
-            if let Some(region_index) = regions
-                .iter()
-                .rposition(|region| region.range.contains_range(change.target_range()))
-            {
+            if let Some(region_index) = regions.iter().rposition(|region| region.contains(change)) {
                 regions.truncate(region_index + 1);
                 match regions[region_index].nested_changes {
                     NestedChanges::Remap => {
@@ -120,12 +113,37 @@ impl EditPlan {
             }
         }
 
+        if !Self::replacements_are_disjoint(&changes, &entries, &mut node_depth) {
+            return Err(InvalidEditPlan { changes });
+        }
+
         // Work from the innermost dependency towards the outermost one. This
         // lets a chain A -> B -> C rewrite C into B before B itself is mapped
         // into A's replacement tree.
+        let mut unmappable = Vec::new();
         for (child, entry) in entries.iter().enumerate().rev() {
-            if let Some(parent) = entry.parent {
-                Self::rewrite_dependent_target(&mut changes, parent, child, mappings);
+            if let Some(parent) = entry.parent
+                && let Err(MissingMapping(missing)) =
+                    Self::rewrite_dependent_target(&mut changes, parent, child, mappings)
+            {
+                assert!(
+                    trivia_only(&changes[child]),
+                    "no mappings exist between {missing:?} and the replacement of its ancestor: {}",
+                    changes[child]
+                );
+                unmappable.push(child);
+            }
+        }
+        for child in unmappable {
+            entries[child].discarded = true;
+            entries[child].parent = None;
+        }
+        for index in 0..entries.len() {
+            if let Some(parent) = entries[index].parent
+                && entries[parent].discarded
+            {
+                entries[index].discarded = true;
+                entries[index].parent = None;
             }
         }
 
@@ -205,10 +223,14 @@ impl EditPlan {
     /// last range at that key, and `insert` can throw away the range it evicts.
     fn replacements_are_disjoint(
         changes: &[Change],
+        entries: &[PlanEntry],
         mut node_depth: impl FnMut(SyntaxNode) -> usize,
     ) -> bool {
         let mut previous = FxHashMap::<(SyntaxNode, usize), TextRange>::default();
-        for change in changes {
+        for (change, entry) in changes.iter().zip(entries) {
+            if entry.discarded || entry.parent.is_some() {
+                continue;
+            }
             if !matches!(change.change_kind(), ChangeKind::Replace | ChangeKind::ReplaceRange) {
                 continue;
             }
@@ -231,7 +253,7 @@ impl EditPlan {
         parent: usize,
         child: usize,
         mappings: &SyntaxMapping,
-    ) {
+    ) -> Result<(), MissingMapping> {
         let (input_ancestor, output_ancestor) = match &changes[parent] {
             Change::Replace(
                 SyntaxElement::Node(target),
@@ -240,39 +262,32 @@ impl EditPlan {
             _ => unreachable!("only node replacements can own dependent changes"),
         };
 
-        let upmap_node = |target: &SyntaxNode| {
-            mappings.upmap_child(target, &input_ancestor, &output_ancestor).unwrap_or_else(
-                |MissingMapping(current)| {
-                    panic!(
-                        "no mappings exist between {current:?} (ancestor of {input_ancestor:?}) and {output_ancestor:?}"
-                    )
-                },
-            )
-        };
         let upmap_element = |target: &SyntaxElement| {
-            mappings.upmap_child_element(target, &input_ancestor, &output_ancestor).unwrap_or_else(
-                |MissingMapping(current)| {
-                    panic!(
-                        "no mappings exist between {current:?} (ancestor of {input_ancestor:?}) and {output_ancestor:?}"
-                    )
-                },
-            )
+            mappings.upmap_child_element(target, &input_ancestor, &output_ancestor)
         };
-
         match &mut changes[child] {
             Change::Insert(position, _) | Change::InsertAll(position, _) => {
                 match &mut position.repr {
-                    PositionRepr::FirstChild(parent) => *parent = upmap_node(parent),
-                    PositionRepr::After(child) => *child = upmap_element(child),
+                    PositionRepr::FirstChild(parent) => {
+                        *parent =
+                            mappings.upmap_child(parent, &input_ancestor, &output_ancestor)?;
+                    }
+                    PositionRepr::After(child)
+                    | PositionRepr::LastChild(child)
+                    | PositionRepr::Before(child) => {
+                        *child = upmap_element(child)?;
+                    }
                 }
             }
             Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => {
-                *target = upmap_element(target);
+                *target = upmap_element(target)?;
             }
             Change::ReplaceAll(range, _) => {
-                *range = upmap_element(range.start())..=upmap_element(range.end());
+                let (start, end) = (upmap_element(range.start())?, upmap_element(range.end())?);
+                *range = start..=end;
             }
         }
+        Ok(())
     }
 }
 
@@ -289,7 +304,7 @@ impl SyntaxPath {
         let mut node = match element {
             SyntaxElement::Node(node) => node.clone(),
             SyntaxElement::Token(token) => {
-                child_indices.push(token.index());
+                child_indices.push(token.index().expect("checked at editor entry"));
                 token.parent().unwrap()
             }
         };
@@ -413,9 +428,27 @@ impl TreeState {
 
     /// Finds a change target in the current root.
     fn map_original_element(&self, element: &SyntaxElement) -> SyntaxElement {
-        self.map_original_path(SyntaxPath::new(element))
-            .and_then(|path| path.resolve(&self.root))
-            .expect("an edit target must still be present")
+        self.try_map_original_element(element).expect("an edit target must still be present")
+    }
+
+    fn try_map_original_element(&self, element: &SyntaxElement) -> Option<SyntaxElement> {
+        self.map_original_path(SyntaxPath::new(element)).and_then(|path| path.resolve(&self.root))
+    }
+
+    fn insertion_slot(&self, anchor: &SyntaxElement, after: bool) -> (SyntaxNode, usize) {
+        let mut current = Some(anchor.clone());
+        while let Some(element) = current {
+            if !element.is_trivia()
+                && let Some(mapped) = self.try_map_original_element(&element)
+            {
+                let index = mapped.index().expect("checked at editor entry");
+                let offset = usize::from(after || &element != anchor);
+                return (mapped.parent().unwrap(), index + offset);
+            }
+            current = element.prev_sibling_or_token();
+        }
+        let parent = self.map_original_element(&anchor.parent().unwrap().into());
+        (parent.into_node().unwrap(), 0)
     }
 
     /// Applies one child-list splice and updates tracked structural path.
@@ -489,10 +522,10 @@ impl TreeState {
                         let parent = self.map_original_element(&parent.clone().into());
                         (parent.into_node().unwrap(), 0)
                     }
-                    PositionRepr::After(child) => {
-                        let child = self.map_original_element(child);
-                        (child.parent().unwrap(), child.index() + 1)
+                    PositionRepr::After(child) | PositionRepr::LastChild(child) => {
+                        self.insertion_slot(child, true)
                     }
+                    PositionRepr::Before(child) => self.insertion_slot(child, false),
                 };
                 self.splice(
                     SyntaxPath::new(&parent.into()),
@@ -507,7 +540,7 @@ impl TreeState {
             Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => {
                 let target = self.map_original_element(target);
                 let parent = target.parent().unwrap();
-                let index = target.index();
+                let index = target.index().expect("checked at editor entry");
                 self.splice(
                     SyntaxPath::new(&parent.into()),
                     index..index + 1,
@@ -521,7 +554,8 @@ impl TreeState {
                 let parent = start.parent().unwrap();
                 self.splice(
                     SyntaxPath::new(&parent.into()),
-                    start.index()..end.index() + 1,
+                    start.index().expect("checked at editor entry")
+                        ..end.index().expect("checked at editor entry") + 1,
                     replacement,
                     record_as_changed,
                 );
@@ -666,14 +700,17 @@ impl TreeStore {
 
 /// Plans and executes all changes recorded by a SyntaxEditor.
 pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
+    merge_swallowed_trivia(&editor);
     let SyntaxEditor { root, changes, annotations, make } = editor;
+    let changes = changes.into_inner();
+    let annotations = annotations.into_inner();
     let mappings = make.take();
     let mut node_depths = FxHashMap::<SyntaxNode, usize>::default();
     let mut node_depth = |node: SyntaxNode| {
         *node_depths.entry(node).or_insert_with_key(|node| node.ancestors().count())
     };
 
-    let plan = match EditPlan::build(changes.into_inner(), &mappings, &mut node_depth) {
+    let plan = match EditPlan::build(changes, &mappings, &mut node_depth) {
         Ok(plan) => plan,
         Err(InvalidEditPlan { changes }) => {
             report_intersecting_changes(&changes, &mut node_depth, &root);
@@ -686,9 +723,82 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
         }
     };
 
-    let mut trees = TreeStore::with_annotations(annotations.into_inner(), &mappings);
+    let mut trees = TreeStore::with_annotations(annotations, &mappings);
     trees.execute(plan);
     trees.finish(root)
+}
+
+fn trivia_only(change: &Change) -> bool {
+    match change {
+        Change::Replace(SyntaxElement::Token(old), Some(SyntaxElement::Token(new))) => {
+            old.kind() == new.kind() && old.text() == new.text()
+        }
+        _ => false,
+    }
+}
+
+fn merge_swallowed_trivia(editor: &SyntaxEditor) {
+    let mut changes = editor.changes.borrow_mut();
+    let swallowing = changes
+        .iter()
+        .enumerate()
+        .filter(|(_, change)| {
+            matches!(change, Change::ReplaceWithMany(..) | Change::ReplaceAll(..))
+        })
+        .map(|(index, change)| (index, change.target_range()))
+        .collect::<Vec<_>>();
+    if swallowing.is_empty() {
+        return;
+    }
+
+    let mut merges = Vec::new();
+    let mut folded = vec![false; changes.len()];
+    for (index, change) in changes.iter().enumerate() {
+        if !trivia_only(change) {
+            continue;
+        }
+        let range = change.target_range();
+        let Some(&(owner, owner_range)) =
+            swallowing.iter().find(|(_, it)| it.contains_range(range))
+        else {
+            continue;
+        };
+        let Change::Replace(_, Some(SyntaxElement::Token(new))) = change else { continue };
+        let leading: String = new.green().leading_trivia().iter().map(|it| it.text()).collect();
+        let trailing: String = new.green().trailing_trivia().iter().map(|it| it.text()).collect();
+        merges.push((
+            owner,
+            range.start() == owner_range.start(),
+            range.end() == owner_range.end(),
+            leading,
+            trailing,
+        ));
+        folded[index] = true;
+    }
+
+    for (owner, at_start, at_end, leading, trailing) in merges {
+        let payload = match &mut changes[owner] {
+            Change::ReplaceWithMany(_, new) | Change::ReplaceAll(_, new) => new,
+            _ => continue,
+        };
+        if payload.is_empty() {
+            continue;
+        }
+        let last = payload.len() - 1;
+        if at_start {
+            payload[0] = editor.with_trivia(&payload[0], TriviaSide::Leading, &leading);
+        }
+        if at_end {
+            payload[last] = editor.with_trivia(&payload[last], TriviaSide::Trailing, &trailing);
+        }
+    }
+
+    let mut index = 0;
+    changes.retain(|_| {
+        let keep = !folded[index];
+        index += 1;
+        keep
+    });
 }
 
 fn report_intersecting_changes(
@@ -766,6 +876,7 @@ fn report_intersecting_changes(
 /// A replacement region that can contain later source ordered changeds
 struct ChangedRegion {
     range: TextRange,
+    target: Option<SyntaxNode>,
     change_index: usize,
     nested_changes: NestedChanges,
 }
@@ -784,6 +895,7 @@ impl ChangedRegion {
         match change {
             Change::Replace(SyntaxElement::Node(target), replacement) => Some(Self {
                 range: target.text_range(),
+                target: Some(target.clone()),
                 change_index,
                 nested_changes: if !discarded && matches!(replacement, Some(SyntaxElement::Node(_)))
                 {
@@ -794,18 +906,37 @@ impl ChangedRegion {
             }),
             Change::ReplaceWithMany(SyntaxElement::Node(target), _) => Some(Self {
                 range: target.text_range(),
+                target: Some(target.clone()),
                 change_index,
                 nested_changes: NestedChanges::Discard,
             }),
             Change::ReplaceAll(elements, _) => Some(Self {
                 range: TextRange::new(
-                    elements.start().text_range().start(),
-                    elements.end().text_range().end(),
+                    elements.start().text_range_including_trivia().start(),
+                    elements.end().text_range_including_trivia().end(),
                 ),
+                target: None,
                 change_index,
                 nested_changes: NestedChanges::Discard,
             }),
             _ => None,
+        }
+    }
+
+    fn contains(&self, change: &Change) -> bool {
+        let range = change.target_range();
+        if !self.range.contains_range(range) {
+            return false;
+        }
+        match (&self.target, change) {
+            (Some(target), Change::Insert(position, _) | Change::InsertAll(position, _)) => {
+                super::is_ancestor_or_self(&position.parent(), target)
+            }
+            (None, Change::Insert(..) | Change::InsertAll(..)) => {
+                range.start() > self.range.start() && range.end() < self.range.end()
+            }
+            (Some(target), _) => super::is_ancestor_or_self(&change.target_parent(), target),
+            _ => true,
         }
     }
 }

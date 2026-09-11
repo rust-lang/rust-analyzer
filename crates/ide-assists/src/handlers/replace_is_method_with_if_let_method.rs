@@ -66,7 +66,7 @@ pub(crate) fn replace_is_method_with_if_let_method(
             acc.add(
                 AssistId::refactor_rewrite(assist_id),
                 message,
-                call_expr.syntax().text_range(),
+                call_expr.syntax().text_range_without_outer_trivia(),
                 |edit| {
                     let make = editor.make();
                     let pat = make.tuple_struct_pat(make.ident_path(text), [pat]).into();

@@ -196,6 +196,7 @@ macro_rules! STRUCT {
     );
 }
 
+// from https://github.com/retep998/winapi-rs/blob/a7ef2bca086aae76cf6c4ce4c2552988ed9798ad/src/shared/d3d9caps.rs
 #[repr(C)]
 #[derive(Copy)] pub struct D3DVSHADERCAPS2_0 {
     pub Caps: u8,
@@ -920,6 +921,7 @@ macro_rules! rgb_color {
         }
     };
 }
+// +tree +errors
 /* parse error: expected type */
 /* parse error: expected R_PAREN */
 /* parse error: expected R_ANGLE */

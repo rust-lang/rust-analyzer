@@ -1,23 +1,18 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "foo"
-      WHITESPACE " "
+            IDENT "foo" [] [WHITESPACE(" ")]
       RENAME
-        AS_KW "as"
-        WHITESPACE " "
+        AS_KW "as" [] [WHITESPACE(" ")]
         NAME
           IDENT "bar"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
@@ -30,36 +25,29 @@ SOURCE_FILE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "a"
-          WHITESPACE " "
+                IDENT "a" [] [WHITESPACE(" ")]
           RENAME
-            AS_KW "as"
-            WHITESPACE " "
+            AS_KW "as" [] [WHITESPACE(" ")]
             NAME
               IDENT "b"
-        COMMA ","
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
         USE_TREE
           STAR "*"
-        COMMA ","
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
         USE_TREE
           COLON2 "::"
           STAR "*"
-        COMMA ","
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
         USE_TREE
           PATH
             PATH_SEGMENT
               COLON2 "::"
               NAME_REF
-                IDENT "foo"
-          WHITESPACE " "
+                IDENT "foo" [] [WHITESPACE(" ")]
           RENAME
-            AS_KW "as"
-            WHITESPACE " "
+            AS_KW "as" [] [WHITESPACE(" ")]
             NAME
               IDENT "x"
         R_CURLY "}"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

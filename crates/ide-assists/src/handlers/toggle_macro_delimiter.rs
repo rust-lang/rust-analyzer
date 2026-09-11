@@ -1,9 +1,5 @@
 use ide_db::assists::AssistId;
-use syntax::{
-    AstNode, SyntaxKind, SyntaxToken, T,
-    algo::{previous_non_trivia_token, skip_trivia_token},
-    ast,
-};
+use syntax::{AstNode, SyntaxKind, SyntaxToken, T, ast};
 
 use crate::{AssistContext, Assists};
 
@@ -72,27 +68,34 @@ pub(crate) fn toggle_macro_delimiter(acc: &mut Assists, ctx: &AssistContext<'_, 
             MacroDelims::LBra | MacroDelims::RBra => "Replace delimiters with parentheses",
             MacroDelims::LCur | MacroDelims::RCur => "Replace delimiters with brackets",
         },
-        token_tree.syntax().text_range(),
+        token_tree.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(token_tree.syntax());
             let make = editor.make();
 
             match token {
                 MacroDelims::LPar | MacroDelims::RPar => {
-                    editor.replace(ltoken, make.token(T!['{']));
-                    editor.replace(rtoken, make.token(T!['}']));
+                    editor.replace_token(&ltoken, &make.token(T!['{']));
+                    editor.replace_token(&rtoken, &make.token(T!['}']));
                     if let Some(sc) = semicolon {
+                        let trailing: Vec<_> =
+                            rtoken.trailing_trivia().chain(sc.trailing_trivia()).collect();
+                        editor.splice_trailing_trivia(
+                            &rtoken,
+                            ..,
+                            trailing.iter().map(|it| (it.kind(), it.text())),
+                        );
                         editor.delete(sc);
                     }
                 }
                 MacroDelims::LBra | MacroDelims::RBra => {
-                    editor.replace(ltoken, make.token(T!['(']));
-                    editor.replace(rtoken, make.token(T![')']));
+                    editor.replace_token(&ltoken, &make.token(T!['(']));
+                    editor.replace_token(&rtoken, &make.token(T![')']));
                 }
                 MacroDelims::LCur | MacroDelims::RCur => {
-                    editor.replace(ltoken, make.token(T!['[']));
+                    editor.replace_token(&ltoken, &make.token(T!['[']));
                     if semicolon.is_some() || !needs_semicolon(token_tree) {
-                        editor.replace(rtoken, make.token(T![']']));
+                        editor.replace_token(&rtoken, &make.token(T![']']));
                     } else {
                         editor.replace_with_many(
                             rtoken,
@@ -112,14 +115,13 @@ fn is_macro_call(token_tree: &ast::TokenTree) -> Option<bool> {
         return Some(true);
     }
 
-    let prev = previous_non_trivia_token(token_tree.syntax().clone())?;
-    let prev_prev = previous_non_trivia_token(prev.clone())?;
+    let prev = token_tree.syntax().prev_non_trivia_token()?;
+    let prev_prev = prev.prev_non_trivia_token()?;
     Some(prev.kind() == T![!] && prev_prev.kind() == SyntaxKind::IDENT)
 }
 
 fn macro_semicolon(token_tree: &ast::TokenTree) -> Option<SyntaxToken> {
-    let next_token = token_tree.syntax().last_token()?.next_token()?;
-    skip_trivia_token(next_token, syntax::Direction::Next).filter(|it| it.kind() == T![;])
+    token_tree.syntax().next_non_trivia_token().filter(|it| it.kind() == T![;])
 }
 
 fn needs_semicolon(tt: ast::TokenTree) -> bool {

@@ -31,7 +31,7 @@ pub(super) fn fn_hints(
     let param_list = func.param_list()?;
     let generic_param_list = func.generic_param_list();
     let ret_type = func.ret_type();
-    let gpl_append_range = func.name()?.syntax().text_range();
+    let gpl_append_range = func.name()?.syntax().text_range_without_outer_trivia();
     hints_(
         acc,
         ctx,
@@ -110,7 +110,7 @@ pub(super) fn fn_ptr_hints(
             let for_ = if has_for { "" } else { "for" };
             acc.push(InlayHint {
                 range: for_kw.map_or_else(
-                    || func.syntax().first_token().unwrap().text_range(),
+                    || func.syntax().first_non_trivia_token().unwrap().text_range(),
                     |it| it.text_range(),
                 ),
                 kind: InlayKind::GenericParamList,
@@ -167,7 +167,7 @@ pub(super) fn fn_path_hints(
             let for_ = if has_for { "" } else { "for" };
             acc.push(InlayHint {
                 range: for_kw.map_or_else(
-                    || func.syntax().first_token().unwrap().text_range(),
+                    || func.syntax().first_non_trivia_token().unwrap().text_range(),
                     |it| it.text_range(),
                 ),
                 kind: InlayKind::GenericParamList,

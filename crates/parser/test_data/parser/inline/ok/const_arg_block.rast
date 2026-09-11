@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "T" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -20,13 +17,11 @@ SOURCE_FILE
                   L_CURLY "{"
                   BIN_EXPR
                     LITERAL
-                      INT_NUMBER "90"
-                    WHITESPACE " "
-                    PLUS "+"
-                    WHITESPACE " "
+                      INT_NUMBER "90" [] [WHITESPACE(" ")]
+                    PLUS "+" [] [WHITESPACE(" ")]
                     LITERAL
                       INT_NUMBER "2"
                   R_CURLY "}"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

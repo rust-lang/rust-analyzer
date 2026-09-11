@@ -1,49 +1,39 @@
 SOURCE_FILE
-  COMMENT "// 2021"
-  WHITESPACE "\n"
   ERROR
     PATH
       PATH_SEGMENT
         NAME_REF
-          IDENT "gen"
-  WHITESPACE " "
+          IDENT "gen" [COMMENT("// 2021"), NEWLINE("\n")] [WHITESPACE(" ")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "gen_fn"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
   ERROR
-    ASYNC_KW "async"
-  WHITESPACE " "
+    ASYNC_KW "async" [] [WHITESPACE(" ")]
   ERROR
     PATH
       PATH_SEGMENT
         NAME_REF
-          IDENT "gen"
-  WHITESPACE " "
+          IDENT "gen" [] [WHITESPACE(" ")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "async_gen_fn"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 11: expected an item
 error 32: expected fn, trait or impl
 error 36: expected an item

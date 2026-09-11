@@ -1,51 +1,37 @@
 SOURCE_FILE
   MODULE
-    MOD_KW "mod"
-    WHITESPACE " "
+    MOD_KW "mod" [] [WHITESPACE(" ")]
     NAME
-      IDENT "c"
-    WHITESPACE " "
+      IDENT "c" [] [WHITESPACE(" ")]
     ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
           IDENT "foo"
         PARAM_LIST
           L_PAREN "("
-          R_PAREN ")"
-        WHITESPACE " "
+          R_PAREN ")" [] [WHITESPACE(" ")]
         BLOCK_EXPR
           STMT_LIST
-            L_CURLY "{"
-            WHITESPACE "\n    "
-            R_CURLY "}"
-      WHITESPACE "\n    "
+            L_CURLY "{" [] [NEWLINE("\n")]
+            R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
       STRUCT
-        STRUCT_KW "struct"
-        WHITESPACE " "
+        STRUCT_KW "struct" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
-          IDENT "S"
-        WHITESPACE " "
+          IDENT "S" [] [WHITESPACE(" ")]
         RECORD_FIELD_LIST
           L_CURLY "{"
-          R_CURLY "}"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n\n"
+          R_CURLY "}" [] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
   MODULE
-    MOD_KW "mod"
-    WHITESPACE " "
+    MOD_KW "mod" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "d"
-    WHITESPACE " "
+      IDENT "d" [] [WHITESPACE(" ")]
     ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       ATTR
-        POUND "#"
+        POUND "#" [WHITESPACE("    ")] []
         BANG "!"
         L_BRACK "["
         PATH_META
@@ -53,25 +39,18 @@ SOURCE_FILE
             PATH_SEGMENT
               NAME_REF
                 IDENT "attr"
-        R_BRACK "]"
-      WHITESPACE "\n    "
+        R_BRACK "]" [] [NEWLINE("\n")]
       MODULE
-        MOD_KW "mod"
-        WHITESPACE " "
+        MOD_KW "mod" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
           IDENT "e"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+        SEMICOLON ";" [] [NEWLINE("\n")]
       MODULE
-        MOD_KW "mod"
-        WHITESPACE " "
+        MOD_KW "mod" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
-          IDENT "f"
-        WHITESPACE " "
+          IDENT "f" [] [WHITESPACE(" ")]
         ITEM_LIST
-          L_CURLY "{"
-          WHITESPACE "\n    "
-          R_CURLY "}"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n"
+          L_CURLY "{" [] [NEWLINE("\n")]
+          R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

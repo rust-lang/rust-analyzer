@@ -31,7 +31,7 @@ pub(crate) fn add_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
             FnType::Function => "Add this function's return type",
             FnType::Closure { .. } => "Add this closure's return type",
         },
-        tail_expr.syntax().text_range(),
+        tail_expr.syntax().text_range_without_outer_trivia(),
         |builder| {
             match builder_edit_pos {
                 InsertOrReplace::Insert(insert_pos, needs_whitespace) => {
@@ -45,7 +45,10 @@ pub(crate) fn add_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
             if let FnType::Closure { wrap_expr: true } = fn_type {
                 cov_mark::hit!(wrap_closure_non_block_expr);
                 // `|x| x` becomes `|x| -> T x` which is invalid, so wrap it in a block
-                builder.replace(tail_expr.syntax().text_range(), format!("{{{tail_expr}}}"));
+                builder.replace(
+                    tail_expr.syntax().text_range_without_outer_trivia(),
+                    format!("{{{tail_expr}}}"),
+                );
             }
         },
     )
@@ -67,7 +70,7 @@ fn ret_ty_to_action(
             Some(ast::Type::InferType(_)) | None => {
                 cov_mark::hit!(existing_infer_ret_type);
                 cov_mark::hit!(existing_infer_ret_type_closure);
-                Some(InsertOrReplace::Replace(ret_ty.syntax().text_range()))
+                Some(InsertOrReplace::Replace(ret_ty.syntax().text_range_without_outer_trivia()))
             }
             _ => {
                 cov_mark::hit!(existing_ret_type);
@@ -137,13 +140,13 @@ fn extract_tail(ctx: &AssistContext<'_, '_>) -> Option<(FnType, ast::Expr, Inser
     let node = ctx.find_node_at_offset::<Either<ast::ClosureExpr, ast::Fn>>()?;
     let (fn_type, tail_expr, return_type_range, action) = match node {
         Either::Left(closure) => {
-            let rpipe = closure.param_list()?.syntax().last_token()?;
+            let rpipe = closure.param_list()?.syntax().last_non_trivia_token()?;
             let rpipe_pos = rpipe.text_range().end();
 
             let action = ret_ty_to_action(closure.ret_type(), rpipe)?;
 
             let body = closure.body()?;
-            let body_start = body.syntax().first_token()?.text_range().start();
+            let body_start = body.syntax().first_non_trivia_token()?.text_range().start();
             let (tail_expr, wrap_expr) = match body {
                 ast::Expr::BlockExpr(block) => (block.tail_expr()?, false),
                 body => (body, true),
@@ -170,7 +173,7 @@ fn extract_tail(ctx: &AssistContext<'_, '_>) -> Option<(FnType, ast::Expr, Inser
     if return_type_range.contains_range(range) {
         cov_mark::hit!(cursor_in_ret_position);
         cov_mark::hit!(cursor_in_ret_position_closure);
-    } else if tail_expr.syntax().text_range().contains_range(range) {
+    } else if tail_expr.syntax().text_range_without_outer_trivia().contains_range(range) {
         cov_mark::hit!(cursor_on_tail);
         cov_mark::hit!(cursor_on_tail_closure);
     } else {

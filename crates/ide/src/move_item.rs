@@ -1,7 +1,6 @@
 use std::{iter::once, mem};
 
 use hir::Semantics;
-use ide_db::syntax_helpers::tree_diff::diff;
 use ide_db::text_edit::{TextEdit, TextEditBuilder};
 use ide_db::{FileRange, RootDatabase, helpers::pick_best_token};
 use itertools::Itertools;
@@ -36,7 +35,6 @@ pub(crate) fn move_item(
             file.syntax().token_at_offset(range.range.start()),
             |kind| match kind {
                 SyntaxKind::IDENT | SyntaxKind::LIFETIME_IDENT => 2,
-                kind if kind.is_trivia() => 0,
                 _ => 1,
             },
         )?)
@@ -120,8 +118,8 @@ fn swap_sibling_in_list<A: AstNode + Clone, I: Iterator<Item = A>>(
     direction: Direction,
 ) -> Option<TextEdit> {
     let list_lookup = list.array_windows().find(|[l, r]| match direction {
-        Direction::Up => r.syntax().text_range().contains_range(range),
-        Direction::Down => l.syntax().text_range().contains_range(range),
+        Direction::Up => r.syntax().text_range_without_outer_trivia().contains_range(range),
+        Direction::Down => l.syntax().text_range_without_outer_trivia().contains_range(range),
     });
 
     if let Some([l, r]) = list_lookup {
@@ -139,33 +137,63 @@ fn replace_nodes<'a>(
     mut first: &'a SyntaxNode,
     mut second: &'a SyntaxNode,
 ) -> TextEdit {
-    let cursor_offset = if range.is_empty() {
+    let with_attached_comments = |node: &SyntaxNode| {
+        let core = node.text_range_without_outer_trivia();
+        let mut start = core.start();
+        let mut newlines = 0;
+        for trivia_token in node
+            .first_non_trivia_token()
+            .into_iter()
+            .flat_map(|it| it.leading_trivia())
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+        {
+            match trivia_token.kind() {
+                SyntaxKind::NEWLINE if newlines == 1 => break,
+                SyntaxKind::NEWLINE => newlines += 1,
+                SyntaxKind::COMMENT => {
+                    start = trivia_token.text_range().start();
+                    newlines = 0;
+                }
+                _ => (),
+            }
+        }
+        TextRange::new(start, core.end())
+    };
+    let text = |node: &SyntaxNode, range: TextRange| {
+        node.text().slice(range - node.text_range().start()).to_string()
+    };
+
+    let cursor = if range.is_empty() {
         // FIXME: `applySnippetTextEdits` does not support non-empty selection ranges
-        if first.text_range().contains_range(range) {
-            Some(range.start() - first.text_range().start())
-        } else if second.text_range().contains_range(range) {
+        if first.text_range_without_outer_trivia().contains_range(range) {
+            Some(range.start())
+        } else if second.text_range_without_outer_trivia().contains_range(range) {
             mem::swap(&mut first, &mut second);
-            Some(range.start() - first.text_range().start())
+            Some(range.start())
         } else {
             None
         }
     } else {
         None
     };
+    let first_range = with_attached_comments(first);
+    let second_range = with_attached_comments(second);
 
-    let first_with_cursor = match cursor_offset {
-        Some(offset) => {
-            let mut item_text = first.text().to_string();
-            item_text.insert_str(offset.into(), "$0");
+    let first_with_cursor = match cursor {
+        Some(cursor) => {
+            let mut item_text = text(first, first_range);
+            item_text.insert_str((cursor - first_range.start()).into(), "$0");
             item_text
         }
-        None => first.text().to_string(),
+        None => text(first, first_range),
     };
 
     let mut edit = TextEditBuilder::default();
 
-    diff(first, second).into_text_edit(&mut edit);
-    edit.replace(second.text_range(), first_with_cursor);
+    edit.replace(first_range, text(second, second_range));
+    edit.replace(second_range, first_with_cursor);
 
     edit.finish()
 }

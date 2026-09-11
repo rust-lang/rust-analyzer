@@ -160,7 +160,10 @@ fn expand_macro_recur(
         sema.hir_file_for(&expanded).macro_file().expect("expansion must produce a macro file");
     let expansion_span_map = file_id.expansion_span_map(sema.db);
     result_span_map.merge(
-        TextRange::at(offset_in_original_node, macro_call.syntax().text_range().len()),
+        TextRange::at(
+            offset_in_original_node,
+            macro_call.syntax().text_range_without_outer_trivia().len(),
+        ),
         expanded.text_range().len(),
         expansion_span_map,
     );
@@ -185,13 +188,14 @@ fn expand(
             error,
             result_span_map,
             TextSize::new(
-                (offset_in_original_node + (u32::from(child.syntax().text_range().start()) as i32))
+                (offset_in_original_node
+                    + (u32::from(child.syntax().text_range_without_outer_trivia().start()) as i32))
                     as u32,
             ),
         ) {
             offset_in_original_node = offset_in_original_node
                 + (u32::from(new_node.text_range().len()) as i32)
-                - (u32::from(child.syntax().text_range().len()) as i32);
+                - (u32::from(child.syntax().text_range_without_outer_trivia().len()) as i32);
             // check if the whole original syntax is replaced
             if expanded == *child.syntax() {
                 return new_node;

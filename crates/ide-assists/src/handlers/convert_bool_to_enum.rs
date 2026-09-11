@@ -58,24 +58,25 @@ pub(crate) fn convert_bool_to_enum(acc: &mut Assists, ctx: &AssistContext<'_, '_
         find_bool_node(ctx)?;
     let target_module = ctx.sema.scope(&target_node)?.module().nearest_non_block_module(ctx.db());
 
-    let target = name.syntax().text_range();
+    let target = name.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("convert_bool_to_enum"),
         "Convert boolean to enum",
         target,
         |edit| {
-            let make = SyntaxFactory::without_mappings();
+            let editor = edit.make_editor(&target_node);
+            let make = editor.make();
             if let Some(ty) = &ty_annotation {
                 cov_mark::hit!(replaces_ty_annotation);
-                edit.replace(ty.syntax().text_range(), "Bool");
+                edit.replace(ty.syntax().text_range_without_outer_trivia(), "Bool");
             }
 
             if let Some(initializer) = initializer {
-                replace_bool_expr(edit, initializer, &make);
+                replace_bool_expr(edit, initializer, make);
             }
 
             let usages = definition.usages(&ctx.sema).all();
-            add_enum_def(edit, ctx, &usages, target_node, &target_module, &make);
+            add_enum_def(edit, ctx, &usages, target_node, &target_module, make);
             let mut delayed_mutations = Vec::new();
             replace_usages(
                 edit,
@@ -84,7 +85,7 @@ pub(crate) fn convert_bool_to_enum(acc: &mut Assists, ctx: &AssistContext<'_, '_
                 definition,
                 &target_module,
                 &mut delayed_mutations,
-                &make,
+                make,
             );
             for (file_id, scope, path) in delayed_mutations {
                 let editor = edit.make_editor(scope.as_syntax_node());
@@ -182,9 +183,9 @@ fn find_bool_node<'db>(ctx: &AssistContext<'_, 'db>) -> Option<BoolNodeData<'db>
 }
 
 fn replace_bool_expr(edit: &mut SourceChangeBuilder, expr: ast::Expr, make: &SyntaxFactory) {
-    let expr_range = expr.syntax().text_range();
+    let expr_range = expr.syntax().text_range_without_outer_trivia();
     let enum_expr = bool_expr_to_enum_expr(expr, make);
-    edit.replace(expr_range, enum_expr.syntax().text())
+    edit.replace(expr_range, enum_expr.syntax().text_without_outer_trivia())
 }
 
 /// Converts an expression of type `bool` to one of the new enum type.
@@ -251,7 +252,7 @@ fn replace_usages(
                     cov_mark::hit!(replaces_negation);
 
                     edit.replace(
-                        prefix_expr.syntax().text_range(),
+                        prefix_expr.syntax().text_range_without_outer_trivia(),
                         format!("{inner_expr} == Bool::False"),
                     );
                 } else if let Some((record_field, initializer)) = name
@@ -296,11 +297,11 @@ fn replace_usages(
                         _ => (),
                     }
                 } else if let Some((ty_annotation, initializer)) = find_assoc_const_usage(&name) {
-                    edit.replace(ty_annotation.syntax().text_range(), "Bool");
+                    edit.replace(ty_annotation.syntax().text_range_without_outer_trivia(), "Bool");
                     replace_bool_expr(edit, initializer, make);
                 } else if let Some(receiver) = find_method_call_expr_usage(&name) {
                     edit.replace(
-                        receiver.syntax().text_range(),
+                        receiver.syntax().text_range_without_outer_trivia(),
                         format!("({receiver} == Bool::True)"),
                     );
                 } else if name.syntax().ancestors().find_map(ast::UseTree::cast).is_none() {
@@ -504,8 +505,8 @@ fn add_enum_def(
     let enum_def = make_bool_enum(make_enum_pub, make).reset_indent().indent(indent);
 
     edit.insert(
-        insert_before.text_range().start(),
-        format!("{}\n\n{indent}", enum_def.syntax().text()),
+        insert_before.text_range_without_outer_trivia().start(),
+        format!("{}\n\n{indent}", enum_def.syntax().text_without_outer_trivia()),
     );
 
     Some(())
@@ -524,14 +525,14 @@ fn node_to_insert_before(target_node: SyntaxNode) -> SyntaxNode {
 }
 
 fn make_bool_enum(make_pub: bool, make: &SyntaxFactory) -> ast::Enum {
+    let separator = make.with_trailing_trivia(make.token(T![,]), " ");
     let derive_eq = make.attr_outer(make.meta_token_tree(
         make.ident_path("derive"),
         make.token_tree(
             T!['('],
             vec![
                 NodeOrToken::Token(make.ident("PartialEq")),
-                NodeOrToken::Token(make.token(T![,])),
-                NodeOrToken::Token(make.whitespace(" ")),
+                NodeOrToken::Token(separator.into_token().unwrap()),
                 NodeOrToken::Token(make.ident("Eq")),
             ],
         ),

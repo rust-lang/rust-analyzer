@@ -20,14 +20,13 @@ SOURCE_FILE
     PATH
       PATH_SEGMENT
         NAME_REF
-          IDENT "env"
-  WHITESPACE " "
+          IDENT "env" [] [WHITESPACE(" ")]
   ERROR
     PATH
       PATH_SEGMENT
         NAME_REF
-          IDENT "rusti"
-  WHITESPACE "\n"
+          IDENT "rusti" [] [NEWLINE("\n")]
+  EOF ""
 error 23: expected L_BRACK
 error 23: expected an item
 error 27: expected one of `*`, `::`, `{`, `self`, `super` or an identifier

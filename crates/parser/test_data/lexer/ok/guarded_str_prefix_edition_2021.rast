@@ -1,4 +1,5 @@
 COMMENT "//@ edition: 2021"
-WHITESPACE "\n\n"
+NEWLINE "\n"
+NEWLINE "\n"
 POUND "#"
 STRING "\"foo\""

@@ -16,13 +16,9 @@ fn insert_impl(editor: &SyntaxEditor, impl_: &ast::Impl, nominal: &impl AstNodeE
     let indent = nominal.indent_level();
 
     let impl_ = impl_.indent(indent);
-    editor.insert_all(
+    editor.insert(
         Position::after(nominal.syntax()),
-        vec![
-            // Add a blank line after the ADT, and indentation for the impl to match the ADT
-            make.whitespace(&format!("\n\n{indent}")).into(),
-            impl_.syntax().clone().into(),
-        ],
+        make.with_leading_trivia(impl_.syntax(), &format!("\n\n{indent}")),
     );
 
     impl_
@@ -48,7 +44,7 @@ fn insert_impl(editor: &SyntaxEditor, impl_: &ast::Impl, nominal: &impl AstNodeE
 pub(crate) fn generate_impl(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let nominal = ctx.find_node_at_offset::<ast::Adt>()?;
     let name = nominal.name()?;
-    let target = nominal.syntax().text_range();
+    let target = nominal.syntax().text_range_without_outer_trivia();
 
     if ctx.find_node_at_offset::<ast::RecordFieldList>().is_some() {
         return None;
@@ -96,7 +92,7 @@ pub(crate) fn generate_impl(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
 pub(crate) fn generate_trait_impl(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let nominal = ctx.find_node_at_offset::<ast::Adt>()?;
     let name = nominal.name()?;
-    let target = nominal.syntax().text_range();
+    let target = nominal.syntax().text_range_without_outer_trivia();
 
     if ctx.find_node_at_offset::<ast::RecordFieldList>().is_some() {
         return None;
@@ -155,7 +151,7 @@ pub(crate) fn generate_impl_trait(acc: &mut Assists, ctx: &AssistContext<'_, '_>
     let target_scope = ctx.sema.scope(trait_.syntax())?;
     let hir_trait = ctx.sema.to_def(&trait_)?;
 
-    let target = trait_.syntax().text_range();
+    let target = trait_.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::generate("generate_impl_trait"),
         format!("Generate `{name}` impl for type"),

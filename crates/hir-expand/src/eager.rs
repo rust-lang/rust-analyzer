@@ -181,7 +181,7 @@ fn eager_macro_recur(
             WalkEvent::Leave(child) => {
                 if let SyntaxElement::Token(t) = child {
                     let start = t.text_range().start();
-                    offset += t.text_range().len();
+                    offset += t.text_range_including_trivia().len();
                     expanded_map.push(offset, span_map.span_at(start));
                 }
                 continue;

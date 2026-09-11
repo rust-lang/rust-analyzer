@@ -11,11 +11,11 @@ use std::ops::Range;
 use parser::{Edition, Reparser};
 
 use crate::{
-    SyntaxError,
+    SyntaxError, SyntaxKind,
     SyntaxKind::*,
     T, TextRange, TextSize,
     parsing::build_tree,
-    syntax_node::{GreenNode, GreenToken, NodeOrToken, SyntaxElement, SyntaxNode},
+    syntax_node::{GreenNode, NodeOrToken, SyntaxElement, SyntaxNode},
 };
 
 pub(crate) fn incremental_reparse(
@@ -49,18 +49,16 @@ fn reparse_token(
     insert: &str,
     edition: Edition,
 ) -> Option<(GreenNode, Vec<SyntaxError>, TextRange)> {
-    let prev_token = root.covering_element(delete).as_token()?.clone();
+    let mut prev_token = root.covering_element(delete).as_token()?.clone();
+    if prev_token.kind() == EOF {
+        prev_token = prev_token.prev_non_trivia_token()?;
+    }
+    if prev_token.is_trivia() || !prev_token.text_range().contains_range(delete) {
+        return None;
+    }
     let prev_token_kind = prev_token.kind();
     match prev_token_kind {
-        WHITESPACE | COMMENT | IDENT | STRING | BYTE_STRING | C_STRING => {
-            if prev_token_kind == WHITESPACE || prev_token_kind == COMMENT {
-                // removing a new line may extends previous token
-                let deleted_range = delete - prev_token.text_range().start();
-                if prev_token.text()[deleted_range].contains('\n') {
-                    return None;
-                }
-            }
-
+        IDENT | STRING | BYTE_STRING | C_STRING => {
             let mut new_text = get_text_after_edit(prev_token.clone().into(), delete, insert);
             let (new_token_kind, new_err) = parser::LexedStr::single_token(edition, &new_text)?;
 
@@ -82,7 +80,13 @@ fn reparse_token(
                 new_text.pop();
             }
 
-            let new_token = GreenToken::new(rowan::SyntaxKind(prev_token_kind.into()), &new_text);
+            let green = prev_token.green();
+            let new_token = rowan::GreenToken::with_trivia(
+                green.kind(),
+                &new_text,
+                green.leading_trivia().to_vec(),
+                green.trailing_trivia().to_vec(),
+            );
             let range = TextRange::up_to(TextSize::of(&new_text));
             Some((
                 prev_token.replace_with(new_token),
@@ -105,13 +109,27 @@ fn reparse_block(
 
     let lexed = parser::LexedStr::new(edition, text.as_str());
     let parser_input = lexed.to_input(edition);
-    if !is_balanced(&lexed) {
+    if !is_balanced(&lexed) || ends_in_open_comment(&lexed) {
         return None;
     }
 
     let tree_traversal = reparser.parse(&parser_input);
 
     let (green, new_parser_errors, _eof) = build_tree(lexed, tree_traversal);
+
+    let last = green.children().len().checked_sub(1)?;
+    let green = match green.children().next_back()? {
+        NodeOrToken::Token(token) if SyntaxKind::from(token.kind().0) == EOF => {
+            if !token.leading_trivia().is_empty() || !token.trailing_trivia().is_empty() {
+                return None;
+            }
+            green.remove_child(last)
+        }
+        _ => green,
+    };
+    if green.text_len() != TextSize::of(text.as_str()) {
+        return None;
+    }
 
     Some((node.replace_with(green), new_parser_errors, node.text_range()))
 }
@@ -141,12 +159,22 @@ fn find_reparsable_node(node: &SyntaxNode, range: TextRange) -> Option<(SyntaxNo
     })
 }
 
+fn ends_in_open_comment(lexed: &parser::LexedStr<'_>) -> bool {
+    let Some(last) = lexed.len().checked_sub(1) else { return false };
+    lexed.kind(last) == COMMENT
+        && (lexed.text(last).starts_with("//") || lexed.error(last).is_some())
+}
+
 fn is_balanced(lexed: &parser::LexedStr<'_>) -> bool {
-    if lexed.is_empty() || lexed.kind(0) != T!['{'] || lexed.kind(lexed.len() - 1) != T!['}'] {
+    let mut structural = (0..lexed.len()).filter(|&it| !lexed.kind(it).is_trivia());
+    let (Some(first), Some(last)) = (structural.next(), structural.next_back()) else {
+        return false;
+    };
+    if lexed.kind(first) != T!['{'] || lexed.kind(last) != T!['}'] {
         return false;
     }
     let mut balance = 0usize;
-    for i in 1..lexed.len() - 1 {
+    for i in first + 1..last {
         match lexed.kind(i) {
             T!['{'] => balance += 1,
             T!['}'] => {
@@ -198,7 +226,8 @@ mod tests {
     use super::*;
     use crate::{AstNode, Parse, SourceFile};
 
-    fn do_check(before: &str, replace_with: &str, reparsed_len: u32) {
+    fn do_check(before: &str, replace_with: &str, reparsed_len: impl Into<Option<u32>>) {
+        let reparsed_len = reparsed_len.into();
         let (range, before) = extract_range(before);
         let after = {
             let mut after = before.clone();
@@ -209,16 +238,29 @@ mod tests {
         let fully_reparsed = SourceFile::parse(&after, Edition::CURRENT);
         let incrementally_reparsed: Parse<SourceFile> = {
             let before = SourceFile::parse(&before, Edition::CURRENT);
-            let (green, new_errors, range) = incremental_reparse(
+            let reparsed = incremental_reparse(
                 before.tree().syntax(),
                 range,
                 replace_with,
                 before.errors.as_deref().unwrap_or_default().iter().cloned(),
                 Edition::CURRENT,
-            )
-            .unwrap();
-            assert_eq!(range.len(), reparsed_len.into(), "reparsed fragment has wrong length");
-            Parse::new(green, new_errors)
+            );
+            match reparsed {
+                Some((green, new_errors, reparsed_range)) => {
+                    if let Some(expected) = reparsed_len {
+                        assert_eq!(
+                            reparsed_range.len(),
+                            expected.into(),
+                            "reparsed fragment has wrong length"
+                        );
+                    }
+                    Parse::new(green, new_errors)
+                }
+                None => {
+                    assert!(reparsed_len.is_none(), "expected an incremental reparse");
+                    before.reparse(range, replace_with, Edition::CURRENT)
+                }
+            }
         };
 
         assert_eq_text!(
@@ -246,7 +288,7 @@ fn foo() {
 }
 ",
             "baz",
-            25,
+            26,
         );
         do_check(
             r"
@@ -255,7 +297,7 @@ struct Foo {
 }
 ",
             ",\n    g: (),",
-            14,
+            15,
         );
         do_check(
             r"
@@ -266,7 +308,7 @@ fn foo {
 }
 ",
             "62",
-            31, // FIXME: reparse only int literal here
+            32, // FIXME: reparse only int literal here
         );
         do_check(
             r"
@@ -275,7 +317,7 @@ mod foo {
 }
 ",
             "bar",
-            11,
+            12,
         );
 
         do_check(
@@ -294,7 +336,7 @@ impl IntoIterator<Item=i32> for Foo {
 }
 ",
             "n next(",
-            9,
+            10,
         );
         do_check(r"use a::b::{foo,$0,bar$0};", "baz", 10);
         do_check(
@@ -304,14 +346,14 @@ pub enum A {
 }
 ",
             "\nBar;\n",
-            11,
+            12,
         );
         do_check(
             r"
 foo!{a, b$0$0 d}
 ",
             ", c[3]",
-            8,
+            9,
         );
         do_check(
             r"
@@ -320,7 +362,7 @@ fn foo() {
 }
 ",
             "123",
-            14,
+            15,
         );
         do_check(
             r"
@@ -329,7 +371,7 @@ extern {
 }
 ",
             " exit(code: c_int)",
-            11,
+            12,
         );
     }
 
@@ -340,14 +382,22 @@ extern {
 fn foo() -> i32 { 1 }
 ",
             "\n\n\n   \n",
-            1,
+            None,
         );
         do_check(
             r"
 fn foo() -> $0$0 {}
 ",
             "  \n",
-            2,
+            None,
+        );
+        do_check(
+            r"
+fn f() {} // before
+    fn $0foo$0() {} // after
+",
+            "bar",
+            3,
         );
         do_check(
             r"
@@ -368,21 +418,14 @@ fn foo$0$0foo() {  }
 fn foo /* $0$0 */ () {}
 ",
             "some comment",
-            6,
+            None,
         );
         do_check(
             r"
 fn baz $0$0 () {}
 ",
             "    \t\t\n\n",
-            2,
-        );
-        do_check(
-            r"
-fn baz $0$0 () {}
-",
-            "    \t\t\n\n",
-            2,
+            None,
         );
         do_check(
             r#"
@@ -396,7 +439,7 @@ fn -> &str { "Hello$0$0" }
 fn -> &str { // "Hello$0$0"
 "#,
             ", world",
-            10,
+            None,
         );
         do_check(
             r##"

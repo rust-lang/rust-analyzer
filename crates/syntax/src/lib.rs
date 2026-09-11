@@ -355,21 +355,19 @@ fn api_walkthrough() {
     // The two properties each syntax node has is a `SyntaxKind`:
     assert_eq!(expr_syntax.kind(), SyntaxKind::BIN_EXPR);
 
-    // And text range:
-    assert_eq!(expr_syntax.text_range(), TextRange::new(32.into(), 37.into()));
+    assert_eq!(expr_syntax.text_range(), TextRange::new(20.into(), 38.into()));
+    assert_eq!(expr_syntax.text_range_without_outer_trivia(), TextRange::new(32.into(), 37.into()));
 
     // You can get node's text as a `SyntaxText` object, which will traverse the
     // tree collecting token's text:
     let text: SyntaxText = expr_syntax.text();
-    assert_eq!(text.to_string(), "1 + 1");
+    assert_eq!(expr_syntax.text_without_outer_trivia().to_string(), "1 + 1");
+    assert_eq!(text.to_string(), "            1 + 1\n");
 
     // There's a bunch of traversal methods on `SyntaxNode`:
     assert_eq!(expr_syntax.parent().as_ref(), Some(stmt_list.syntax()));
     assert_eq!(stmt_list.syntax().first_child_or_token().map(|it| it.kind()), Some(T!['{']));
-    assert_eq!(
-        expr_syntax.next_sibling_or_token().map(|it| it.kind()),
-        Some(SyntaxKind::WHITESPACE)
-    );
+    assert_eq!(expr_syntax.next_sibling_or_token().map(|it| it.kind()), Some(T!['}']));
 
     // As well as some iterator helpers:
     let f = expr_syntax.ancestors().find_map(ast::Fn::cast);
@@ -377,7 +375,7 @@ fn api_walkthrough() {
     assert!(expr_syntax.siblings_with_tokens(Direction::Next).any(|it| it.kind() == T!['}']));
     assert_eq!(
         expr_syntax.descendants_with_tokens().count(),
-        8, // 5 tokens `1`, ` `, `+`, ` `, `1`
+        6, // 3 tokens `1`, `+`, `1`
            // 2 child literal expressions: `1`, `1`
            // 1 the node itself: `1 + 1`
     );
@@ -389,7 +387,7 @@ fn api_walkthrough() {
         match event {
             WalkEvent::Enter(node) => {
                 let text = match &node {
-                    NodeOrToken::Node(it) => it.text().to_string(),
+                    NodeOrToken::Node(it) => it.text_without_outer_trivia().to_string(),
                     NodeOrToken::Token(it) => it.text().to_owned(),
                 };
                 format_to!(buf, "{:indent$}{:?} {:?}\n", " ", text, node.kind(), indent = indent);
@@ -405,9 +403,7 @@ fn api_walkthrough() {
 "1 + 1" BIN_EXPR
   "1" LITERAL
     "1" INT_NUMBER
-  " " WHITESPACE
   "+" PLUS
-  " " WHITESPACE
   "1" LITERAL
     "1" INT_NUMBER
 "#
@@ -424,7 +420,7 @@ fn api_walkthrough() {
         .syntax()
         .descendants()
         .filter_map(ast::Expr::cast)
-        .map(|expr| expr.syntax().text().to_string())
+        .map(|expr| expr.syntax().text_without_outer_trivia().to_string())
         .collect();
 
     // An alternative is to use a macro.
@@ -433,7 +429,7 @@ fn api_walkthrough() {
         match_ast! {
             match node {
                 ast::Expr(it) => {
-                    let res = it.syntax().text().to_string();
+                    let res = it.syntax().text_without_outer_trivia().to_string();
                     exprs_visit.push(res);
                 },
                 _ => (),

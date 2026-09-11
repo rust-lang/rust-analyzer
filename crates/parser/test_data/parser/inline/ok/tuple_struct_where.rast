@@ -1,7 +1,6 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S"
     GENERIC_PARAM_LIST
@@ -18,19 +17,16 @@ SOURCE_FILE
             PATH_SEGMENT
               NAME_REF
                 IDENT "T"
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE " "
+      WHERE_KW "where" [] [WHITESPACE(" ")]
       WHERE_PRED
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
                 IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -38,5 +34,5 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Clone"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

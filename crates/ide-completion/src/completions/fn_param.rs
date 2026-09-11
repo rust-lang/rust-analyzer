@@ -191,7 +191,9 @@ fn should_add_self_completions(
         return false;
     }
     match param_list.params().next() {
-        Some(first) => first.pat().is_some_and(|pat| pat.syntax().text_range().contains(cursor)),
+        Some(first) => first
+            .pat()
+            .is_some_and(|pat| pat.syntax().text_range_without_outer_trivia().contains(cursor)),
         None => true,
     }
 }
@@ -201,12 +203,12 @@ fn comma_wrapper(ctx: &CompletionContext<'_, '_>) -> Option<(impl Fn(&str) -> Sm
         ctx.original_token.parent_ancestors().find(|node| node.kind() == SyntaxKind::PARAM)?;
 
     let next_token_kind = {
-        let t = param.last_token()?.next_token()?;
+        let t = param.last_non_trivia_token()?.next_token()?;
         let t = algo::skip_whitespace_token(t, Direction::Next)?;
         t.kind()
     };
     let prev_token_kind = {
-        let t = param.first_token()?.prev_token()?;
+        let t = param.first_non_trivia_token()?.prev_token()?;
         let t = algo::skip_whitespace_token(t, Direction::Prev)?;
         t.kind()
     };
@@ -219,7 +221,10 @@ fn comma_wrapper(ctx: &CompletionContext<'_, '_>) -> Option<(impl Fn(&str) -> Sm
         matches!(prev_token_kind, SyntaxKind::COMMA | SyntaxKind::L_PAREN | SyntaxKind::PIPE);
     let leading = if has_leading_comma { "" } else { ", " };
 
-    Some((move |label: &_| format_smolstr!("{leading}{label}{trailing}"), param.text_range()))
+    Some((
+        move |label: &_| format_smolstr!("{leading}{label}{trailing}"),
+        param.text_range_without_outer_trivia(),
+    ))
 }
 
 fn is_simple_param(param: &ast::Param) -> bool {

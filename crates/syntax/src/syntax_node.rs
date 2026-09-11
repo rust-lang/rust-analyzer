@@ -10,7 +10,7 @@ use rowan::{GreenNodeBuilder, Language};
 
 use crate::{Parse, SyntaxError, SyntaxKind, TextSize};
 
-pub(crate) use rowan::{GreenNode, GreenToken, NodeOrToken};
+pub(crate) use rowan::{GreenNode, NodeOrToken};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RustLanguage {}
@@ -32,6 +32,21 @@ pub type SyntaxElement = rowan::SyntaxElement<RustLanguage>;
 pub type SyntaxNodeChildren = rowan::SyntaxNodeChildren<RustLanguage>;
 pub type SyntaxElementChildren = rowan::SyntaxElementChildren<RustLanguage>;
 pub type PreorderWithTokens = rowan::api::PreorderWithTokens<RustLanguage>;
+
+pub(crate) fn token_payload(
+    kind: SyntaxKind,
+    text: &str,
+    leading: Vec<rowan::GreenToken>,
+    trailing: Vec<rowan::GreenToken>,
+) -> SyntaxToken {
+    let token =
+        rowan::GreenToken::with_trivia(RustLanguage::kind_to_raw(kind), text, leading, trailing);
+    let root = SyntaxNode::new_root(GreenNode::new(
+        RustLanguage::kind_to_raw(SyntaxKind::ERROR),
+        [NodeOrToken::Token(token)],
+    ));
+    root.first_non_trivia_token().expect("the root was given a token")
+}
 
 #[derive(Default)]
 pub struct SyntaxTreeBuilder {
@@ -59,6 +74,21 @@ impl SyntaxTreeBuilder {
     pub fn token(&mut self, kind: SyntaxKind, text: &str) {
         let kind = RustLanguage::kind_to_raw(kind);
         self.inner.token(kind, text);
+    }
+
+    pub fn token_with_trivia(
+        &mut self,
+        kind: SyntaxKind,
+        text: &str,
+        leading: &[parser::Trivia<'_>],
+        trailing: &[parser::Trivia<'_>],
+    ) {
+        self.inner.token_with_trivia(
+            RustLanguage::kind_to_raw(kind),
+            text,
+            leading.iter().map(|it| (RustLanguage::kind_to_raw(it.kind), it.text)),
+            trailing.iter().map(|it| (RustLanguage::kind_to_raw(it.kind), it.text)),
+        );
     }
 
     pub fn start_node(&mut self, kind: SyntaxKind) {

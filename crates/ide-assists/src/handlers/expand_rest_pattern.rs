@@ -49,7 +49,7 @@ fn expand_record_rest_pattern(
     acc.add(
         AssistId::refactor_rewrite("expand_record_rest_pattern"),
         "Fill struct fields",
-        rest_pat.syntax().text_range(),
+        rest_pat.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(rest_pat.syntax());
             let make = editor.make();
@@ -126,7 +126,7 @@ fn expand_tuple_struct_rest_pattern(
     acc.add(
         AssistId::refactor_rewrite("expand_tuple_struct_rest_pattern"),
         "Fill tuple struct fields",
-        rest_pat.syntax().text_range(),
+        rest_pat.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(rest_pat.syntax());
             let make = editor.make();
@@ -188,7 +188,7 @@ fn expand_tuple_rest_pattern(
     acc.add(
         AssistId::refactor_rewrite("expand_tuple_rest_pattern"),
         "Fill tuple fields",
-        rest_pat.syntax().text_range(),
+        rest_pat.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(rest_pat.syntax());
             let make = editor.make();
@@ -249,7 +249,7 @@ fn expand_slice_rest_pattern(
     acc.add(
         AssistId::refactor_rewrite("expand_slice_rest_pattern"),
         "Fill slice fields",
-        rest_pat.syntax().text_range(),
+        rest_pat.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(rest_pat.syntax());
             let make = editor.make();

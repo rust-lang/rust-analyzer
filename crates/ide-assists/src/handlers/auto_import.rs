@@ -192,7 +192,7 @@ pub(super) fn find_importable_node<'db>(
                         ActiveParameter::at_arg(
                             &ctx.sema,
                             list,
-                            expr.syntax().text_range().start(),
+                            expr.syntax().text_range_without_outer_trivia().start(),
                         ).map(|ap| ap.ty)
                     },
                     ast::LetStmt(stmt) => {

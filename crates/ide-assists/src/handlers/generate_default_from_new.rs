@@ -69,7 +69,7 @@ pub(crate) fn generate_default_from_new(
         return None;
     }
 
-    let target = impl_.syntax().text_range();
+    let target = impl_.syntax().text_range_without_outer_trivia();
 
     acc.add(
         AssistId::generate("generate_default_from_new"),
@@ -82,12 +82,9 @@ pub(crate) fn generate_default_from_new(
             let indent = IndentLevel::from_node(impl_.syntax());
             let default_impl = default_impl.indent(indent);
 
-            editor.insert_all(
+            editor.insert(
                 Position::after(impl_.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                    default_impl.syntax().clone().into(),
-                ],
+                make.with_leading_trivia(default_impl.syntax().clone(), &format!("\n\n{indent}")),
             );
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },

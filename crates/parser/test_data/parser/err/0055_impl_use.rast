@@ -6,20 +6,18 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE "\n"
+        COLON ":" [] [NEWLINE("\n")]
         TYPE_BOUND_LIST
     ERROR
-      USE_KW "use"
-  WHITESPACE " "
+      USE_KW "use" [] [WHITESPACE(" ")]
   ERROR
     PATH
       PATH_SEGMENT
         NAME_REF
           IDENT "std"
   ERROR
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""
 error 8: expected R_ANGLE
 error 8: expected type
 error 11: expected `{`

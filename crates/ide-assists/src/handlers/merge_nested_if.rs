@@ -39,7 +39,7 @@ pub(crate) fn merge_nested_if(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
 
     let cond = expr.condition()?;
 
-    let cond_range = cond.syntax().text_range();
+    let cond_range = cond.syntax().text_range_without_outer_trivia();
 
     //check if the then branch is a nested if
     let then_branch = expr.then_branch()?;
@@ -62,21 +62,21 @@ pub(crate) fn merge_nested_if(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
 
     acc.add(AssistId::refactor_rewrite("merge_nested_if"), "Merge nested if", if_range, |edit| {
         let cond_text = if has_logic_op_or(&cond) {
-            format!("({})", cond.syntax().text())
+            format!("({})", cond.syntax().text_without_outer_trivia())
         } else {
-            cond.syntax().text().to_string()
+            cond.syntax().text_without_outer_trivia().to_string()
         };
 
         let nested_if_cond_text = if has_logic_op_or(&nested_if_cond) {
-            format!("({})", nested_if_cond.syntax().text())
+            format!("({})", nested_if_cond.syntax().text_without_outer_trivia())
         } else {
-            nested_if_cond.syntax().text().to_string()
+            nested_if_cond.syntax().text_without_outer_trivia().to_string()
         };
 
         let replace_cond = format!("{cond_text} && {nested_if_cond_text}");
 
         edit.replace(cond_range, replace_cond);
-        edit.replace_ast(then_branch, nested_if_then_branch.dedent(1.into()));
+        edit.replace_ast(then_branch, nested_if_then_branch.dedent(1.into()).detached());
     })
 }
 

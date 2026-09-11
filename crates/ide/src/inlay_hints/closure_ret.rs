@@ -35,7 +35,7 @@ pub(super) fn hints(
 
     let param_list = closure.param_list()?;
 
-    let resolve_parent = Some(closure.syntax().text_range());
+    let resolve_parent = Some(closure.syntax().text_range_without_outer_trivia());
     let descended_closure = sema.descend_node_into_attributes(closure.clone()).pop()?;
     let ty = sema.type_of_expr(&ast::Expr::ClosureExpr(descended_closure.clone()))?.adjusted();
     let callable = ty.as_callable(sema.db)?;
@@ -50,12 +50,17 @@ pub(super) fn hints(
         label.prepend_str(" -> ");
     }
 
-    let offset_to_insert_ty =
-        arrow.as_ref().map_or_else(|| param_list.syntax().text_range(), |t| t.text_range()).end();
+    let offset_to_insert_ty = arrow
+        .as_ref()
+        .map_or_else(|| param_list.syntax().text_range_without_outer_trivia(), |t| t.text_range())
+        .end();
 
     // Insert braces if necessary
     let insert_braces = |builder: &mut TextEditBuilder| {
-        if !has_block_body && let Some(range) = closure.body().map(|b| b.syntax().text_range()) {
+        if !has_block_body
+            && let Some(range) =
+                closure.body().map(|b| b.syntax().text_range_without_outer_trivia())
+        {
             builder.insert(range.start(), "{ ".to_owned());
             builder.insert(range.end(), " }".to_owned());
         }
@@ -72,7 +77,7 @@ pub(super) fn hints(
     );
 
     acc.push(InlayHint {
-        range: param_list.syntax().text_range(),
+        range: param_list.syntax().text_range_without_outer_trivia(),
         kind: InlayKind::Type,
         label,
         text_edit,

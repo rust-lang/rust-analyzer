@@ -65,14 +65,18 @@ pub(crate) fn generate_delegate_methods(
         Some(field) => {
             let field_name = field.name()?;
             let field_ty = field.ty()?;
-            (field_name.to_string(), field_ty, field.syntax().text_range())
+            (field_name.to_string(), field_ty, field.syntax().text_range_without_outer_trivia())
         }
         None => {
             let field = ctx.find_node_at_offset::<ast::TupleField>()?;
             let field_list = ctx.find_node_at_offset::<ast::TupleFieldList>()?;
             let field_list_index = field_list.fields().position(|it| it == field)?;
             let field_ty = field.ty()?;
-            (field_list_index.to_string(), field_ty, field.syntax().text_range())
+            (
+                field_list_index.to_string(),
+                field_ty,
+                field.syntax().text_range_without_outer_trivia(),
+            )
         }
     };
 
@@ -213,12 +217,12 @@ pub(crate) fn generate_delegate_methods(
                         let impl_def = impl_def.indent(indent);
 
                         // Insert the impl block.
-                        editor.insert_all(
+                        editor.insert(
                             Position::after(strukt.syntax()),
-                            vec![
-                                make.whitespace(&format!("\n\n{indent}")).into(),
-                                impl_def.syntax().clone().into(),
-                            ],
+                            make.with_leading_trivia(
+                                impl_def.syntax().clone(),
+                                &format!("\n\n{indent}"),
+                            ),
                         );
                         impl_def.assoc_item_list().and_then(|list| list.assoc_items().next())
                     }

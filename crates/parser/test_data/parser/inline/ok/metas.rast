@@ -8,8 +8,7 @@ SOURCE_FILE
         PATH_SEGMENT
           NAME_REF
             IDENT "simple_ident"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -24,8 +23,7 @@ SOURCE_FILE
         PATH_SEGMENT
           NAME_REF
             IDENT "path"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -34,14 +32,11 @@ SOURCE_FILE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "simple_ident_expr"
-      WHITESPACE " "
-      EQ "="
-      WHITESPACE " "
+            IDENT "simple_ident_expr" [] [WHITESPACE(" ")]
+      EQ "=" [] [WHITESPACE(" ")]
       LITERAL
         STRING "\"\""
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -60,14 +55,11 @@ SOURCE_FILE
         COLON2 "::"
         PATH_SEGMENT
           NAME_REF
-            IDENT "Expr"
-      WHITESPACE " "
-      EQ "="
-      WHITESPACE " "
+            IDENT "Expr" [] [WHITESPACE(" ")]
+      EQ "=" [] [WHITESPACE(" ")]
       LITERAL
         STRING "\"\""
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -79,14 +71,11 @@ SOURCE_FILE
             IDENT "simple_ident_tt"
       TOKEN_TREE
         L_PAREN "("
-        IDENT "a"
-        WHITESPACE " "
-        IDENT "b"
-        WHITESPACE " "
+        IDENT "a" [] [WHITESPACE(" ")]
+        IDENT "b" [] [WHITESPACE(" ")]
         IDENT "c"
         R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -98,14 +87,11 @@ SOURCE_FILE
             IDENT "simple_ident_tt"
       TOKEN_TREE
         L_BRACK "["
-        IDENT "a"
-        WHITESPACE " "
-        IDENT "b"
-        WHITESPACE " "
+        IDENT "a" [] [WHITESPACE(" ")]
+        IDENT "b" [] [WHITESPACE(" ")]
         IDENT "c"
         R_BRACK "]"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -117,14 +103,11 @@ SOURCE_FILE
             IDENT "simple_ident_tt"
       TOKEN_TREE
         L_CURLY "{"
-        IDENT "a"
-        WHITESPACE " "
-        IDENT "b"
-        WHITESPACE " "
+        IDENT "a" [] [WHITESPACE(" ")]
+        IDENT "b" [] [WHITESPACE(" ")]
         IDENT "c"
         R_CURLY "}"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -146,14 +129,11 @@ SOURCE_FILE
             IDENT "tt"
       TOKEN_TREE
         L_PAREN "("
-        IDENT "a"
-        WHITESPACE " "
-        IDENT "b"
-        WHITESPACE " "
+        IDENT "a" [] [WHITESPACE(" ")]
+        IDENT "b" [] [WHITESPACE(" ")]
         IDENT "c"
         R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -175,14 +155,11 @@ SOURCE_FILE
             IDENT "tt"
       TOKEN_TREE
         L_BRACK "["
-        IDENT "a"
-        WHITESPACE " "
-        IDENT "b"
-        WHITESPACE " "
+        IDENT "a" [] [WHITESPACE(" ")]
+        IDENT "b" [] [WHITESPACE(" ")]
         IDENT "c"
         R_BRACK "]"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -204,14 +181,11 @@ SOURCE_FILE
             IDENT "tt"
       TOKEN_TREE
         L_CURLY "{"
-        IDENT "a"
-        WHITESPACE " "
-        IDENT "b"
-        WHITESPACE " "
+        IDENT "a" [] [WHITESPACE(" ")]
+        IDENT "b" [] [WHITESPACE(" ")]
         IDENT "c"
         R_CURLY "}"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -225,8 +199,7 @@ SOURCE_FILE
             NAME_REF
               IDENT "simple_ident"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -245,8 +218,7 @@ SOURCE_FILE
             NAME_REF
               IDENT "path"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -258,15 +230,12 @@ SOURCE_FILE
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "simple_ident_expr"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
+              IDENT "simple_ident_expr" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
         LITERAL
           STRING "\"\""
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -288,15 +257,12 @@ SOURCE_FILE
           COLON2 "::"
           PATH_SEGMENT
             NAME_REF
-              IDENT "Expr"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
+              IDENT "Expr" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
         LITERAL
           STRING "\"\""
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -311,15 +277,12 @@ SOURCE_FILE
               IDENT "simple_ident_tt"
         TOKEN_TREE
           L_PAREN "("
-          IDENT "a"
-          WHITESPACE " "
-          IDENT "b"
-          WHITESPACE " "
+          IDENT "a" [] [WHITESPACE(" ")]
+          IDENT "b" [] [WHITESPACE(" ")]
           IDENT "c"
           R_PAREN ")"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -334,15 +297,12 @@ SOURCE_FILE
               IDENT "simple_ident_tt"
         TOKEN_TREE
           L_BRACK "["
-          IDENT "a"
-          WHITESPACE " "
-          IDENT "b"
-          WHITESPACE " "
+          IDENT "a" [] [WHITESPACE(" ")]
+          IDENT "b" [] [WHITESPACE(" ")]
           IDENT "c"
           R_BRACK "]"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -357,15 +317,12 @@ SOURCE_FILE
               IDENT "simple_ident_tt"
         TOKEN_TREE
           L_CURLY "{"
-          IDENT "a"
-          WHITESPACE " "
-          IDENT "b"
-          WHITESPACE " "
+          IDENT "a" [] [WHITESPACE(" ")]
+          IDENT "b" [] [WHITESPACE(" ")]
           IDENT "c"
           R_CURLY "}"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -390,15 +347,12 @@ SOURCE_FILE
               IDENT "tt"
         TOKEN_TREE
           L_PAREN "("
-          IDENT "a"
-          WHITESPACE " "
-          IDENT "b"
-          WHITESPACE " "
+          IDENT "a" [] [WHITESPACE(" ")]
+          IDENT "b" [] [WHITESPACE(" ")]
           IDENT "c"
           R_PAREN ")"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -423,15 +377,12 @@ SOURCE_FILE
               IDENT "tt"
         TOKEN_TREE
           L_BRACK "["
-          IDENT "a"
-          WHITESPACE " "
-          IDENT "b"
-          WHITESPACE " "
+          IDENT "a" [] [WHITESPACE(" ")]
+          IDENT "b" [] [WHITESPACE(" ")]
           IDENT "c"
           R_BRACK "]"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -456,12 +407,10 @@ SOURCE_FILE
               IDENT "tt"
         TOKEN_TREE
           L_CURLY "{"
-          IDENT "a"
-          WHITESPACE " "
-          IDENT "b"
-          WHITESPACE " "
+          IDENT "a" [] [WHITESPACE(" ")]
+          IDENT "b" [] [WHITESPACE(" ")]
           IDENT "c"
           R_CURLY "}"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
+  EOF ""

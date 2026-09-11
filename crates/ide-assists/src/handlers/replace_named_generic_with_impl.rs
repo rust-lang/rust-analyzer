@@ -37,7 +37,7 @@ pub(crate) fn replace_named_generic_with_impl(
     let type_bound_list = type_param.type_bound_list();
 
     let fn_ = type_param.syntax().ancestors().find_map(ast::Fn::cast)?;
-    let param_list_text_range = fn_.param_list()?.syntax().text_range();
+    let param_list_text_range = fn_.param_list()?.syntax().text_range_without_outer_trivia();
 
     let type_param_hir_def = ctx.sema.to_def(&type_param)?;
     let type_param_def = Definition::GenericParam(hir::GenericParam::TypeParam(type_param_hir_def));
@@ -64,7 +64,7 @@ pub(crate) fn replace_named_generic_with_impl(
         }
     }
 
-    let target = type_param.syntax().text_range();
+    let target = type_param.syntax().text_range_without_outer_trivia();
 
     acc.add(
         AssistId::refactor_rewrite("replace_named_generic_with_impl"),
@@ -161,7 +161,7 @@ fn find_usages<'db>(
     type_param_def: Definition<'db>,
     file_id: EditionedFileId,
 ) -> UsageSearchResult {
-    let file_range = FileRange { file_id, range: fn_.syntax().text_range() };
+    let file_range = FileRange { file_id, range: fn_.syntax().text_range_without_outer_trivia() };
     type_param_def.usages(sema).in_scope(&SearchScope::file_range(file_range)).all()
 }
 

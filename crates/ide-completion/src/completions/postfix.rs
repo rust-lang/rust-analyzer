@@ -13,7 +13,7 @@ use ide_db::{
     text_edit::TextEdit,
     ty_filter::TryEnum,
 };
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use stdx::never;
 use syntax::{
     SmolStr,
@@ -458,10 +458,17 @@ fn include_references(initial_element: &ast::Expr) -> (ast::Expr, String) {
                 .syntax()
                 .children_with_tokens()
                 .filter(|it| Some(it) != last_child_or_token.as_ref())
-                .flat_map(|it| {
-                    let has_ws = it.next_sibling_or_token().is_some_and(|it| it.kind().is_trivia());
-                    let need_ws = !has_ws && it.kind().is_any_identifier();
-                    itertools::chain([Either::Left(it)], need_ws.then_some(Either::Right(" ")))
+                .map(|it| {
+                    let text = match &it {
+                        syntax::NodeOrToken::Node(node) => {
+                            node.text_without_outer_trivia().to_string()
+                        }
+                        syntax::NodeOrToken::Token(token) => token.text().to_owned(),
+                    };
+                    match it.kind().is_any_identifier() {
+                        true => format!("{text} "),
+                        false => text,
+                    }
                 })
                 .format("")
                 .to_smolstr()
@@ -555,7 +562,7 @@ pub(crate) fn is_in_condition(it: &ast::Expr) -> bool {
                 ast::MatchGuard(guard) => guard.condition()? == *it,
                 ast::BinExpr(bin_expr) => (bin_expr.op_token()?.kind() == T![&&])
                     .then(|| is_in_condition(&bin_expr.into()))?,
-                ast::Expr(expr) => (expr.syntax().text_range().start() == it.syntax().text_range().start())
+                ast::Expr(expr) => (expr.syntax().text_range_without_outer_trivia().start() == it.syntax().text_range_without_outer_trivia().start())
                     .then(|| is_in_condition(&expr))?,
                 _ => return None,
             } })

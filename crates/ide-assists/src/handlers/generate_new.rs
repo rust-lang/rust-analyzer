@@ -67,7 +67,7 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
 
     let current_module = ctx.sema.scope(strukt.syntax())?.module();
 
-    let target = strukt.syntax().text_range();
+    let target = strukt.syntax().text_range_without_outer_trivia();
     acc.add(AssistId::generate("generate_new"), "Generate `new`", target, |builder| {
         let editor = builder.make_editor(strukt.syntax());
         let make = editor.make();
@@ -162,13 +162,15 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
 
             if let Some(l_curly) = impl_def.assoc_item_list().and_then(|list| list.l_curly_token())
             {
-                editor.insert_all(
+                editor.insert(
                     Position::after(l_curly),
-                    vec![
-                        make.whitespace(&format!("\n{}", impl_def.indent_level() + 1)).into(),
-                        fn_.syntax().clone().into(),
-                        make.whitespace("\n").into(),
-                    ],
+                    make.with_trailing_trivia(
+                        make.with_leading_trivia(
+                            fn_.syntax(),
+                            &format!("\n{}", impl_def.indent_level() + 1),
+                        ),
+                        "\n",
+                    ),
                 );
                 fn_.syntax().clone()
             } else {
@@ -185,12 +187,9 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
                     .indent(strukt.indent_level());
 
             // Insert it after the adt
-            editor.insert_all(
+            editor.insert(
                 Position::after(strukt.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent_level}")).into(),
-                    impl_def.syntax().clone().into(),
-                ],
+                make.with_leading_trivia(impl_def.syntax().clone(), &format!("\n\n{indent_level}")),
             );
             impl_def.syntax().clone()
         };

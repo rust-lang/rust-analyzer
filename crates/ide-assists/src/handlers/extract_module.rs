@@ -10,9 +10,7 @@ use ide_db::{
 use itertools::Itertools;
 use smallvec::SmallVec;
 use syntax::{
-    AstNode,
-    SyntaxKind::{self, WHITESPACE},
-    SyntaxNode, TextRange, TextSize,
+    AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize,
     algo::find_node_at_range,
     ast::{
         self, HasVisibility,
@@ -20,7 +18,7 @@ use syntax::{
         syntax_factory::SyntaxFactory,
     },
     match_ast,
-    syntax_editor::{Position, SyntaxEditor},
+    syntax_editor::SyntaxEditor,
 };
 
 use crate::{AssistContext, Assists};
@@ -72,10 +70,13 @@ pub(crate) fn extract_module(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
     let selection_range = ctx.selection_trimmed();
     let (mut module, module_text_range) = if let Some(item) = ast::Item::cast(node.clone()) {
         let module = extract_single_target(&item);
-        (module, node.text_range())
+        (module, node.text_range_without_outer_trivia())
     } else {
         let (module, range) = extract_child_target(&node, selection_range)?;
-        let module_text_range = range.start().text_range().cover(range.end().text_range());
+        let module_text_range = range
+            .start()
+            .text_range_without_outer_trivia()
+            .cover(range.end().text_range_without_outer_trivia());
         (module, module_text_range)
     };
     if module.body_items.is_empty() {
@@ -163,7 +164,7 @@ pub(crate) fn extract_module(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
                 };
 
                 for node_to_be_removed in nodes_to_be_removed {
-                    builder.delete(node_to_be_removed.text_range());
+                    builder.delete(node_to_be_removed.text_range_without_outer_trivia());
                     // Remove preceding indentation from node
                     if let Some(range) = indent_range_before_given_node(node_to_be_removed) {
                         builder.delete(range);
@@ -171,7 +172,7 @@ pub(crate) fn extract_module(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
                 }
 
                 builder.insert(
-                    impl_.syntax().text_range().end(),
+                    impl_.syntax().text_range_without_outer_trivia().end(),
                     format!("\n\n{old_item_indent}{module_def}"),
                 );
             } else {
@@ -202,7 +203,7 @@ fn generate_module_def(
             .collect_vec();
         let impl_reset = impl_.reset_indent();
         let (editor, impl_root) = SyntaxEditor::with_ast_node(&impl_reset);
-        let assoc_item_list = editor.make().assoc_item_list(assoc_items);
+        let assoc_item_list = make.assoc_item_list(assoc_items);
         if let Some(existing_list) = impl_root.assoc_item_list() {
             editor.replace(existing_list.syntax(), assoc_item_list.syntax());
         }
@@ -225,7 +226,7 @@ fn generate_module_def(
 
 fn make_use_stmt_of_node_with_super(node_syntax: &SyntaxNode, make: &SyntaxFactory) -> ast::Item {
     let super_path = make.ident_path("super");
-    let node_path = make.path_from_text(&node_syntax.to_string());
+    let node_path = make.path_from_text(&node_syntax.text_without_outer_trivia().to_string());
     let use_ = make.use_(
         [],
         None,
@@ -262,7 +263,7 @@ fn extract_child_target(
 ) -> Option<(Module, RangeInclusive<SyntaxNode>)> {
     let selected_nodes = node
         .children()
-        .filter(|node| selection_range.contains_range(node.text_range()))
+        .filter(|node| selection_range.contains_range(node.text_range_without_outer_trivia()))
         .filter_map(ast::Item::cast)
         .collect_vec();
     let start = selected_nodes.first()?.syntax().clone();
@@ -375,7 +376,9 @@ impl Module {
             syntax::NodeOrToken::Node(node) => node,
             syntax::NodeOrToken::Token(tok) => tok.parent().unwrap(), // won't panic
         };
-        let out_of_sel = |node: &SyntaxNode| !replace_range.contains_range(node.text_range());
+        let out_of_sel = |node: &SyntaxNode| {
+            !replace_range.contains_range(node.text_range_without_outer_trivia())
+        };
         let mut use_stmts_set = FxHashSet::default();
 
         for (file_id, refs) in node_def.usages(&ctx.sema).all() {
@@ -391,9 +394,10 @@ impl Module {
                     // handle usages in use_stmts which is in_sel
                     // check if `use` is top stmt in selection
                     if use_.syntax().parent().is_some_and(|parent| parent == covering_node)
-                        && use_stmts_set.insert(use_.syntax().text_range().start())
+                        && use_stmts_set
+                            .insert(use_.syntax().text_range_without_outer_trivia().start())
                     {
-                        let key = use_.syntax().text_range().start();
+                        let key = use_.syntax().text_range_without_outer_trivia().start();
                         let entry =
                             use_stmts_to_be_inserted.entry(key).or_insert_with(|| use_.clone());
                         let (editor, edit_root) = SyntaxEditor::with_ast_node(&*entry);
@@ -403,7 +407,10 @@ impl Module {
                                 .syntax()
                                 .descendants()
                                 .filter_map(ast::NameRef::cast)
-                                .filter(|seg| seg.syntax().to_string() == name_ref.to_string())
+                                .filter(|seg| {
+                                    seg.syntax().text_without_outer_trivia().to_string()
+                                        == name_ref.to_string()
+                                })
                                 .filter_map(|seg| {
                                     Some((
                                         seg.syntax().parent()?,
@@ -449,8 +456,9 @@ impl Module {
 
         for (_, field_owner) in record_field_parents {
             for desc in field_owner.descendants().filter_map(ast::RecordField::cast) {
-                let is_record_field_present =
-                    record_fields.clone().into_iter().any(|x| x.to_string() == desc.to_string());
+                let is_record_field_present = record_fields
+                    .iter()
+                    .any(|x| x.text_without_outer_trivia().to_string() == desc.to_string());
                 if is_record_field_present {
                     replacements.push((desc.visibility(), desc.syntax().clone()));
                 }
@@ -484,13 +492,10 @@ impl Module {
 
             let (editor, _) = SyntaxEditor::new(body_item.syntax().clone());
             for target in insert_targets {
-                editor.insert_all(
-                    Position::before(target),
-                    vec![
-                        make.visibility_pub_crate().syntax().clone().into(),
-                        make.whitespace(" ").into(),
-                    ],
-                );
+                let vis = editor
+                    .make()
+                    .with_trailing_trivia(make.visibility_pub_crate().syntax().clone(), " ");
+                editor.insert_taking_leading(target, vis);
             }
             *body_item = ast::Item::cast(editor.finish().new_root().clone()).unwrap();
         }
@@ -526,7 +531,7 @@ impl Module {
                     }
                 })
                 .for_each(|(node, def)| {
-                    if node_set.insert(node.to_string())
+                    if node_set.insert(node.text_without_outer_trivia().to_string())
                         && let Some(import) =
                             self.process_def_in_sel(def, &node, &module, ctx, make)
                     {
@@ -562,7 +567,8 @@ impl Module {
                 .filter(|x| find_node_at_range::<ast::Use>(file.syntax(), x.range).is_none())
                 .filter_map(|x| find_node_at_range::<ast::Path>(file.syntax(), x.range))
             {
-                let in_selection = selection_range.contains_range(x.syntax().text_range());
+                let in_selection =
+                    selection_range.contains_range(x.syntax().text_range_without_outer_trivia());
                 uses_exist_in_sel |= in_selection;
                 uses_exist_out_sel |= !in_selection;
 
@@ -587,7 +593,7 @@ impl Module {
             .flat_map(|(_, refs)| refs.into_iter().rev())
             .find_map(|fref| find_node_at_range(file.syntax(), fref.range));
         let use_stmt_not_in_sel = use_stmt.as_ref().is_some_and(|use_stmt| {
-            !selection_range.contains_range(use_stmt.syntax().text_range())
+            !selection_range.contains_range(use_stmt.syntax().text_range_without_outer_trivia())
         });
 
         let mut use_tree_paths: Option<Vec<ast::Path>> = None;
@@ -697,7 +703,9 @@ impl Module {
     ) -> Option<(Vec<ast::Path>, Option<TextRange>)> {
         let use_stmt = use_stmt?;
         for path_seg in use_stmt.syntax().descendants().filter_map(ast::PathSegment::cast) {
-            if path_seg.syntax().to_string() == node_syntax.to_string() {
+            if path_seg.syntax().text_without_outer_trivia().to_string()
+                == node_syntax.text_without_outer_trivia().to_string()
+            {
                 let mut use_tree_str = vec![path_seg.parent_path()];
                 get_use_tree_paths_from_path(path_seg.parent_path(), &mut use_tree_str);
 
@@ -706,7 +714,9 @@ impl Module {
                 //then includes it in the text range to remove it. But the comma only
                 //appears at the use_tree level
                 for use_tree in path_seg.syntax().ancestors().filter_map(ast::UseTree::cast) {
-                    if use_tree.syntax().to_string() == node_syntax.to_string() {
+                    if use_tree.syntax().text_without_outer_trivia().to_string()
+                        == node_syntax.text_without_outer_trivia().to_string()
+                    {
                         return Some((use_tree_str, Some(range_to_remove(use_tree.syntax()))));
                     }
                 }
@@ -756,7 +766,8 @@ fn check_def_in_mod_and_out_sel(
                     source.file_id.original_file(ctx.db()).file_id(ctx.db()) == curr_file_id
                 };
 
-                let in_sel = !selection_range.contains_range(source.value.syntax().text_range());
+                let in_sel = !selection_range
+                    .contains_range(source.value.syntax().text_range_without_outer_trivia());
                 return (have_same_parent, in_sel);
             }
         };
@@ -773,7 +784,8 @@ fn check_def_in_mod_and_out_sel(
             };
 
             if have_same_parent && let ModuleSource::Module(module_) = source.value {
-                let in_sel = !selection_range.contains_range(module_.syntax().text_range());
+                let in_sel = !selection_range
+                    .contains_range(module_.syntax().text_range_without_outer_trivia());
                 return (have_same_parent, in_sel);
             }
 
@@ -862,9 +874,12 @@ fn get_use_tree_paths_from_path(
 }
 
 fn indent_range_before_given_node(node: &SyntaxNode) -> Option<TextRange> {
-    node.siblings_with_tokens(syntax::Direction::Prev)
-        .find(|x| x.kind() == WHITESPACE)
-        .map(|x| x.text_range())
+    let start = node
+        .first_non_trivia_token()
+        .and_then(|it| it.prev_non_trivia_token())
+        .map_or_else(|| node.text_range().start(), |it| it.text_range().end());
+    let range = TextRange::new(start, node.text_range_without_outer_trivia().start());
+    (!range.is_empty()).then_some(range)
 }
 
 #[cfg(test)]

@@ -4,9 +4,7 @@ use ide_db::{
 };
 use itertools::Itertools;
 use syntax::{
-    Edition,
-    SyntaxKind::WHITESPACE,
-    T,
+    Edition, T,
     ast::{self, AstNode, HasName, syntax_factory::SyntaxFactory},
     syntax_editor::{Position, SyntaxEditor},
 };
@@ -138,7 +136,7 @@ fn add_assist(
     adt: &ast::Adt,
     current_edition: Edition,
 ) -> Option<()> {
-    let target = attr.syntax().text_range();
+    let target = attr.syntax().text_range_without_outer_trivia();
     let annotated_name = adt.name()?;
     let label_trait_path = match replace_trait_mod_path.as_ref() {
         Some(path) => {
@@ -184,7 +182,7 @@ fn add_assist(
             if let Some(first_assoc_item) = first_assoc_item {
                 if let ast::AssocItem::Fn(ref func) = first_assoc_item
                     && let Some(m) = func.syntax().descendants().find_map(ast::MacroCall::cast)
-                    && m.syntax().text() == "todo!()"
+                    && m.syntax().text_without_outer_trivia() == "todo!()"
                 {
                     // Make the `todo!()` a placeholder
                     editor.add_annotation(m.syntax(), builder.make_placeholder_snippet(cap));
@@ -202,10 +200,7 @@ fn add_assist(
             }
         }
 
-        editor.insert_all(
-            insert_after,
-            vec![make.whitespace("\n\n").into(), impl_def.syntax().clone().into()],
-        );
+        editor.insert(insert_after, make.with_leading_trivia(impl_def.syntax().clone(), "\n\n"));
         builder.add_file_edits(ctx.vfs_file_id(), editor);
     })
 }
@@ -296,7 +291,8 @@ fn update_attribute(
                 .collect::<Vec<_>>()
         });
         // ...which are interspersed with ", "
-        let tt = Itertools::intersperse(tt, vec![make.token(T![,]), make.whitespace(" ")]);
+        let separator = make.with_trailing_trivia(make.token(T![,]), " ").into_token();
+        let tt = Itertools::intersperse(tt, separator.into_iter().collect());
         // ...wrap them into the appropriate `NodeOrToken` variant
         let tt = tt.flatten().map(syntax::NodeOrToken::Token);
         // ...and make them into a flat list of tokens
@@ -305,15 +301,7 @@ fn update_attribute(
         let new_tree = make.token_tree(T!['('], tt);
         editor.replace(old_tree.syntax(), new_tree.syntax());
     } else {
-        // Remove the attr and any trailing whitespace
-
-        if let Some(line_break) =
-            attr.syntax().next_sibling_or_token().filter(|t| t.kind() == WHITESPACE)
-        {
-            editor.delete(line_break)
-        }
-
-        editor.delete(attr.syntax())
+        editor.delete_keeping_lines(attr.syntax())
     }
 }
 

@@ -11,7 +11,7 @@ use itertools::Itertools;
 use syntax::ast::syntax_factory::SyntaxFactory;
 use syntax::syntax_editor::SyntaxEditor;
 use syntax::{
-    AstNode, NodeOrToken, SyntaxKind, SyntaxNode, T,
+    AstNode, NodeOrToken, SyntaxNode, T,
     ast::{self, HasGenericParams, HasName},
 };
 
@@ -62,7 +62,7 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_, 
     acc.add(
         AssistId::refactor_inline("inline_type_alias_uses"),
         "Inline type alias into all uses",
-        name.syntax().text_range(),
+        name.syntax().text_range_without_outer_trivia(),
         |builder| {
             let usages = usages.all();
             let mut definition_deleted = false;
@@ -88,7 +88,7 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_, 
                 }
 
                 if file_id.file_id(ctx.db()) == ctx.vfs_file_id() {
-                    editor.delete(ast_alias.syntax());
+                    editor.delete_keeping_edges(ast_alias.syntax());
                     definition_deleted = true;
                 }
                 builder.add_file_edits(file_id.file_id(ctx.db()), editor);
@@ -99,7 +99,7 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_, 
             }
             if !definition_deleted {
                 let editor = builder.make_editor(ast_alias.syntax());
-                editor.delete(ast_alias.syntax());
+                editor.delete_keeping_edges(ast_alias.syntax());
                 builder.add_file_edits(ctx.vfs_file_id(), editor)
             }
         },
@@ -164,7 +164,7 @@ pub(crate) fn inline_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
     acc.add(
         AssistId::refactor_inline("inline_type_alias"),
         "Inline type alias",
-        alias_instance.syntax().text_range(),
+        alias_instance.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(alias_instance.syntax());
             let replace = replacement.replace_generic(&concrete_type);
@@ -362,11 +362,6 @@ fn create_replacement(
                         continue;
                     }
                     removals.push(NodeOrToken::Node(syntax.clone()));
-                    if let Some(ws) = syntax.next_sibling_or_token()
-                        && ws.kind() == SyntaxKind::WHITESPACE
-                    {
-                        removals.push(ws);
-                    }
                     continue;
                 }
 

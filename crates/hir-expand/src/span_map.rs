@@ -74,8 +74,9 @@ pub(crate) fn real_span_map(
     // this kind of joining makes them as stable as the AstIdMap (which is basically changing on
     // every input of the file)…
 
-    let item_to_entry =
-        |item: ast::Item| (item.syntax().text_range().start(), ast_id_map.ast_id(&item).erase());
+    let item_to_entry = |item: ast::Item| {
+        (item.syntax().text_range_without_outer_trivia().start(), ast_id_map.ast_id(&item).erase())
+    };
     // Top level items make for great anchors as they are the most stable and a decent boundary
     pairs.extend(tree.items().map(item_to_entry));
     // Unfortunately, assoc items are very common in Rust, so descend into those as well and make

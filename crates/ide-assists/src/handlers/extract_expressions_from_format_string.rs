@@ -5,9 +5,7 @@ use ide_db::{
 };
 use itertools::Itertools;
 use syntax::{
-    AstNode, AstToken, NodeOrToken,
-    SyntaxKind::WHITESPACE,
-    SyntaxToken, T,
+    AstNode, AstToken, NodeOrToken, SyntaxToken, T,
     ast::{self, TokenTree},
 };
 
@@ -55,7 +53,7 @@ pub(crate) fn extract_expressions_from_format_string(
             None,
         ),
         "Extract format expressions",
-        tt.syntax().text_range(),
+        tt.syntax().text_range_without_outer_trivia(),
         |edit| {
             let editor = edit.make_editor(tt.syntax());
             let make = editor.make();
@@ -71,20 +69,8 @@ pub(crate) fn extract_expressions_from_format_string(
                 NodeOrToken::Token(_end_bracket),
             ] = tokens.as_slice()
             {
-                let args = tokens
-                    .split(|it| matches!(it, NodeOrToken::Token(t) if t.kind() == T![,]))
-                    .map(|arg| {
-                        // Strip off leading and trailing whitespace tokens
-                        let arg = match arg.split_first() {
-                            Some((NodeOrToken::Token(t), rest)) if t.kind() == WHITESPACE => rest,
-                            _ => arg,
-                        };
-
-                        match arg.split_last() {
-                            Some((NodeOrToken::Token(t), rest)) if t.kind() == WHITESPACE => rest,
-                            _ => arg,
-                        }
-                    });
+                let args =
+                    tokens.split(|it| matches!(it, NodeOrToken::Token(t) if t.kind() == T![,]));
 
                 args.collect()
             } else {
@@ -101,10 +87,8 @@ pub(crate) fn extract_expressions_from_format_string(
             for arg in extracted_args {
                 if matches!(arg, Arg::Expr(_) | Arg::Placeholder) {
                     // insert ", " before each arg
-                    new_tt_bits.extend_from_slice(&[
-                        NodeOrToken::Token(make.token(T![,])),
-                        NodeOrToken::Token(make.whitespace(" ")),
-                    ]);
+                    let separator = make.with_trailing_trivia(make.token(T![,]), " ");
+                    new_tt_bits.extend(separator.into_token().map(NodeOrToken::Token));
                 }
 
                 match arg {
@@ -121,7 +105,14 @@ pub(crate) fn extract_expressions_from_format_string(
                                 new_tt_bits.extend_from_slice(arg);
                             }
                             None => {
-                                placeholder_indexes.push(new_tt_bits.len());
+                                placeholder_indexes.push(
+                                    new_tt_bits
+                                        .iter()
+                                        .filter(|it| {
+                                            matches!(it, NodeOrToken::Token(t) if t.kind() == T![_])
+                                        })
+                                        .count(),
+                                );
                                 new_tt_bits.push(NodeOrToken::Token(make.token(T![_])));
                             }
                         }
@@ -137,17 +128,16 @@ pub(crate) fn extract_expressions_from_format_string(
             if let Some(cap) = ctx.config.snippet_cap {
                 // Add placeholder snippets over placeholder args
                 for pos in placeholder_indexes {
-                    // Skip the opening delimiter
-                    let Some(NodeOrToken::Token(placeholder)) =
-                        new_tt.token_trees_and_tokens().skip(1).nth(pos)
+                    let Some(NodeOrToken::Token(placeholder)) = new_tt
+                        .token_trees_and_tokens()
+                        .filter(|it| matches!(it, NodeOrToken::Token(t) if t.kind() == T![_]))
+                        .nth(pos)
                     else {
                         continue;
                     };
 
-                    if stdx::always!(placeholder.kind() == T![_]) {
-                        let annotation = edit.make_placeholder_snippet(cap);
-                        editor.add_annotation(placeholder, annotation);
-                    }
+                    let annotation = edit.make_placeholder_snippet(cap);
+                    editor.add_annotation(placeholder, annotation);
                 }
 
                 // Add the final tabstop after the format literal

@@ -1,4 +1,4 @@
-use syntax::{AstNode, SyntaxKind, T, TextRange, ast};
+use syntax::{AstNode, T, TextRange, ast};
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -56,13 +56,22 @@ pub(crate) fn remove_else_branches(acc: &mut Assists, ctx: &AssistContext<'_, '_
         target,
         |builder| {
             let editor = builder.make_editor(&else_token.parent().unwrap());
-            match else_token.prev_token() {
-                Some(it) if it.kind() == SyntaxKind::WHITESPACE => editor.delete(it),
-                _ => (),
-            }
-            match else_token.next_token() {
-                Some(it) if it.kind() == SyntaxKind::WHITESPACE => editor.delete(it),
-                _ => (),
+            if let Some(prev) = else_token.prev_non_trivia_token() {
+                editor.strip_trailing_blank_trivia(&prev);
+                let moved: String = else_branches
+                    .last_non_trivia_token()
+                    .map(|it| it.trailing_trivia().map(|it| it.text().to_owned()).collect())
+                    .unwrap_or_default();
+                if !moved.is_empty()
+                    && let Some(kept) = editor.pending_token(&prev)
+                {
+                    let start = kept.trailing_trivia().len();
+                    editor.splice_trailing_trivia(
+                        &prev,
+                        start..,
+                        ast::make::tokens::trivia(&moved),
+                    );
+                }
             }
             editor.delete(else_token);
             editor.delete(else_branches);

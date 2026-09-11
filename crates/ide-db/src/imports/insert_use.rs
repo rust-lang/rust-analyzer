@@ -178,11 +178,11 @@ pub fn insert_uses_with_editor(
             .flat_map(|path| {
                 let use_tree = make.use_tree(path, None, None, false);
                 let use_item = make.use_(None, None, use_tree);
-                [use_item.syntax().clone().into(), make.whitespace("\n").into()]
+                [make.with_trailing_trivia(use_item.syntax(), "\n")]
             })
-            .chain([make.whitespace("\n").into()])
             .collect();
         syntax_editor.insert_all(Position::first_child_of(scope.as_syntax_node()), elements);
+        syntax_editor.prepend_leading_trivia(scope.as_syntax_node(), "\n");
         return;
     }
 
@@ -459,18 +459,15 @@ fn insert_use_with_editor_(
         if let Some((.., node)) = post_insert {
             cov_mark::hit!(insert_group);
             // insert our import before that element
-            return syntax_editor.insert_all(
-                Position::before(node),
-                vec![use_item.syntax().clone().into(), make.whitespace("\n").into()],
-            );
+            insert_item_before(syntax_editor, &node, use_item.syntax(), "\n");
+            return;
         }
         if let Some(node) = last {
             cov_mark::hit!(insert_group_last);
             // there is no element after our new import, so append it to the end of the group
-            return syntax_editor.insert_all(
-                Position::after(node),
-                vec![make.whitespace("\n").into(), use_item.syntax().clone().into()],
-            );
+            syntax_editor
+                .insert(Position::after(node), make.with_leading_trivia(use_item.syntax(), "\n"));
+            return;
         }
 
         // the group we were looking for actually doesn't exist, so insert
@@ -482,29 +479,22 @@ fn insert_use_with_editor_(
             .find(|(use_tree, ..)| ImportGroup::new(use_tree) > group);
         if let Some((.., node)) = post_group {
             cov_mark::hit!(insert_group_new_group);
-            syntax_editor.insert_all(
-                Position::before(&node),
-                vec![use_item.syntax().clone().into(), make.whitespace("\n\n").into()],
-            );
+            insert_item_before(syntax_editor, &node, use_item.syntax(), "\n\n");
             return;
         }
         // there is no such group, so append after the last one
         if let Some(node) = last {
             cov_mark::hit!(insert_group_no_group);
-            syntax_editor.insert_all(
-                Position::after(&node),
-                vec![make.whitespace("\n\n").into(), use_item.syntax().clone().into()],
-            );
+            syntax_editor
+                .insert(Position::after(node), make.with_leading_trivia(use_item.syntax(), "\n\n"));
             return;
         }
     } else {
         // There exists a group, so append to the end of it
         if let Some((_, node)) = path_node_iter.last() {
             cov_mark::hit!(insert_no_grouping_last);
-            syntax_editor.insert_all(
-                Position::after(node),
-                vec![make.whitespace("\n").into(), use_item.syntax().clone().into()],
-            );
+            syntax_editor
+                .insert(Position::after(node), make.with_leading_trivia(use_item.syntax(), "\n"));
             return;
         }
     }
@@ -526,12 +516,8 @@ fn insert_use_with_editor_(
             NodeOrToken::Node(node) => {
                 is_inner_attribute(node.clone()) && ast::Item::cast(node.clone()).is_none()
             }
-            NodeOrToken::Token(token) => {
-                [SyntaxKind::WHITESPACE, SyntaxKind::COMMENT, SyntaxKind::SHEBANG]
-                    .contains(&token.kind())
-            }
+            NodeOrToken::Token(token) => token.kind() == SyntaxKind::SHEBANG,
         })
-        .filter(|child| child.as_token().is_none_or(|t| t.kind() != SyntaxKind::WHITESPACE))
         .last()
     {
         cov_mark::hit!(insert_empty_inner_attr);
@@ -540,35 +526,106 @@ fn insert_use_with_editor_(
         } else {
             IndentLevel::zero()
         };
-        syntax_editor.insert_all(
-            Position::after(&last_inner_element),
-            vec![
-                make.whitespace(&format!("\n\n{indent}")).into(),
-                use_item.syntax().clone().into(),
-            ],
+        let mut header = String::new();
+        if let Some(next) =
+            last_inner_element.last_non_trivia_token().and_then(|it| it.next_non_trivia_token())
+        {
+            let leading: Vec<_> = next.leading_trivia().collect();
+            let end =
+                leading.iter().rposition(|it| it.kind() == SyntaxKind::COMMENT).map(|comment| {
+                    leading[comment..]
+                        .iter()
+                        .position(|it| it.kind() == SyntaxKind::NEWLINE)
+                        .map_or(leading.len(), |offset| comment + offset + 1)
+                });
+            if let Some(end) = end {
+                header = leading[..end].iter().map(|it| it.text()).collect();
+                syntax_editor.splice_leading_trivia(&next, ..end, []);
+            }
+        }
+        let leading = match header.is_empty() {
+            true => format!("\n\n{indent}"),
+            false => format!("\n{}\n\n{indent}", header.trim_end_matches(['\n', '\r'])),
+        };
+        syntax_editor.insert(
+            Position::after(last_inner_element),
+            make.with_leading_trivia(use_item.syntax(), &leading),
         );
     } else {
         match l_curly {
             Some(b) => {
                 cov_mark::hit!(insert_empty_module);
                 let indent = IndentLevel::from_node(scope_syntax) + 1;
-                syntax_editor.insert_all(
-                    Position::after(&b),
-                    vec![
-                        make.whitespace(&format!("\n{indent}")).into(),
-                        use_item.syntax().clone().into(),
-                        make.whitespace("\n").into(),
-                    ],
-                );
+                let item = make.with_leading_trivia(use_item.syntax(), &format!("\n{indent}"));
+                syntax_editor.insert(Position::after(&b), make.with_trailing_trivia(&item, "\n"));
             }
             None => {
                 cov_mark::hit!(insert_empty_file);
-                syntax_editor.insert_all(
-                    Position::first_child_of(scope_syntax),
-                    vec![use_item.syntax().clone().into(), make.whitespace("\n\n").into()],
-                );
+                let Some(first) = scope_syntax.first_non_trivia_token() else {
+                    syntax_editor.insert(
+                        Position::first_child_of(scope_syntax),
+                        make.with_trailing_trivia(use_item.syntax(), "\n"),
+                    );
+                    return;
+                };
+                let leading: Vec<_> = first.leading_trivia().collect();
+                let header_len = if first.kind() == SyntaxKind::EOF {
+                    leading.len()
+                } else {
+                    let blank_line = leading
+                        .windows(2)
+                        .rposition(|pair| pair.iter().all(|it| it.kind() == SyntaxKind::NEWLINE));
+                    let comment = leading
+                        .iter()
+                        .position(|it| it.kind() == SyntaxKind::COMMENT)
+                        .unwrap_or(leading.len());
+                    blank_line.map_or(comment, |it| comment.max(it + 2))
+                };
+                let (header, rest) = leading.split_at(header_len);
+                let header_text: String = header.iter().map(|it| it.text()).collect();
+                let header_text = match header.iter().any(|it| it.kind() == SyntaxKind::COMMENT) {
+                    true => format!("{}\n\n", header_text.trim_end_matches('\n')),
+                    false => header_text,
+                };
+                let follows =
+                    header_text.is_empty() || first.kind() != SyntaxKind::EOF || !rest.is_empty();
+
+                let item = make.with_leading_trivia(use_item.syntax(), &header_text);
+                let item = match follows {
+                    true => make.with_trailing_trivia(&item, "\n"),
+                    false => item,
+                };
+                syntax_editor.insert(Position::first_child_of(scope_syntax), item);
+
+                let new_leading: Vec<_> = follows
+                    .then_some((SyntaxKind::NEWLINE, "\n"))
+                    .into_iter()
+                    .chain(rest.iter().map(|it| (it.kind(), it.text())))
+                    .collect();
+                if !leading.iter().map(|it| (it.kind(), it.text())).eq(new_leading.iter().copied())
+                {
+                    syntax_editor.splice_leading_trivia(&first, .., new_leading);
+                }
             }
         }
+    }
+}
+
+fn insert_item_before(
+    editor: &SyntaxEditor,
+    anchor: &SyntaxNode,
+    item: &SyntaxNode,
+    separator: &str,
+) {
+    let make = editor.make();
+    let newlines = separator.matches('\n').count();
+    let head = match newlines > 1 {
+        true => &separator[..separator.len() - (newlines - 1)],
+        false => separator,
+    };
+    editor.insert(Position::before(anchor), make.with_trailing_trivia(item, head));
+    if newlines > 1 {
+        editor.prepend_leading_trivia(anchor, &"\n".repeat(newlines - 1));
     }
 }
 

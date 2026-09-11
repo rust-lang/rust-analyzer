@@ -4,7 +4,7 @@ use ide_db::{
     syntax_helpers::node_ext::{for_each_tail_expr, walk_expr},
 };
 use syntax::{
-    AstNode, NodeOrToken, SyntaxKind,
+    AstNode,
     ast::{self, HasArgList, HasGenericArgs},
     match_ast,
 };
@@ -65,7 +65,8 @@ pub(crate) fn unwrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
 
     let happy_type = extract_wrapped_type(type_ref)?;
 
-    acc.add(kind.assist_id(), kind.label(), type_ref.syntax().text_range(), |builder| {
+    let target = type_ref.syntax().text_range_without_outer_trivia();
+    acc.add(kind.assist_id(), kind.label(), target, |builder| {
         let editor = builder.make_editor(&parent);
         let make = editor.make();
 
@@ -82,12 +83,6 @@ pub(crate) fn unwrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
 
         let is_unit_type = is_unit_type(&happy_type);
         if is_unit_type {
-            if let Some(NodeOrToken::Token(token)) = ret_type.syntax().next_sibling_or_token()
-                && token.kind() == SyntaxKind::WHITESPACE
-            {
-                editor.delete(token);
-            }
-
             editor.delete(ret_type.syntax());
         } else {
             editor.replace(type_ref.syntax(), happy_type.syntax());
@@ -118,12 +113,12 @@ pub(crate) fn unwrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
                         );
                         match tail_parent {
                             Some(Either::Left(_expr)) => {
-                                if let Some(ws) = tail_expr
+                                if let Some(prev) = tail_expr
                                     .syntax()
-                                    .prev_sibling_or_token()
-                                    .filter(|e| e.kind() == SyntaxKind::WHITESPACE)
+                                    .first_non_trivia_token()
+                                    .and_then(|it| it.prev_non_trivia_token())
                                 {
-                                    editor.delete(ws);
+                                    editor.splice_trailing_trivia(&prev, .., []);
                                 }
                                 editor.delete(tail_expr.syntax());
                             }
