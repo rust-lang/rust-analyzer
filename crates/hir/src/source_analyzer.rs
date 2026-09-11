@@ -66,7 +66,7 @@ use crate::{
     Adt, AnyFunctionId, AssocItem, BindingMode, BuiltinAttr, BuiltinType, Callable, Const,
     DeriveHelper, EnumVariant, Field, Function, GenericSubstitution, Local, Macro, ModuleDef,
     PredicateEvaluationResult, SemanticsImpl, Static, Struct, ToolModule, Trait, TupleField, Type,
-    TypeAlias, TypeOwnerId,
+    TypeAlias, TypeOwnerId, UncoveredPattern, Variant,
     db::HirDatabase,
     semantics::{PathResolution, PathResolutionPerNs},
 };
@@ -418,6 +418,25 @@ impl<'db> SourceAnalyzer<'db> {
         }
 
         PredicateEvaluationResult::holds("predicate holds")
+    }
+
+    pub(crate) fn missing_match_arm_patterns(
+        &self,
+        db: &'db dyn HirDatabase,
+        match_expr: &ast::MatchExpr,
+        ignore_conditional_arms: bool,
+    ) -> Option<Vec<UncoveredPattern>> {
+        let expr_id = self.expr_id(match_expr.clone().into())?.as_expr()?;
+        let ExpressionStoreOwnerId::Body(owner) = self.owner()? else {
+            return None;
+        };
+        let patterns = hir_ty::diagnostics::missing_match_arm_patterns(
+            db,
+            owner,
+            expr_id,
+            ignore_conditional_arms,
+        )?;
+        Some(patterns.into_iter().map(|pattern| pattern.map_variant(&mut Variant::from)).collect())
     }
 
     pub(crate) fn expr_id(&self, expr: ast::Expr) -> Option<ExprOrPatId> {
