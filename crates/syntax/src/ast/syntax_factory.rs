@@ -3,7 +3,7 @@
 //!
 //! Instead of forcing make constructors to perform syntax mapping, we instead
 //! let [`SyntaxFactory`] handle constructing the mappings. Care must be taken
-//! to remember to feed the syntax mappings into a [`SyntaxEditor`](crate::syntax_editor::SyntaxEditor),
+//! to remember to feed the syntax mappings into a [`SyntaxEditor`],
 //! if applicable.
 
 mod constructors;
