@@ -35,11 +35,12 @@ impl SyntaxMapping {
                 let upmap_parent =
                     self.upmap_child(&token.parent().unwrap(), input_ancestor, output_ancestor)?;
 
-                let element = upmap_parent.children_with_tokens().nth(token.index()).unwrap();
-                debug_assert!(
-                    element.as_token().is_some_and(|it| it.kind() == token.kind()),
-                    "token upmapping mapped to the wrong node ({token:?} -> {element:?})"
-                );
+                let index = token.index().ok_or_else(|| MissingMapping(upmap_parent.clone()))?;
+                let element = upmap_parent
+                    .children_with_tokens()
+                    .nth(index)
+                    .filter(|it| it.as_token().is_some_and(|it| it.kind() == token.kind()))
+                    .ok_or(MissingMapping(upmap_parent))?;
 
                 Ok(element)
             }
@@ -106,11 +107,17 @@ impl SyntaxMapping {
         input_ancestor: &SyntaxNode,
         output_ancestor: &SyntaxNode,
     ) -> Result<Vec<usize>, MissingMapping> {
-        let mut current =
-            self.upmap_node_single(input_ancestor).unwrap_or_else(|| input_ancestor.clone());
-        let mut upmap_chain = vec![current.index()];
+        let mut current = self
+            .upmap_node_single(input_ancestor)
+            .ok_or_else(|| MissingMapping(input_ancestor.clone()))?;
+        let mut upmap_chain = Vec::new();
 
         loop {
+            if &current == output_ancestor {
+                return Ok(upmap_chain);
+            }
+            upmap_chain.push(current.index());
+
             let Some(parent) = current.parent() else { break };
 
             if &parent == output_ancestor {
@@ -121,7 +128,6 @@ impl SyntaxMapping {
                 Some(next) => next,
                 None => parent,
             };
-            upmap_chain.push(current.index());
         }
 
         Err(MissingMapping(current))
@@ -156,18 +162,25 @@ impl SyntaxMapping {
         }));
     }
 
-    /// Follows the input one step along the syntax mapping tree
+    /// Follows the input along the syntax mapping tree to its final output, bounded by
+    /// the number of recorded mappings so a cycle cannot spin forever
     fn upmap_node_single(&self, input: &SyntaxNode) -> Option<SyntaxNode> {
-        let MappingEntry { parent, child_slot } = self.node_mappings.get(input)?;
+        let mut current = input.clone();
+        let mut output = None;
+        for _ in 0..=self.node_mappings.len() {
+            let Some(MappingEntry { parent, child_slot }) = self.node_mappings.get(&current) else {
+                break;
+            };
+            current = self.entry_parents[*parent as usize]
+                .children_with_tokens()
+                .nth(*child_slot as usize)
+                .and_then(SyntaxElement::into_node)
+                .unwrap();
+            output = Some(current.clone());
+        }
 
-        let output = self.entry_parents[*parent as usize]
-            .children_with_tokens()
-            .nth(*child_slot as usize)
-            .and_then(SyntaxElement::into_node)
-            .unwrap();
-
-        debug_assert_eq!(input.kind(), output.kind());
-        Some(output)
+        debug_assert!(output.as_ref().is_none_or(|output| input.kind() == output.kind()));
+        output
     }
 
     pub fn add_mapping(&mut self, syntax_mapping: SyntaxMappingBuilder) {
@@ -197,6 +210,9 @@ impl SyntaxMappingBuilder {
 
     pub fn map_node(&mut self, input: SyntaxNode, output: SyntaxNode) {
         debug_assert_eq!(output.parent().as_ref(), Some(&self.parent_node));
+        if input == output {
+            return;
+        }
         self.node_mappings.push((input, output.index() as u32));
     }
 
