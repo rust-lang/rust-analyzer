@@ -27,7 +27,7 @@ impl From<SyntaxKind> for u16 {
 impl SyntaxKind {
     #[inline]
     pub fn is_trivia(self) -> bool {
-        matches!(self, SyntaxKind::WHITESPACE | SyntaxKind::COMMENT)
+        matches!(self, SyntaxKind::WHITESPACE | SyntaxKind::NEWLINE | SyntaxKind::COMMENT)
     }
 
     /// Returns true if this is an identifier or a keyword.
