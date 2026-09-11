@@ -10342,12 +10342,12 @@ impl std::fmt::Display for CfgMeta {
 }
 impl std::fmt::Display for CfgPredExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        std::fmt::Display::fmt(&self.syntax().text_without_outer_trivia(), f)
     }
 }
 impl std::fmt::Display for CfgPredPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        std::fmt::Display::fmt(&self.syntax().text_without_outer_trivia(), f)
     }
 }
 impl std::fmt::Display for ClosureExpr {

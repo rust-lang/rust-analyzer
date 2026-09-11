@@ -194,8 +194,9 @@ impl NameGenerator {
                 let ty = bounds.bounds().next()?.ty()?;
                 ty.syntax()
                     .text_without_outer_trivia()
-                    .char_at(0.into())
-                    .filter(|ch| ch.is_alphabetic())
+                    .to_smolstr()
+                    .chars()
+                    .find(|ch| ch.is_uppercase())
             })
             .unwrap_or('T');
 

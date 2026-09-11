@@ -84,5 +84,24 @@ SOURCE_FILE
               INT_NUMBER "0"
             R_PAREN ")"
           SEMICOLON ";" [] [NEWLINE("\n")]
+        EXPR_STMT
+          CFG_PRED_EXPR
+            BUILTIN_KW "builtin" [WHITESPACE("    ")] []
+            POUND "#"
+            CFG_KW "cfg"
+            L_PAREN "("
+            CFG_COMPOSITE
+              IDENT "any"
+              L_PAREN "("
+              CFG_ATOM
+                TRUE_KW "true"
+              COMMA "," [] [WHITESPACE(" ")]
+              CFG_ATOM
+                IDENT "x" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
+                STRING "\"y\""
+              R_PAREN ")"
+            R_PAREN ")"
+          SEMICOLON ";" [] [NEWLINE("\n")]
         R_CURLY "}" [] [NEWLINE("\n")]
   EOF ""
