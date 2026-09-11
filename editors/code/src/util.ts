@@ -1,6 +1,11 @@
 import * as vscode from "vscode";
 import { strict as nativeAssert } from "assert";
-import { exec, spawn, type SpawnOptionsWithoutStdio, type ExecOptions } from "child_process";
+import {
+    exec,
+    spawn,
+    type SpawnOptionsWithoutStdio,
+    type ExecOptionsWithStringEncoding,
+} from "child_process";
 import { inspect } from "util";
 import type { CargoRunnableArgs, ShellRunnableArgs } from "./lsp_ext";
 
@@ -138,7 +143,7 @@ export function memoizeAsync<Ret, TThis, Param extends string>(
 }
 
 /** Awaitable wrapper around `child_process.exec` */
-export function execute(command: string, options: ExecOptions): Promise<string> {
+export function execute(command: string, options: ExecOptionsWithStringEncoding): Promise<string> {
     log.info(`running command: ${command}`);
     return new Promise((resolve, reject) => {
         exec(command, options, (err, stdout, stderr) => {
@@ -158,19 +163,53 @@ export function execute(command: string, options: ExecOptions): Promise<string> 
     });
 }
 
-export class LazyOutputChannel implements vscode.OutputChannel {
+export class LazyOutputChannel implements vscode.LogOutputChannel {
     constructor(name: string) {
         this.name = name;
     }
 
     name: string;
-    _channel: vscode.OutputChannel | undefined;
 
-    get channel(): vscode.OutputChannel {
+    _channel: vscode.LogOutputChannel | undefined;
+
+    get channel(): vscode.LogOutputChannel {
         if (!this._channel) {
-            this._channel = vscode.window.createOutputChannel(this.name);
+            this._channel = vscode.window.createOutputChannel(this.name, { log: true });
         }
         return this._channel;
+    }
+
+    get logLevel(): vscode.LogLevel {
+        return this.channel.logLevel;
+    }
+
+    get onDidChangeLogLevel(): vscode.Event<vscode.LogLevel> {
+        return this.channel.onDidChangeLogLevel;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    trace(message: string, ...args: any[]): void {
+        this.channel.trace(message, ...args);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    debug(message: string, ...args: any[]): void {
+        this.channel.debug(message, ...args);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    info(message: string, ...args: any[]): void {
+        this.channel.info(message, ...args);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    warn(message: string, ...args: any[]): void {
+        this.channel.warn(message, ...args);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    error(error: string | Error, ...args: any[]): void {
+        this.channel.error(error, ...args);
     }
 
     append(value: string): void {
@@ -191,12 +230,16 @@ export class LazyOutputChannel implements vscode.OutputChannel {
         }
     }
 
-    show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-        if (typeof columnOrPreserveFocus === "boolean") {
-            this.channel.show(columnOrPreserveFocus);
+    show(preserveFocus?: boolean): void;
+    show(column: vscode.ViewColumn, preserveFocus?: boolean): void;
+    show(arg1?: boolean | vscode.ViewColumn, arg2?: boolean): void {
+        let preserveFocus: boolean;
+        if (typeof arg1 === "boolean") {
+            preserveFocus = arg1;
         } else {
-            this.channel.show(columnOrPreserveFocus, preserveFocus);
+            preserveFocus = arg2 === true;
         }
+        this.channel.show(preserveFocus);
     }
 
     hide(): void {

@@ -2,7 +2,7 @@ import anser from "anser";
 import * as lc from "vscode-languageclient/node";
 import * as vscode from "vscode";
 import * as ra from "../src/lsp_ext";
-import * as Is from "vscode-languageclient/lib/common/utils/is";
+import * as Is from "./is";
 import { assert } from "./util";
 import * as diagnostics from "./diagnostics";
 import { WorkspaceEdit } from "vscode";
@@ -11,8 +11,8 @@ import { sep as pathSeparator } from "path";
 import { RaLanguageClient } from "./lang_client";
 
 export async function createClient(
-    traceOutputChannel: vscode.OutputChannel,
-    outputChannel: vscode.OutputChannel,
+    traceOutputChannel: vscode.LogOutputChannel,
+    outputChannel: vscode.LogOutputChannel,
     initializationOptions: lc.LanguageClientOptions["initializationOptions"],
     serverOptions: lc.ServerOptions,
     config: Config,
