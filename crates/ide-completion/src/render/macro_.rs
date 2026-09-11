@@ -41,7 +41,10 @@ fn render(
 ) -> Builder {
     let source_range = if ctx.is_immediately_after_macro_bang() {
         cov_mark::hit!(completes_macro_call_if_cursor_at_bang_token);
-        completion.token.parent().map_or_else(|| ctx.source_range(), |it| it.text_range())
+        completion
+            .token
+            .parent()
+            .map_or_else(|| ctx.source_range(), |it| it.text_range_without_outer_trivia())
     } else {
         ctx.source_range()
     };
