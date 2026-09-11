@@ -127,6 +127,12 @@ impl<'db> ReplacementRenderer<'_, 'db> {
     }
 
     fn render_token(&mut self, token: &SyntaxToken) {
+        self.out.extend(token.leading_trivia().map(|it| it.text().to_owned()));
+        self.render_token_text(token);
+        self.out.extend(token.trailing_trivia().map(|it| it.text().to_owned()));
+    }
+
+    fn render_token_text(&mut self, token: &SyntaxToken) {
         if let Some(placeholder) = self.rule.get_placeholder(token) {
             if let Some(placeholder_value) =
                 self.match_info.placeholder_values.get(&placeholder.ident)
@@ -210,7 +216,7 @@ impl<'db> ReplacementRenderer<'_, 'db> {
     }
 
     fn remove_node_ranges(&mut self, node: SyntaxNode) {
-        self.placeholder_tokens_by_range.remove(&node.text_range());
+        self.placeholder_tokens_by_range.remove(&node.text_range_without_outer_trivia());
         for child in node.children() {
             self.remove_node_ranges(child);
         }
