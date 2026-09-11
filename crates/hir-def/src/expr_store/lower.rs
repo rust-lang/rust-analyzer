@@ -3745,8 +3745,7 @@ impl<'db> ExprCollector<'db> {
 }
 
 fn comma_follows_token(t: Option<syntax::SyntaxToken>) -> bool {
-    (|| syntax::algo::skip_trivia_token(t?.next_token()?, syntax::Direction::Next))()
-        .is_some_and(|it| it.kind() == syntax::T![,])
+    t.and_then(|it| it.next_non_trivia_token()).is_some_and(|it| it.kind() == syntax::T![,])
 }
 
 /// This function find the AST fragment that corresponds to an `AssociatedTypeBinding` in the HIR.
