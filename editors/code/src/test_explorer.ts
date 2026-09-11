@@ -1,9 +1,8 @@
 import * as vscode from "vscode";
 import type * as lc from "vscode-languageclient/node";
-import * as ra from "./lsp_ext";
-
 import type { Ctx } from "./ctx";
 import { startDebugSession } from "./debug";
+import * as ra from "./lsp_ext";
 
 export const prepareTestExplorer = (
     ctx: Ctx,

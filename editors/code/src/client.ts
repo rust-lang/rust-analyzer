@@ -1,14 +1,14 @@
 import anser from "anser";
-import * as lc from "vscode-languageclient/node";
-import * as vscode from "vscode";
-import * as ra from "../src/lsp_ext";
-import * as Is from "vscode-languageclient/lib/common/utils/is";
-import { assert } from "./util";
-import * as diagnostics from "./diagnostics";
-import { WorkspaceEdit } from "vscode";
-import { type Config, prepareVSCodeConfig } from "./config";
 import { sep as pathSeparator } from "path";
+import * as vscode from "vscode";
+import { WorkspaceEdit } from "vscode";
+import * as Is from "vscode-languageclient/lib/common/utils/is";
+import * as lc from "vscode-languageclient/node";
+import * as ra from "../src/lsp_ext";
+import { type Config, prepareVSCodeConfig } from "./config";
+import * as diagnostics from "./diagnostics";
 import { RaLanguageClient } from "./lang_client";
+import { assert } from "./util";
 
 export async function createClient(
     traceOutputChannel: vscode.OutputChannel,
@@ -100,7 +100,7 @@ export async function createClient(
                                                 pathSeparator +
                                                 "Cargo.toml";
                                             const value = config
-                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                // biome-ignore lint/suspicious/noExplicitAny: todo
                                                 .get<any[]>("linkedProjects")
                                                 ?.concat(pathToInsert);
                                             await config.update("linkedProjects", value, false);
@@ -370,7 +370,7 @@ class OverrideFeatures implements lc.StaticFeature {
 }
 
 function assertIsCodeActionWithoutEditsAndCommands(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: todo
     candidate: any,
 ): asserts candidate is lc.CodeAction & {
     group?: string;

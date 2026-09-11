@@ -1,7 +1,6 @@
-import * as path from "path";
-import * as fs from "fs";
-
 import { runTests } from "@vscode/test-electron";
+import * as fs from "fs";
+import * as path from "path";
 
 async function main() {
     // The folder containing the Extension Manifest package.json

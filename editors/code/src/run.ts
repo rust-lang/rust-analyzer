@@ -1,13 +1,13 @@
 import * as vscode from "vscode";
 import type * as lc from "vscode-languageclient";
-import * as ra from "./lsp_ext";
-import * as tasks from "./tasks";
+import type { LanguageClient } from "vscode-languageclient/node";
+import type { Config } from "./config";
 
 import type { CtxInit } from "./ctx";
 import { makeDebugConfig } from "./debug";
-import type { Config } from "./config";
-import type { LanguageClient } from "vscode-languageclient/node";
-import { Env, log, unwrapUndefinable, type RustEditor } from "./util";
+import * as ra from "./lsp_ext";
+import * as tasks from "./tasks";
+import { Env, log, type RustEditor, unwrapUndefinable } from "./util";
 
 const quickPickButtons = [
     { iconPath: new vscode.ThemeIcon("save"), tooltip: "Save as a launch.json configuration." },

@@ -1,0 +1,55 @@
+{
+    "assist": {
+        "actions": {
+            "source": {
+                "organizeImports": "on"
+            }
+        },
+        "enabled": null
+    },
+    "files": {
+        "includes": ["**", "!**/out", "!**/.vscode-test", "!**/node_modules"]
+    },
+    "formatter": {
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 100
+    },
+    "json": {
+        "parser": {
+            "allowComments": true,
+            "allowTrailingCommas": true
+        }
+    },
+    "linter": {
+        "rules": {
+            "preset": "recommended",
+            "complexity": {
+                "noBannedTypes": "off",
+                "noUselessUndefinedInitialization": "off",
+                "useArrowFunction": "off",
+                "useIndexOf": "off",
+                "useLiteralKeys": "off",
+                "useOptionalChain": "off"
+            },
+            "correctness": {
+                "useParseIntRadix": "off"
+            },
+            "style": {
+                "noNonNullAssertion": "off",
+                "useImportType": "off",
+                "useNodejsImportProtocol": "off",
+                "useTemplate": "off"
+            },
+            "suspicious": {
+                "noAssignInExpressions": "off",
+                "noConfusingVoidType": "off",
+                "noEmptyInterface": "off",
+                "noImplicitAnyLet": "off",
+                "noTemplateCurlyInString": "off",
+                "useIsArray": "off",
+                "useIterableCallbackReturn": "off"
+            }
+        }
+    }
+}

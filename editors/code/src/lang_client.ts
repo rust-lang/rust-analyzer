@@ -1,12 +1,12 @@
-import * as lc from "vscode-languageclient/node";
 import * as vscode from "vscode";
+import * as lc from "vscode-languageclient/node";
 
 export class RaLanguageClient extends lc.LanguageClient {
     override handleFailedRequest<T>(
         type: lc.MessageSignature,
         token: vscode.CancellationToken | undefined,
         // declared as `any` in vscode-languageclient
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // biome-ignore lint/suspicious/noExplicitAny: todo
         error: any,
         defaultValue: T,
         showNotification?: boolean | undefined,

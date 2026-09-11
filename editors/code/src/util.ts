@@ -1,7 +1,7 @@
-import * as vscode from "vscode";
 import { strict as nativeAssert } from "assert";
-import { exec, spawn, type SpawnOptionsWithoutStdio, type ExecOptions } from "child_process";
+import { type ExecOptions, exec, type SpawnOptionsWithoutStdio, spawn } from "child_process";
 import { inspect } from "util";
+import * as vscode from "vscode";
 import type { CargoRunnableArgs, ShellRunnableArgs } from "./lsp_ext";
 
 export function assert(condition: boolean, explanation: string): asserts condition {
@@ -112,7 +112,7 @@ export function isDocumentInWorkspace(document: RustDocument): boolean {
 }
 
 /** Sets ['when'](https://code.visualstudio.com/docs/getstarted/keybindings#_when-clause-contexts) clause contexts */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: todo
 export function setContextValue(key: string, value: any): Thenable<void> {
     return vscode.commands.executeCommand("setContext", key, value);
 }
@@ -293,7 +293,7 @@ export async function spawnAsync(
             stderr: res.stderr,
             status: res.status,
         };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // biome-ignore lint/suspicious/noExplicitAny: todo
     } catch (e: any) {
         return {
             stdout: e.stdout,
