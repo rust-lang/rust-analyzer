@@ -442,11 +442,19 @@ fn render_resolution_path<'db>(
     let cap = ctx.snippet_cap();
     let db = completion.db;
     let config = completion.config;
-    let requires_import = import_to_add.is_some();
 
+    let requires_import = import_to_add.is_some();
     let name = local_name.display(db, completion.edition).to_smolstr();
+
+    let mut insert_text = if config.insert_qualified_path_on_completion
+        && let Some(import) = &import_to_add
+    {
+        import.import_path.display(db, completion.edition).to_smolstr()
+    } else {
+        name.clone()
+    };
+
     let mut item = render_resolution_simple_(ctx, &local_name, import_to_add, resolution);
-    let mut insert_text = name.clone();
 
     // Add `<>` for generic types
     let type_path_no_ty_args = matches!(
@@ -554,7 +562,14 @@ fn render_resolution_simple_<'db>(
         .set_deprecated(scope_def_is_deprecated(&ctx, resolution));
 
     if let Some(import_to_add) = ctx.import_to_add {
-        item.add_import(import_to_add);
+        if ctx.completion.config.insert_qualified_path_on_completion {
+            let full_path =
+                import_to_add.import_path.display(db, ctx.completion.edition).to_string();
+            item.insert_text(&full_path);
+            item.qualified_path_hint(SmolStr::from(full_path));
+        } else {
+            item.add_import(import_to_add);
+        }
     }
 
     item.doc_aliases(ctx.doc_aliases);
