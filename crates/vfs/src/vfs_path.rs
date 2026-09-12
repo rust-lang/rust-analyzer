@@ -46,7 +46,10 @@ impl VfsPath {
         }
     }
 
-    /// Creates a new `VfsPath` with `path` adjoined to `self`.
+    /// Creates a normalized `VfsPath` by joining `path` to `self`.
+    ///
+    /// An absolute `path` replaces `self`. For virtual paths, this returns [`None`] if a relative
+    /// `path` traverses above the root.
     pub fn join(&self, path: &str) -> Option<VfsPath> {
         match &self.0 {
             VfsPathRepr::PathBuf(it) => {
@@ -349,12 +352,9 @@ impl VirtualPath {
             .map(RelPath::new_unchecked)
     }
 
-    /// Remove the last component of `self`.
+    /// Truncates self to `self.parent`.
     ///
-    /// This will find the last `'/'` in `self`, and remove everything after it,
-    /// including the `'/'`.
-    ///
-    /// If `self` contains no `'/'`, returns `false`; else returns `true`.
+    /// Returns false and does nothing if self.parent is None. Otherwise, returns true.
     ///
     /// # Example
     ///
@@ -363,38 +363,63 @@ impl VirtualPath {
     /// path.pop();
     /// assert_eq!(path.0, "/foo");
     /// path.pop();
-    /// assert_eq!(path.0, "");
+    /// assert_eq!(path.0, "/");
     /// ```
     fn pop(&mut self) -> bool {
         let pos = match self.0.rfind('/') {
-            Some(pos) => pos,
             None => return false,
+            Some(0) if self.0.len() == 1 => return false,
+            Some(0) => 1,
+            Some(pos) => pos,
         };
-        self.0 = self.0[..pos].to_string();
+        self.0.truncate(pos);
         true
     }
 
-    /// Append the given *relative* path `path` to `self`.
+    /// Joins `path` to `self` and normalizes its `/`-separated components.
     ///
-    /// This will resolve any leading `"../"` in `path` before appending it.
-    ///
-    /// Returns [`None`] if `path` has more leading `"../"` than the number of
-    /// components in `self`.
-    ///
-    /// # Notes
-    ///
-    /// In practice, appending here means `self/path` as strings.
-    fn join(&self, mut path: &str) -> Option<VirtualPath> {
-        let mut res = self.clone();
-        while path.starts_with("../") {
-            if !res.pop() {
-                return None;
+    /// An absolute `path` replaces `self`. Returns [`None`] if a relative `path` traverses above
+    /// the root.
+    fn join(&self, path: &str) -> Option<VirtualPath> {
+        let mut components = Vec::new();
+        for component in self.0.split('/') {
+            if component.is_empty() || component == "." {
+                continue;
             }
-            path = &path["../".len()..];
+            if component == ".." {
+                components.pop();
+                continue;
+            }
+            components.push(component);
         }
-        path = path.trim_start_matches("./");
-        res.0 = format!("{}/{path}", res.0);
-        Some(res)
+
+        let is_absolute = path.starts_with('/');
+        if is_absolute {
+            components.clear();
+        }
+
+        for component in path.split('/') {
+            if component.is_empty() || component == "." {
+                continue;
+            }
+            if component == ".." {
+                if components.pop().is_none() && !is_absolute {
+                    return None;
+                }
+                continue;
+            }
+            components.push(component);
+        }
+
+        let mut res = String::new();
+        for component in components {
+            res.push('/');
+            res.push_str(component);
+        }
+        if res.is_empty() {
+            res.push('/');
+        }
+        Some(VirtualPath(res))
     }
 
     /// Returns `self`'s base name and file extension.
