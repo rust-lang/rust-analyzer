@@ -391,6 +391,10 @@ export class Config {
         return this.get<boolean>("typing.continueCommentsOnNewline");
     }
 
+    get matchingBraceJumpToOutside() {
+        return this.get<boolean>("matchingBrace.jumpToOutside") ?? false;
+    }
+
     get debug() {
         let sourceFileMap = this.get<Record<string, string> | "auto">("debug.sourceFileMap");
         if (sourceFileMap !== "auto") {

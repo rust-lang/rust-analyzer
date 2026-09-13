@@ -462,6 +462,11 @@
             {
                 "title": "rust-analyzer",
                 "properties": {
+                    "rust-analyzer.matchingBrace.jumpToOutside": {
+                        "markdownDescription": "Place the cursor before opening brackets and after closing brackets when running `rust-analyzer: Find matching brace`. Useful with a line cursor. When disabled, the cursor lands before either bracket, matching VS Code's default behavior.",
+                        "default": false,
+                        "type": "boolean"
+                    },
                     "rust-analyzer.restartServerOnConfigChange": {
                         "description": "Restart the server automatically when settings that require a restart are changed.",
                         "default": false,

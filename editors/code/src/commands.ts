@@ -110,16 +110,43 @@ export function matchingBrace(ctx: CtxInit): Cmd {
         if (!editor) return;
 
         const client = ctx.client;
+        const jumpToOutside = ctx.config.matchingBraceJumpToOutside;
+        const positions = editor.selections.map((selection) => {
+            const position = selection.active;
+            if (jumpToOutside && position.character > 0) {
+                const previous = position.translate(0, -1);
+                const character = editor.document.getText(new vscode.Range(previous, position));
+                // Query the bracket we just jumped past, even if another bracket follows it.
+                if (")]}>|".includes(character)) return previous;
+            }
+            return position;
+        });
 
         const response = await client.sendRequest(ra.matchingBrace, {
             textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(editor.document),
-            positions: editor.selections.map((s) =>
-                client.code2ProtocolConverter.asPosition(s.active),
+            positions: positions.map((position) =>
+                client.code2ProtocolConverter.asPosition(position),
             ),
         });
         editor.selections = editor.selections.map((sel, idx) => {
             const position = unwrapUndefinable(response[idx]);
-            const active = client.protocol2CodeConverter.asPosition(position);
+            let active = client.protocol2CodeConverter.asPosition(position);
+            if (jumpToOutside) {
+                const requested = unwrapUndefinable(positions[idx]);
+                if (active.isEqual(requested)) {
+                    // An unchanged response means that the server found no matching bracket.
+                    active = sel.active;
+                } else {
+                    const end = active.translate(0, 1);
+                    const character = editor.document.getText(new vscode.Range(active, end));
+                    if (
+                        ")]}>".includes(character) ||
+                        (character === "|" && active.isAfter(requested))
+                    ) {
+                        active = end;
+                    }
+                }
+            }
             const anchor = sel.isEmpty ? active : sel.anchor;
             return new vscode.Selection(anchor, active);
         });
