@@ -317,14 +317,16 @@ pub fn add_trait_assoc_items_to_impl(
                     apply_generic_param_rename(cloned_item, original_item, &rename_map, sema);
             }
 
+            let (editor, item) = SyntaxEditor::with_ast_node(&cloned_item);
+            item.remove_attrs_and_docs(&editor);
+            cloned_item = ast::AssocItem::cast(editor.finish().new_root().clone()).unwrap();
+
             // FIXME: Paths in nested macros are not handled well. See
             // `add_missing_impl_members::paths_in_nested_macro_should_get_transformed` test.
             let transform =
                 PathTransform::trait_impl(target_scope, &source_scope, trait_, impl_.clone());
             cloned_item = ast::AssocItem::cast(transform.apply(cloned_item.syntax())).unwrap();
         }
-        let (editor, cloned_item) = SyntaxEditor::with_ast_node(&cloned_item);
-        cloned_item.remove_attrs_and_docs(&editor);
         cloned_item
     }
 
