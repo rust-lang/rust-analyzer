@@ -401,9 +401,9 @@ fn render_resolution_pat<'db>(
         let ctx = ctx.import_to_add(import_to_add);
         render_macro_pat(ctx, pattern_ctx, local_name, mac)
     } else {
-        let name = local_name.display(ctx.db(), ctx.completion.edition).to_smolstr();
-        let (_, item) =
-            render_resolution_simple_(ctx, name, &local_name, import_to_add, resolution);
+        let RenderResolution { item, .. } =
+            render_resolution_simple_(ctx, &local_name, import_to_add, resolution);
+
         item
     }
 }
@@ -445,12 +445,11 @@ fn render_resolution_path<'db>(
     let cap = ctx.snippet_cap();
     let db = completion.db;
     let config = completion.config;
-    let name = local_name.display(ctx.db(), ctx.completion.edition).to_smolstr();
 
     let requires_import = import_to_add.is_some();
 
-    let (mut insert_text, mut item) =
-        render_resolution_simple_(ctx, name.clone(), &local_name, import_to_add, resolution);
+    let RenderResolution { name, mut insert_text, mut item } =
+        render_resolution_simple_(ctx, &local_name, import_to_add, resolution);
 
     // Add `<>` for generic types
     let type_path_no_ty_args = matches!(
@@ -532,18 +531,24 @@ fn render_resolution_path<'db>(
     item
 }
 
+struct RenderResolution {
+    name: SmolStr,
+    insert_text: SmolStr,
+    item: Builder,
+}
+
 fn render_resolution_simple_<'db>(
     ctx: RenderContext<'_, 'db>,
-    name: SmolStr,
     local_name: &hir::Name,
     import_to_add: Option<LocatedImport>,
     resolution: ScopeDef<'db>,
-) -> (SmolStr, Builder) {
+) -> RenderResolution {
     let _p = tracing::info_span!("render_resolution_simple_").entered();
 
     let db = ctx.db();
     let ctx = ctx.import_to_add(import_to_add);
     let kind = res_to_kind(resolution);
+    let name = local_name.display(db, ctx.completion.edition).to_smolstr();
 
     let mut item = CompletionItem::new(
         kind,
@@ -560,11 +565,11 @@ fn render_resolution_simple_<'db>(
 
     let insert_text =
         match (ctx.import_to_add, ctx.completion.config.insert_qualified_path_on_completion) {
-            (None, _) => name,
+            (None, _) => name.clone(),
 
             (Some(import), false) => {
                 item.add_import(import);
-                name
+                name.clone()
             }
 
             (Some(import), true) => {
@@ -576,7 +581,7 @@ fn render_resolution_simple_<'db>(
         };
 
     item.doc_aliases(ctx.doc_aliases);
-    (insert_text, item)
+    RenderResolution { name, insert_text, item }
 }
 
 fn res_to_kind(resolution: ScopeDef<'_>) -> CompletionItemKind {
