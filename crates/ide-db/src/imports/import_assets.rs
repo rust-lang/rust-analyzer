@@ -543,10 +543,7 @@ fn path_applicable_imports(
             .take(DEFAULT_QUERY_SEARCH_LIMIT)
             .collect();
 
-            let qualifier_path = path_candidate
-                .qualifier
-                .iter()
-                .map(|name| name.as_str());
+            let qualifier_path = path_candidate.qualifier.iter().map(|name| name.as_str());
             if let Some(path) = ast::make::ext::path_from_idents(qualifier_path)
                 && let Some(hir::PathResolution::Def(def @ hir::ModuleDef::BuiltinType(_))) =
                     scope.speculative_resolve(&path)
