@@ -89,6 +89,21 @@ impl GlobalState {
         self.is_quiescent() && !self.prime_caches_queue.op_in_progress()
     }
 
+    /// Are the workspaces loaded, so that an answer to a workspace-wide request
+    /// (references, workspace symbols, rename, ...) is complete?
+    ///
+    /// Before the first workspace has been loaded the server is trivially
+    /// quiescent (nothing is in flight yet) but nothing is loaded either, so
+    /// `quiescent` alone reads as ready at exactly the wrong moment. Cache
+    /// priming does not count: it only warms what a request computes on demand
+    /// anyway, so answers during priming are slower but complete. A workspace
+    /// that failed to load is reported through `health` and is ready here (the
+    /// failure is settled).
+    fn is_ready(&self) -> bool {
+        let nothing_loaded_yet = self.workspaces.is_empty() && self.fetch_workspace_error().is_ok();
+        !nothing_loaded_yet && self.is_quiescent()
+    }
+
     pub(crate) fn update_configuration(&mut self, config: Config) {
         let _p = tracing::info_span!("GlobalState::update_configuration").entered();
         let old_config = mem::replace(&mut self.config, Arc::new(config));
@@ -129,6 +144,7 @@ impl GlobalState {
         let mut status = lsp_ext::ServerStatusParams {
             health: lsp_ext::Health::Ok,
             quiescent: self.is_fully_ready(),
+            ready: self.is_ready(),
             message: None,
         };
         let mut message = String::new();

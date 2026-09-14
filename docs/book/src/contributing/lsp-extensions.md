@@ -1,5 +1,5 @@
 <!---
-lsp/ext.rs hash: 99e704e0b058c690
+lsp/ext.rs hash: 1761bfa64962df10
 
 If you need to change the above hash to make the test pass, please check if you
 need to adjust this doc as well and ping this issue:
@@ -640,6 +640,12 @@ interface ServerStatusParams {
     /// Is there any pending background work which might change the status?
     /// For example, are dependencies being downloaded?
     quiescent: boolean,
+    /// Are the workspaces loaded, so that an answer to a workspace-wide
+    /// request (references, workspace symbols, rename, ...) is complete?
+    /// `false` while the workspaces are being (re)loaded, `true` once they
+    /// are, including while caches are being primed (priming only makes
+    /// answers faster).
+    ready: boolean,
     /// Explanatory message to show on hover.
     message?: string,
 }
@@ -649,9 +655,13 @@ This notification is sent from server to client.
 The client can use it to display *persistent* status to the user (in the mode line).
 It is similar to the `showMessage`, but is intended for status rather than point-in-time events.
 
-Note that this functionality is intended primarily to inform the end user about the state of the server.
+Note that `health`, `quiescent` and `message` are intended primarily to inform the end user about the state of the server.
 In particular, it's valid for the client to completely ignore this extension.
 Clients are discouraged from but are allowed to use the `health` status to decide if it's worth sending a request to the server.
+
+`ready` is the exception: it is intended for clients (in particular coding agents) that need to know whether an answer to a workspace-wide request is complete, rather than a status line to display.
+Before the first load `quiescent` is trivially `true` while nothing is loaded yet, which `ready` reports as `false`; while caches are being primed `quiescent` is `false` while `ready` stays `true` (answers are complete, only slower).
+A client that wants complete answers waits for `ready` before sending a workspace-wide request, or repeats the request once `ready` is reported again after a reload.
 
 ## Controlling Flycheck
 

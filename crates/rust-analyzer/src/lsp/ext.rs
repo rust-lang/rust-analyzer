@@ -586,6 +586,9 @@ impl Notification for ServerStatusNotification {
 pub struct ServerStatusParams {
     pub health: Health,
     pub quiescent: bool,
+    /// Whether the workspaces are loaded, so that an answer to a workspace-wide request
+    /// is complete.
+    pub ready: bool,
     pub message: Option<String>,
 }
 
