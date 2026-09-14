@@ -3,10 +3,10 @@ import * as lc from "vscode-languageclient/node";
 
 import * as commands from "./commands";
 import { type CommandFactory, Ctx, fetchWorkspace } from "./ctx";
+import { initializeDebugSessionTrackingAndRebuild } from "./debug";
 import * as diagnostics from "./diagnostics";
 import { activateTaskProvider } from "./tasks";
 import { setContextValue } from "./util";
-import { initializeDebugSessionTrackingAndRebuild } from "./debug";
 
 const RUST_PROJECT_CONTEXT_NAME = "inRustProject";
 

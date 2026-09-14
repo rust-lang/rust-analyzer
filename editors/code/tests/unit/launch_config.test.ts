@@ -1,7 +1,7 @@
 import * as assert from "assert";
+import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
 import * as os from "os";
 import * as path from "path";
-import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import { Cargo, cargoPath } from "../../src/toolchain";
 import { isWindows, normalizeDriveLetter } from "../../src/util";
 import type { Context } from ".";

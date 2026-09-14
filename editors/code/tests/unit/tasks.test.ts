@@ -1,7 +1,7 @@
-import type { Context } from ".";
-import * as vscode from "vscode";
 import * as assert from "assert";
+import * as vscode from "vscode";
 import { targetToExecution } from "../../src/tasks";
+import type { Context } from ".";
 
 export async function getTests(ctx: Context) {
     await ctx.suite("Tasks", (suite) => {

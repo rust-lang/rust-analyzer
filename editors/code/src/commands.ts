@@ -1,39 +1,38 @@
+import * as path from "path";
 import * as vscode from "vscode";
 import * as lc from "vscode-languageclient";
-import * as ra from "./lsp_ext";
-import * as path from "path";
-
-import type { Ctx, Cmd, CtxInit } from "./ctx";
-import {
-    applySnippetWorkspaceEdit,
-    applySnippetTextEdits,
-    type SnippetTextDocumentEdit,
-} from "./snippets";
-import {
-    type RunnableQuickPick,
-    selectRunnable,
-    createTaskFromRunnable,
-    createCargoArgs,
-} from "./run";
-import {
-    isRustDocument,
-    isCargoRunnableArgs,
-    isCargoTomlDocument,
-    sleep,
-    isRustEditor,
-    type RustEditor,
-    type RustDocument,
-    unwrapUndefinable,
-} from "./util";
-import { startDebugSession, makeDebugConfig } from "./debug";
 import type { LanguageClient } from "vscode-languageclient/node";
 import { HOVER_REFERENCE_COMMAND } from "./client";
+import type { Cmd, Ctx, CtxInit } from "./ctx";
+import { makeDebugConfig, startDebugSession } from "./debug";
 import type { DependencyId } from "./dependencies_provider";
-import { log } from "./util";
+import * as ra from "./lsp_ext";
+import {
+    createCargoArgs,
+    createTaskFromRunnable,
+    type RunnableQuickPick,
+    selectRunnable,
+} from "./run";
+import {
+    applySnippetTextEdits,
+    applySnippetWorkspaceEdit,
+    type SnippetTextDocumentEdit,
+} from "./snippets";
 import type { SyntaxElement } from "./syntax_tree_provider";
+import {
+    isCargoRunnableArgs,
+    isCargoTomlDocument,
+    isRustDocument,
+    isRustEditor,
+    log,
+    type RustDocument,
+    type RustEditor,
+    sleep,
+    unwrapUndefinable,
+} from "./util";
 
-export * from "./run";
 export { newProject } from "./new_project";
+export * from "./run";
 
 export function analyzerStatus(ctx: CtxInit): Cmd {
     const tdcp = new (class implements vscode.TextDocumentContentProvider {
@@ -188,7 +187,7 @@ export function onEnter(ctx: CtxInit): Cmd {
                 ),
                 position: client.code2ProtocolConverter.asPosition(editor.selection.active),
             })
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // biome-ignore lint/suspicious/noExplicitAny: todo
             .catch((_error: any) => {
                 // client.handleFailedRequest(OnEnterRequest.type, error, null);
                 return null;

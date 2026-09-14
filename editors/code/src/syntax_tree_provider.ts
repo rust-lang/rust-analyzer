@@ -1,8 +1,7 @@
 import * as vscode from "vscode";
-
-import { isRustEditor, setContextValue } from "./util";
 import type { CtxInit } from "./ctx";
 import * as ra from "./lsp_ext";
+import { isRustEditor, setContextValue } from "./util";
 
 export class SyntaxTreeProvider implements vscode.TreeDataProvider<SyntaxElement> {
     private _onDidChangeTreeData: vscode.EventEmitter<SyntaxElement | undefined | void> =

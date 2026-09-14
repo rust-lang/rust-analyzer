@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 
-import type { Ctx, Cmd } from "./ctx";
+import type { Cmd, Ctx } from "./ctx";
 import * as ra from "./lsp_ext";
 import { cargoPath } from "./toolchain";
 import { log, spawnAsync } from "./util";
