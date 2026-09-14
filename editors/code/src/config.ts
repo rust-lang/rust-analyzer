@@ -1,4 +1,4 @@
-import * as Is from "vscode-languageclient/lib/common/utils/is";
+import * as Is from "./is";
 import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
@@ -14,13 +14,7 @@ export type RunnableEnvCfgItem = {
 
 export type ConfigurationTree = { [key: string]: ConfigurationValue };
 export type ConfigurationValue =
-    | undefined
-    | null
-    | boolean
-    | number
-    | string
-    | ConfigurationValue[]
-    | ConfigurationTree;
+    undefined | null | boolean | number | string | ConfigurationValue[] | ConfigurationTree;
 
 type ShowStatusBar = "always" | "never" | { documentSelector: vscode.DocumentSelector };
 

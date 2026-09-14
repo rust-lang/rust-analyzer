@@ -71,9 +71,9 @@ export class Ctx implements RustAnalyzerExtensionApi {
 
     private _client: lc.LanguageClient | undefined;
     private _serverPath: string | undefined;
-    private traceOutputChannel: vscode.OutputChannel | undefined;
+    private traceOutputChannel: vscode.LogOutputChannel | undefined;
     private testController: vscode.TestController | undefined;
-    private outputChannel: vscode.OutputChannel | undefined;
+    private outputChannel: vscode.LogOutputChannel | undefined;
     private clientSubscriptions: Disposable[];
     private state: PersistentState;
     private commandFactories: Record<string, CommandFactory>;
@@ -81,8 +81,7 @@ export class Ctx implements RustAnalyzerExtensionApi {
     private unlinkedFiles: vscode.Uri[];
     private _dependenciesProvider: RustDependenciesProvider | undefined;
     private _dependencyTreeView:
-        | vscode.TreeView<Dependency | DependencyFile | DependencyId>
-        | undefined;
+        vscode.TreeView<Dependency | DependencyFile | DependencyId> | undefined;
 
     private _syntaxTreeProvider: SyntaxTreeProvider | undefined;
     private _syntaxTreeView: vscode.TreeView<SyntaxElement> | undefined;
@@ -197,15 +196,6 @@ export class Ctx implements RustAnalyzerExtensionApi {
             return;
         }
 
-        if (!this.traceOutputChannel) {
-            this.traceOutputChannel = new LazyOutputChannel("rust-analyzer LSP Trace");
-            this.pushExtCleanup(this.traceOutputChannel);
-        }
-        if (!this.outputChannel) {
-            this.outputChannel = vscode.window.createOutputChannel("rust-analyzer Language Server");
-            this.pushExtCleanup(this.outputChannel);
-        }
-
         if (!this._client) {
             this._serverPath = await this.bootstrap();
             text(spawn(this._serverPath, ["--version"]).stdout.setEncoding("utf-8")).then(
@@ -250,8 +240,8 @@ export class Ctx implements RustAnalyzerExtensionApi {
             const initializationOptions = prepareVSCodeConfig(rawInitializationOptions);
 
             this._client = await createClient(
-                this.traceOutputChannel,
-                this.outputChannel,
+                this.getTraceOutputChannel(),
+                this.getOutputChannel(),
                 initializationOptions,
                 serverOptions,
                 this.config,
@@ -264,7 +254,7 @@ export class Ctx implements RustAnalyzerExtensionApi {
             );
             this.pushClientCleanup(
                 this._client.onNotification(ra.openServerLogs, () => {
-                    this.outputChannel!.show();
+                    this.getOutputChannel().show();
                 }),
             );
             this.pushClientCleanup(
@@ -280,6 +270,27 @@ export class Ctx implements RustAnalyzerExtensionApi {
             );
         }
         return this._client;
+    }
+
+    private getOutputChannel(): vscode.LogOutputChannel {
+        if (!this.outputChannel) {
+            this.outputChannel = vscode.window.createOutputChannel(
+                "rust-analyzer Language Server",
+                {
+                    log: true,
+                },
+            );
+            this.pushExtCleanup(this.outputChannel);
+        }
+        return this.outputChannel;
+    }
+
+    private getTraceOutputChannel(): vscode.LogOutputChannel {
+        if (!this.traceOutputChannel) {
+            this.traceOutputChannel = new LazyOutputChannel("rust-analyzer Language Server Trace");
+            this.pushExtCleanup(this.traceOutputChannel);
+        }
+        return this.traceOutputChannel;
     }
 
     private async bootstrap(): Promise<string> {
