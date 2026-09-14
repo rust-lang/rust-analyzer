@@ -401,7 +401,10 @@ fn render_resolution_pat<'db>(
         let ctx = ctx.import_to_add(import_to_add);
         render_macro_pat(ctx, pattern_ctx, local_name, mac)
     } else {
-        render_resolution_simple_(ctx, &local_name, import_to_add, resolution)
+        let name = local_name.display(ctx.db(), ctx.completion.edition).to_smolstr();
+        let (_, item) =
+            render_resolution_simple_(ctx, name, &local_name, import_to_add, resolution);
+        item
     }
 }
 
@@ -442,19 +445,12 @@ fn render_resolution_path<'db>(
     let cap = ctx.snippet_cap();
     let db = completion.db;
     let config = completion.config;
+    let name = local_name.display(ctx.db(), ctx.completion.edition).to_smolstr();
 
     let requires_import = import_to_add.is_some();
-    let name = local_name.display(db, completion.edition).to_smolstr();
 
-    let mut insert_text = if config.insert_qualified_path_on_completion
-        && let Some(import) = &import_to_add
-    {
-        import.import_path.display(db, completion.edition).to_smolstr()
-    } else {
-        name.clone()
-    };
-
-    let mut item = render_resolution_simple_(ctx, &local_name, import_to_add, resolution);
+    let (mut insert_text, mut item) =
+        render_resolution_simple_(ctx, name.clone(), &local_name, import_to_add, resolution);
 
     // Add `<>` for generic types
     let type_path_no_ty_args = matches!(
@@ -538,10 +534,11 @@ fn render_resolution_path<'db>(
 
 fn render_resolution_simple_<'db>(
     ctx: RenderContext<'_, 'db>,
+    name: SmolStr,
     local_name: &hir::Name,
     import_to_add: Option<LocatedImport>,
     resolution: ScopeDef<'db>,
-) -> Builder {
+) -> (SmolStr, Builder) {
     let _p = tracing::info_span!("render_resolution_simple_").entered();
 
     let db = ctx.db();
@@ -561,19 +558,25 @@ fn render_resolution_simple_<'db>(
         .set_documentation(scope_def_docs(db, resolution))
         .set_deprecated(scope_def_is_deprecated(&ctx, resolution));
 
-    if let Some(import_to_add) = ctx.import_to_add {
-        if ctx.completion.config.insert_qualified_path_on_completion {
-            let full_path =
-                import_to_add.import_path.display(db, ctx.completion.edition).to_string();
-            item.insert_text(&full_path);
-            item.qualified_path_hint(SmolStr::from(full_path));
-        } else {
-            item.add_import(import_to_add);
-        }
-    }
+    let insert_text =
+        match (ctx.import_to_add, ctx.completion.config.insert_qualified_path_on_completion) {
+            (None, _) => name,
+
+            (Some(import), false) => {
+                item.add_import(import);
+                name
+            }
+
+            (Some(import), true) => {
+                let full_path = import.import_path.display(db, ctx.completion.edition).to_smolstr();
+                item.qualified_path_hint(full_path.clone());
+                item.insert_text(full_path.clone());
+                full_path
+            }
+        };
 
     item.doc_aliases(ctx.doc_aliases);
-    item
+    (insert_text, item)
 }
 
 fn res_to_kind(resolution: ScopeDef<'_>) -> CompletionItemKind {
