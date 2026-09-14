@@ -22,7 +22,7 @@ use hir_expand::{
         ProcMacro, ProcMacroExpander, ProcMacroExpansionError, ProcMacroKind, ProcMacrosBuilder,
     },
     quote,
-    tt::{Leaf, TokenTree, TopSubtree, TopSubtreeBuilder, TtElement, TtIter},
+    tt::{Leaf, TextRange, TextSize, TokenTree, TopSubtree, TopSubtreeBuilder, TtElement, TtIter},
 };
 use intern::{Symbol, sym};
 use paths::AbsPathBuf;
@@ -709,6 +709,21 @@ pub fn generate_suffixed_type(_attr: TokenStream, input: TokenStream) -> TokenSt
                 disabled: false,
             },
         ),
+        (
+            r#"
+#[proc_macro]
+pub fn generate_derive(_input: TokenStream) -> TokenStream {
+    _input
+}
+"#
+            .into(),
+            ProcMacro {
+                name: Symbol::intern("generate_derive"),
+                kind: ProcMacroKind::Bang,
+                expander: sync::Arc::new(GenerateDeriveProcMacroExpander),
+                disabled: false,
+            },
+        ),
     ])
 }
 
@@ -1216,6 +1231,33 @@ impl ProcMacroExpander for GenerateSuffixedTypeProcMacroExpander {
         };
 
         Ok(ret)
+    }
+
+    fn eq_dyn(&self, other: &dyn ProcMacroExpander) -> bool {
+        other.type_id() == TypeId::of::<Self>()
+    }
+}
+
+#[derive(Debug)]
+struct GenerateDeriveProcMacroExpander;
+impl ProcMacroExpander for GenerateDeriveProcMacroExpander {
+    fn expand(
+        &self,
+        _: &dyn SourceDatabase,
+        _: &TopSubtree,
+        _: Option<&TopSubtree>,
+        _: &Env,
+        def_site: Span,
+        _: Span,
+        _: Span,
+        _: String,
+    ) -> Result<TopSubtree, ProcMacroExpansionError> {
+        let def_site =
+            Span { range: TextRange::new(TextSize::from(1000), TextSize::from(1005)), ..def_site };
+        Ok(quote! { def_site =>
+            #[derive(Clone)]
+            pub struct Generated;
+        })
     }
 
     fn eq_dyn(&self, other: &dyn ProcMacroExpander) -> bool {

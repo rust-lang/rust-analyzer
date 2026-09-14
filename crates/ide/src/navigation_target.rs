@@ -1048,7 +1048,7 @@ fn orig_range_r(
 ) -> UpmappingResult<(FileRange, Option<TextRange>)> {
     UpmappingResult {
         call_site: (
-            InFile::new(hir_file, value).original_node_file_range(db).0.into_file_id(db),
+            InFile::new(hir_file, value).original_node_file_range_rooted(db).into_file_id(db),
             None,
         ),
         def_site: None,

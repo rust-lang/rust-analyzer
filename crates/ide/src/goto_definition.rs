@@ -2276,6 +2276,22 @@ fn fn_macro() {}
     }
 
     #[test]
+    fn goto_builtin_derive_generated_by_proc_macro() {
+        check(
+            r#"
+//- proc_macros: generate_derive
+//- minicore: clone, derive
+  proc_macros::generate_derive!();
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+fn clone(value: &Generated) {
+    value.clone$0();
+}
+"#,
+        )
+    }
+
+    #[test]
     fn goto_intra_doc_links() {
         check(
             r#"
