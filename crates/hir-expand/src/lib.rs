@@ -1364,7 +1364,7 @@ impl<'db> ExpansionInfo<'db> {
         span_for_offset(db, self.exp_map, offset)
     }
 
-    /// Maps up the text range out of the expansion hierarchy back into the original file its from.
+    /// Maps up the text range out of the expansion hierarchy back into the original file it's from.
     pub fn map_node_range_up(
         &self,
         db: &dyn SourceDatabase,
@@ -1421,8 +1421,9 @@ impl<'db> ExpansionInfo<'db> {
     }
 }
 
-/// Maps up the text range out of the expansion hierarchy back into the original file its from only
+/// Maps up the text range out of the expansion hierarchy back into the original file it's from, only
 /// considering the root spans contained.
+///
 /// Unlike [`map_node_range_up`], this will not return `None` if any anchors or syntax contexts differ.
 pub fn map_node_range_up_rooted(
     db: &dyn SourceDatabase,
@@ -1444,7 +1445,7 @@ pub fn map_node_range_up_rooted(
     Some(resolve_span(db, Span { range: TextRange::new(start, end), anchor, ctx }))
 }
 
-/// Maps up the text range out of the expansion hierarchy back into the original file its from.
+/// Maps up the text range out of the expansion hierarchy back into the original file it's from.
 ///
 /// this will return `None` if any anchors or syntax contexts differ.
 pub fn map_node_range_up(
@@ -1544,7 +1545,7 @@ impl ExpandTo {
             | PREFIX_EXPR | RANGE_EXPR | RECORD_EXPR_FIELD | REF_EXPR | RETURN_EXPR | TRY_EXPR
             | TUPLE_EXPR | WHILE_EXPR | MACRO_EXPR => ExpandTo::Expr,
             _ => {
-                // Unknown , Just guess it is `Items`
+                // Unknown, just guess it is `Items`
                 ExpandTo::Items
             }
         }
