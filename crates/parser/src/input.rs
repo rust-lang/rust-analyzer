@@ -17,8 +17,6 @@ type bits = u64;
 pub struct Input {
     kind: Vec<SyntaxKind>,
     joint: Vec<bits>,
-    /// Whether a `FLOAT_NUMBER` lexeme contains `'.'`. Indexed like [`Self::joint`].
-    float_has_dot: Vec<bits>,
     contextual_kind: Vec<SyntaxKind>,
     edition: Vec<Edition>,
 }
@@ -27,11 +25,9 @@ pub struct Input {
 impl Input {
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
-        let bits_capacity = capacity.div_ceil(bits::BITS as usize);
         Self {
             kind: Vec::with_capacity(capacity),
-            joint: Vec::with_capacity(bits_capacity),
-            float_has_dot: Vec::with_capacity(bits_capacity),
+            joint: Vec::with_capacity(capacity.div_ceil(bits::BITS as usize)),
             contextual_kind: Vec::with_capacity(capacity),
             edition: Vec::with_capacity(capacity),
         }
@@ -66,19 +62,11 @@ impl Input {
         let (idx, b_idx) = self.bit_index(n);
         self.joint[idx] |= 1 << b_idx;
     }
-    /// Marks the last pushed token as a `FLOAT_NUMBER` whose text contains `.`.
-    #[inline]
-    pub fn set_float_has_dot(&mut self) {
-        let n = self.len() - 1;
-        let (idx, b_idx) = self.bit_index(n);
-        self.float_has_dot[idx] |= 1 << b_idx;
-    }
     #[inline]
     fn push_impl(&mut self, kind: SyntaxKind, contextual_kind: SyntaxKind, edition: Edition) {
         let idx = self.len();
         if idx.is_multiple_of(bits::BITS as usize) {
             self.joint.push(0);
-            self.float_has_dot.push(0);
         }
         self.kind.push(kind);
         self.contextual_kind.push(contextual_kind);
@@ -100,10 +88,6 @@ impl Input {
     pub(crate) fn is_joint(&self, n: usize) -> bool {
         let (idx, b_idx) = self.bit_index(n);
         self.joint[idx] & (1 << b_idx) != 0
-    }
-    pub(crate) fn float_has_dot(&self, n: usize) -> bool {
-        let (idx, b_idx) = self.bit_index(n);
-        self.float_has_dot[idx] & (1 << b_idx) != 0
     }
 }
 

@@ -598,21 +598,10 @@ fn field_expr<const FLOAT_RECOVERY: bool>(
     if p.at_ts(PATH_NAME_REF_OR_INDEX_KINDS) {
         name_ref_mod_path_or_index(p);
     } else if p.at(FLOAT_NUMBER) {
-        if p.float_has_dot() {
-            p.split_float();
-            name_ref_mod_path_or_index(p);
-            let lhs = m.complete(p, FIELD_EXPR);
-            return postfix_dot_expr::<false>(p, lhs);
-        }
-
-        // No `.` in the float lexeme (e.g. `1e0`): recover without FloatSplit.
-        let (inner, outer) = p.nest_field_expr(m);
-        let err = p.start();
-        p.error("illegal float literal");
-        p.bump(FLOAT_NUMBER);
-        err.complete(p, ERROR);
-        inner.complete(p, FIELD_EXPR);
-        return Ok(outer.complete(p, FIELD_EXPR));
+        p.split_float();
+        name_ref_mod_path_or_index(p);
+        let lhs = m.complete(p, FIELD_EXPR);
+        return postfix_dot_expr::<false>(p, lhs);
     } else {
         p.error("expected field name or number");
     }

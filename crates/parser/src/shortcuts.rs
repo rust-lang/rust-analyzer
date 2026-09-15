@@ -45,13 +45,10 @@ impl LexedStr<'_> {
                     res.was_joint();
                 }
                 res.push(kind, edition);
-                // For floats: `float_has_dot` if the lexeme contains `.`; joint if it
-                // does not end with `.` (`ends_in_dot = !is_joint` when splitting).
+                // A float is joint when it does not end with `.`.
+                // We use this jointness to determine whether a split float ends in `.`.
                 if kind == SyntaxKind::FLOAT_NUMBER {
                     let text = self.text(i);
-                    if text.contains('.') {
-                        res.set_float_has_dot();
-                    }
                     if !text.ends_with('.') {
                         res.was_joint();
                     } else {
@@ -78,6 +75,7 @@ impl LexedStr<'_> {
             sink,
             float_split_stage: FloatSplitStage::None,
             float_split_ends_in_dot: false,
+            skip_next_exit: false,
         };
 
         for event in output.iter() {
@@ -85,8 +83,8 @@ impl LexedStr<'_> {
                 Step::Token { kind, n_input_tokens: n_raw_tokens } => {
                     builder.token(kind, n_raw_tokens)
                 }
-                Step::FloatSplit { ends_in_dot: has_pseudo_dot } => {
-                    builder.float_split(has_pseudo_dot)
+                Step::FloatSplit { ends_in_dot } => {
+                    builder.float_split(ends_in_dot)
                 }
                 Step::Enter { kind } => builder.enter(kind),
                 Step::Exit => builder.exit(),
@@ -117,6 +115,8 @@ struct Builder<'a, 'b> {
     sink: &'b mut dyn FnMut(StrStep<'_>),
     float_split_stage: FloatSplitStage,
     float_split_ends_in_dot: bool,
+    /// Suppresses the `Exit` for the skipped `NAME_REF`.
+    skip_next_exit: bool,
 }
 
 enum State {
@@ -185,6 +185,23 @@ impl Builder<'_, '_> {
             State::Normal => (),
         }
 
+        let kind = if kind == NAME_REF
+            && self.float_split_stage != FloatSplitStage::None
+            && !self.lexed.text(self.pos).contains('.')
+        {
+            match self.float_split_stage {
+                FloatSplitStage::BeforeFirstInt => ERROR,
+                FloatSplitStage::BeforeDot => unreachable!(),
+                FloatSplitStage::BeforeSecondInt => {
+                    self.skip_next_exit = true;
+                    return;
+                }
+                FloatSplitStage::None => kind,
+            }
+        } else {
+            kind
+        };
+
         let n_trivias =
             (self.pos..self.lexed.len()).take_while(|&it| self.lexed.kind(it).is_trivia()).count();
         let leading_trivias = self.pos..self.pos + n_trivias;
@@ -198,6 +215,10 @@ impl Builder<'_, '_> {
     }
 
     fn exit(&mut self) {
+        if self.skip_next_exit {
+            self.skip_next_exit = false;
+            return;
+        }
         match mem::replace(&mut self.state, State::PendingExit) {
             State::PendingEnter => unreachable!(),
             State::PendingExit => (self.sink)(StrStep::Exit),
@@ -233,27 +254,40 @@ impl Builder<'_, '_> {
     fn do_synthetic_float_token(&mut self, kind: SyntaxKind) {
         assert_eq!(self.lexed.kind(self.pos), SyntaxKind::FLOAT_NUMBER);
         let text = self.lexed.text(self.pos);
-        let (left, right) = text.split_once('.').unwrap_or((text, ""));
-        assert!(!left.is_empty(), "float split left part must be non-empty: {text:?}");
 
-        let piece = match self.float_split_stage {
-            FloatSplitStage::None => unreachable!(),
-            FloatSplitStage::BeforeFirstInt => {
-                assert_eq!(kind, SyntaxKind::INT_NUMBER);
-                left
+        if !text.contains('.') {
+            match self.float_split_stage {
+                FloatSplitStage::None => unreachable!(),
+                FloatSplitStage::BeforeFirstInt => {
+                    let pos = self.lexed.text_start(self.pos);
+                    (self.sink)(StrStep::Error { msg: "illegal float literal", pos });
+                    (self.sink)(StrStep::Token { kind: FLOAT_NUMBER, text });
+                }
+                FloatSplitStage::BeforeDot | FloatSplitStage::BeforeSecondInt => {}
             }
-            FloatSplitStage::BeforeDot => {
-                assert_eq!(kind, SyntaxKind::DOT);
-                "."
-            }
-            FloatSplitStage::BeforeSecondInt => {
-                assert_eq!(kind, SyntaxKind::INT_NUMBER);
-                assert!(!self.float_split_ends_in_dot);
-                assert!(!right.is_empty(), "expected fractional part: {text:?}");
-                right
-            }
-        };
-        (self.sink)(StrStep::Token { kind, text: piece });
+        } else {
+            let (left, right) = text.split_once('.').unwrap_or((text, ""));
+            assert!(!left.is_empty(), "float split left part must be non-empty: {text:?}");
+
+            let piece = match self.float_split_stage {
+                FloatSplitStage::None => unreachable!(),
+                FloatSplitStage::BeforeFirstInt => {
+                    assert_eq!(kind, SyntaxKind::INT_NUMBER);
+                    left
+                }
+                FloatSplitStage::BeforeDot => {
+                    assert_eq!(kind, SyntaxKind::DOT);
+                    "."
+                }
+                FloatSplitStage::BeforeSecondInt => {
+                    assert_eq!(kind, SyntaxKind::INT_NUMBER);
+                    assert!(!self.float_split_ends_in_dot);
+                    assert!(!right.is_empty(), "expected fractional part: {text:?}");
+                    right
+                }
+            };
+            (self.sink)(StrStep::Token { kind, text: piece });
+        }
 
         match self.float_split_stage {
             FloatSplitStage::None => unreachable!(),

@@ -162,8 +162,8 @@ where
             parser::Step::Token { kind, n_input_tokens: n_raw_tokens } => {
                 tree_sink.token(kind, n_raw_tokens)
             }
-            parser::Step::FloatSplit { ends_in_dot: has_pseudo_dot } => {
-                tree_sink.float_split(has_pseudo_dot)
+            parser::Step::FloatSplit { ends_in_dot } => {
+                tree_sink.float_split(ends_in_dot)
             }
             parser::Step::Enter { kind } => tree_sink.start_node(kind),
             parser::Step::Exit => tree_sink.finish_node(),
@@ -842,15 +842,18 @@ struct TtTreeSink<'a> {
     token_map: SpanMap,
     float_split_stage: FloatSplitStage,
     float_split_ends_in_dot: bool,
+    /// Suppresses the `Exit` for the skipped `NAME_REF`.
+    skip_next_exit: bool,
 }
 
 /// Mirrors the parser's in-flight float split over one TT float literal leaf.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FloatSplitStage {
-    None,
-    BeforeFirstInt,
-    BeforeDot,
-    BeforeSecondInt,
+    // Discriminants track the number of synthetic tokens remaining.
+    None = 0,
+    BeforeFirstInt = 3,
+    BeforeDot = 2,
+    BeforeSecondInt = 1,
 }
 
 impl<'a> TtTreeSink<'a> {
@@ -863,6 +866,7 @@ impl<'a> TtTreeSink<'a> {
             token_map: SpanMap::empty(),
             float_split_stage: FloatSplitStage::None,
             float_split_ends_in_dot: false,
+            skip_next_exit: false,
         }
     }
 
@@ -1010,7 +1014,7 @@ impl TtTreeSink<'_> {
         }
     }
 
-    /// Emit one synthetic piece; advance the TT cursor only on the last piece.
+    /// Emit one synthetic piece and advance the TT cursor when the split is complete.
     fn do_synthetic_float_token(&mut self, kind: SyntaxKind) {
         let token_tree = self.cursor.token_tree();
         let (text, span) = match &token_tree {
@@ -1019,34 +1023,50 @@ impl TtTreeSink<'_> {
             ))) => (lit.text().to_owned(), *span),
             tt => unreachable!("{tt:?}"),
         };
-        // FIXME: Span splitting — each piece still maps to the whole float span.
-        let (left, right) = match text.split_once('.') {
-            Some((left, right)) => (left, right),
-            None => (text.as_str(), ""),
-        };
-        assert!(!left.is_empty(), "float split left part must be non-empty: {text:?}");
 
-        let piece = match self.float_split_stage {
-            FloatSplitStage::None => unreachable!(),
-            FloatSplitStage::BeforeFirstInt => {
-                assert_eq!(kind, SyntaxKind::INT_NUMBER);
-                left
+        if !text.contains('.') {
+            // Parser still emits INT/DOT/INT for joint scientific floats (`1e0`).
+            // Replay Builder's recovery: one ERROR-wrapped FLOAT_NUMBER, then no-ops.
+            match self.float_split_stage {
+                FloatSplitStage::None => unreachable!(),
+                FloatSplitStage::BeforeFirstInt => {
+                    self.error("illegal float literal".to_owned());
+                    self.inner.token(FLOAT_NUMBER, &text);
+                    self.text_pos += TextSize::of(text.as_str());
+                    self.token_map.push(self.text_pos, span);
+                }
+                FloatSplitStage::BeforeDot | FloatSplitStage::BeforeSecondInt => {}
             }
-            FloatSplitStage::BeforeDot => {
-                assert_eq!(kind, SyntaxKind::DOT);
-                "."
-            }
-            FloatSplitStage::BeforeSecondInt => {
-                assert_eq!(kind, SyntaxKind::INT_NUMBER);
-                assert!(!self.float_split_ends_in_dot);
-                assert!(!right.is_empty(), "expected fractional part: {text:?}");
-                right
-            }
-        };
+        } else {
+            // FIXME: Span splitting — each piece still maps to the whole float span.
+            let (left, right) = match text.split_once('.') {
+                Some((left, right)) => (left, right),
+                None => (text.as_str(), ""),
+            };
+            assert!(!left.is_empty(), "float split left part must be non-empty: {text:?}");
 
-        self.inner.token(kind, piece);
-        self.text_pos += TextSize::of(piece);
-        self.token_map.push(self.text_pos, span);
+            let piece = match self.float_split_stage {
+                FloatSplitStage::None => unreachable!(),
+                FloatSplitStage::BeforeFirstInt => {
+                    assert_eq!(kind, SyntaxKind::INT_NUMBER);
+                    left
+                }
+                FloatSplitStage::BeforeDot => {
+                    assert_eq!(kind, SyntaxKind::DOT);
+                    "."
+                }
+                FloatSplitStage::BeforeSecondInt => {
+                    assert_eq!(kind, SyntaxKind::INT_NUMBER);
+                    assert!(!self.float_split_ends_in_dot);
+                    assert!(!right.is_empty(), "expected fractional part: {text:?}");
+                    right
+                }
+            };
+
+            self.inner.token(kind, piece);
+            self.text_pos += TextSize::of(piece);
+            self.token_map.push(self.text_pos, span);
+        }
 
         match self.float_split_stage {
             FloatSplitStage::None => unreachable!(),
@@ -1070,10 +1090,34 @@ impl TtTreeSink<'_> {
     }
 
     fn start_node(&mut self, kind: SyntaxKind) {
+        let no_dot = match self.cursor.token_tree() {
+            Some(tt::TokenTree::Leaf(tt::Leaf::Literal(lit))) if lit.kind == tt::LitKind::Float => {
+                !lit.text().contains('.')
+            }
+            _ => false,
+        };
+        let kind = if kind == NAME_REF && self.float_split_stage != FloatSplitStage::None && no_dot
+        {
+            match self.float_split_stage {
+                FloatSplitStage::BeforeFirstInt => ERROR,
+                FloatSplitStage::BeforeDot => unreachable!(),
+                FloatSplitStage::BeforeSecondInt => {
+                    self.skip_next_exit = true;
+                    return;
+                }
+                FloatSplitStage::None => kind,
+            }
+        } else {
+            kind
+        };
         self.inner.start_node(kind);
     }
 
     fn finish_node(&mut self) {
+        if self.skip_next_exit {
+            self.skip_next_exit = false;
+            return;
+        }
         self.inner.finish_node();
     }
 

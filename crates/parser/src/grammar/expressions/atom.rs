@@ -279,7 +279,7 @@ fn builtin_expr(p: &mut Parser<'_>) -> Option<CompletedMarker> {
         // }
         while !p.at(EOF) && !p.at(T![')']) {
             // `0.1` is one FLOAT_NUMBER; split so the name/DOT loop sees INT/DOT/INT.
-            if p.at(FLOAT_NUMBER) && p.float_has_dot() {
+            if p.at(FLOAT_NUMBER) {
                 p.split_float();
             }
             name_ref_mod_path_or_index(p);

@@ -54,9 +54,6 @@ pub fn to_parser_input(
 
                         if kind == FLOAT_NUMBER {
                             let text = lit.text();
-                            if text.contains('.') {
-                                res.set_float_has_dot();
-                            }
                             // A float is joint when it does not end with `.`.
                             if !text.ends_with('.') {
                                 res.was_joint();
