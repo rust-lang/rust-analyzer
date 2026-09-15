@@ -842,7 +842,7 @@ fn include_expand(
         &editioned_file_id.parse(db).syntax_node(),
         crate::HirFileId::from(editioned_file_id).span_map(db),
         span,
-        syntax_bridge::DocCommentDesugarMode::ProcMacro,
+        syntax_bridge::DocCommentDesugarMode::Keep,
     ))
 }
 
