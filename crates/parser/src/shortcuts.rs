@@ -83,9 +83,7 @@ impl LexedStr<'_> {
                 Step::Token { kind, n_input_tokens: n_raw_tokens } => {
                     builder.token(kind, n_raw_tokens)
                 }
-                Step::FloatSplit { ends_in_dot } => {
-                    builder.float_split(ends_in_dot)
-                }
+                Step::FloatSplit { ends_in_dot } => builder.float_split(ends_in_dot),
                 Step::Enter { kind } => builder.enter(kind),
                 Step::Exit => builder.exit(),
                 Step::Error { msg } => {
