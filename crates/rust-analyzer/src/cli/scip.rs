@@ -299,9 +299,6 @@ these symbols presented by downstream tools may be incorrect.
 
 Known rust-analyzer bugs that can cause this:
 
-  * Definitions in crate example binaries which have the same symbol as definitions in the library
-    or some other example.
-
   * Struct/enum/const/static/impl definitions nested in a function do not mention the function name.
     See #18771.
 
@@ -601,7 +598,7 @@ pub mod example_mod {
     pub fn func() {}
 }
 "#,
-            "rust-analyzer cargo foo 0.1.0 example_mod/func().",
+            "rust-analyzer cargo foo 0.1.0 lib/example_mod/func().",
         );
     }
 
@@ -624,7 +621,7 @@ fn main() {
     s +=$0 S;
 }
 "#,
-            "rust-analyzer cargo main . impl#[S][`AddAssign<Self>`]add_assign().",
+            "rust-analyzer cargo main . lib/impl#[S][`AddAssign<Self>`]add_assign().",
         );
     }
 
@@ -639,7 +636,7 @@ pub mod module {
     }
 }
 "#,
-            "rust-analyzer cargo foo 0.1.0 module/MyTrait#func().",
+            "rust-analyzer cargo foo 0.1.0 lib/module/MyTrait#func().",
         );
     }
 
@@ -654,7 +651,7 @@ pub mod module {
     pub trait MyTraitAlias$0 = MyTrait;
 }
 "#,
-            "rust-analyzer cargo foo 0.1.0 module/MyTraitAlias#",
+            "rust-analyzer cargo foo 0.1.0 lib/module/MyTraitAlias#",
         );
     }
 
@@ -669,7 +666,7 @@ pub mod module {
         }
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 module/MyTrait#MY_CONST.",
+            "rust-analyzer cargo foo 0.1.0 lib/module/MyTrait#MY_CONST.",
         );
     }
 
@@ -684,7 +681,7 @@ pub mod module {
         }
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 module/MyTrait#MyType#",
+            "rust-analyzer cargo foo 0.1.0 lib/module/MyTrait#MyType#",
         );
     }
 
@@ -705,7 +702,7 @@ pub mod module {
         }
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 module/impl#[MyStruct][MyTrait]func().",
+            "rust-analyzer cargo foo 0.1.0 lib/module/impl#[MyStruct][MyTrait]func().",
         );
     }
 
@@ -723,7 +720,7 @@ pub mod module {
         pub a: i32,
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 St#a.",
+            "rust-analyzer cargo foo 0.1.0 lib/St#a.",
         );
     }
 
@@ -741,7 +738,7 @@ pub mod example_mod {
     pub fn func(x$0: usize) {}
 }
 "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 example_mod/func().",
+            "local enclosed by rust-analyzer cargo foo 0.1.0 lib/example_mod/func().",
         );
     }
 
@@ -761,7 +758,7 @@ pub mod example_mod {
     }
 }
 "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 example_mod/func().",
+            "local enclosed by rust-analyzer cargo foo 0.1.0 lib/example_mod/func().",
         );
     }
 
@@ -781,7 +778,7 @@ pub mod example_mod {
         }
     }
     "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 module/func().",
+            "local enclosed by rust-analyzer cargo foo 0.1.0 lib/module/func().",
         );
     }
 
@@ -800,7 +797,7 @@ pub mod example_mod {
         pub i: i32,
     }
     "#,
-            "rust-analyzer cargo main . foo/Bar#",
+            "rust-analyzer cargo main . lib/foo/Bar#",
         );
     }
 
@@ -819,7 +816,7 @@ pub mod example_mod {
         pub i: i32,
     }
     "#,
-            "rust-analyzer cargo main . foo/Bar#",
+            "rust-analyzer cargo main . lib/foo/Bar#",
         );
     }
 
@@ -830,7 +827,84 @@ pub mod example_mod {
     //- /workspace/lib.rs crate:main
     pub type MyTypeAlias$0 = u8;
     "#,
-            "rust-analyzer cargo main . MyTypeAlias#",
+            "rust-analyzer cargo main . lib/MyTypeAlias#",
+        );
+    }
+
+    #[test]
+    fn proc_macro_target() {
+        check_symbol(
+            r#"
+    //- /workspace/proc-macro.rs crate:proc-macro:name
+    struct S$0;
+    "#,
+            "rust-analyzer cargo name . proc-macro/S#",
+        );
+    }
+
+    #[test]
+    fn bin_target() {
+        check_symbol(
+            r#"
+    //- /workspace/main.rs crate:bin:main
+    struct S$0;
+    "#,
+            "rust-analyzer cargo main . bin/main/S#",
+        );
+    }
+
+    #[test]
+    fn example_target() {
+        check_symbol(
+            r#"
+    //- /workspace/example.rs crate:example:name
+    struct S$0;
+    "#,
+            "rust-analyzer cargo name . example/name/S#",
+        );
+    }
+
+    #[test]
+    fn test_target() {
+        check_symbol(
+            r#"
+    //- /workspace/test.rs crate:test:name
+    struct S$0;
+    "#,
+            "rust-analyzer cargo name . test/name/S#",
+        );
+    }
+
+    #[test]
+    fn bench_target() {
+        check_symbol(
+            r#"
+    //- /workspace/bench.rs crate:bench:name
+    struct S$0;
+    "#,
+            "rust-analyzer cargo name . bench/name/S#",
+        );
+    }
+
+    #[test]
+    fn custom_build_target() {
+        check_symbol(
+            r#"
+    //- /workspace/build.rs crate:custom-build:build
+    struct S$0;
+    "#,
+            "rust-analyzer cargo build . custom-build/S#",
+        );
+    }
+
+    #[test]
+    fn other_target() {
+        check_symbol(
+            r#"
+    //- /workspace/other.rs crate:other:other
+    struct S$0;
+    "#,
+            "rust-analyzer cargo other . other/S#",
         );
     }
 
@@ -844,7 +918,7 @@ pub mod example_mod {
        pub fn inner_func$0() {}
     }
     "#,
-            "rust-analyzer cargo main . inner_func().",
+            "rust-analyzer cargo main . lib/inner_func().",
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
@@ -860,7 +934,7 @@ pub mod example_mod {
        struct SomeStruct$0 {}
     }
     "#,
-            "rust-analyzer cargo main . SomeStruct#",
+            "rust-analyzer cargo main . lib/SomeStruct#",
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
@@ -876,7 +950,7 @@ pub mod example_mod {
        const SOME_CONST$0: u32 = 1;
     }
     "#,
-            "rust-analyzer cargo main . SOME_CONST.",
+            "rust-analyzer cargo main . lib/SOME_CONST.",
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
@@ -892,7 +966,7 @@ pub mod example_mod {
        static SOME_STATIC$0: u32 = 1;
     }
     "#,
-            "rust-analyzer cargo main . SOME_STATIC.",
+            "rust-analyzer cargo main . lib/SOME_STATIC.",
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
