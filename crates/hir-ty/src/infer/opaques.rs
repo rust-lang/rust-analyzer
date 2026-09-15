@@ -1,13 +1,15 @@
 //! Defining opaque types via inference.
 
-use rustc_type_ir::{TypeVisitableExt, fold_regions};
+use rustc_hash::FxHashMap;
+use rustc_type_ir::{TypeVisitableExt, fold_regions, inherent::IntoKind};
 use tracing::{debug, instrument};
 
 use crate::{
     Span,
     infer::InferenceContext,
     next_solver::{
-        EarlyBinder, OpaqueTypeKey, SolverDefId, TypingMode,
+        EarlyBinder, OpaqueTypeKey, SolverDefId, Ty, TyKind, TypingMode,
+        fold::fold_tys,
         infer::{opaque_types::OpaqueHiddenType, traits::ObligationCause},
     },
 };
@@ -146,6 +148,34 @@ impl<'db> InferenceContext<'db> {
         };
         let hidden_type =
             fold_regions(self.interner(), hidden_type, |_, _| self.types.regions.erased);
+        let hidden_type = self.remap_hidden_type_to_opaque(opaque_type_key, hidden_type);
         UsageKind::HasDefiningUse(hidden_type)
+    }
+
+    /// replace params that dont belong to the opaque with error types
+    fn remap_hidden_type_to_opaque(
+        &self,
+        opaque_type_key: OpaqueTypeKey<'db>,
+        hidden_type: OpaqueHiddenType<'db>,
+    ) -> OpaqueHiddenType<'db> {
+        let interner = self.interner();
+        let id_args = rustc_type_ir::inherent::GenericArgs::identity_for_item(
+            interner,
+            opaque_type_key.def_id.into(),
+        );
+
+        let mut map: FxHashMap<Ty<'db>, Ty<'db>> = FxHashMap::default();
+        for (a, b) in opaque_type_key.args.types().zip(id_args.types()) {
+            map.insert(a, b);
+        }
+        let error = self.types.types.error;
+        let ty = fold_tys(interner, hidden_type.ty, |ty| match ty.kind() {
+            TyKind::Param(p) => {
+                let key = Ty::new_param(interner, p.id, p.index);
+                map.get(&key).copied().unwrap_or(error)
+            }
+            _ => ty,
+        });
+        OpaqueHiddenType { ty }
     }
 }
