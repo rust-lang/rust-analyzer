@@ -389,12 +389,13 @@ impl AsRef<Path> for RelPath {
 }
 
 impl RelPath {
-    /// Creates a new `RelPath` from `path`, without checking if it is relative.
+    /// Creates a new [`RelPath`] from `path`, without checking if it is relative.
     pub fn new_unchecked(path: &Utf8Path) -> &RelPath {
+        debug_assert!(path.is_relative(), "{path} is not a relative path");
         unsafe { &*(path as *const Utf8Path as *const RelPath) }
     }
 
-    /// Equivalent of [`Utf8Path::to_path_buf`] for `RelPath`.
+    /// Equivalent of [`Utf8Path::to_path_buf`] for [`RelPath`].
     pub fn to_path_buf(&self) -> RelPathBuf {
         RelPathBuf::try_from(self.0.to_path_buf()).unwrap()
     }
