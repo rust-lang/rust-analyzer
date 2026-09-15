@@ -1,13 +1,18 @@
 //! Defining opaque types via inference.
 
-use rustc_type_ir::{TypeVisitableExt, fold_regions};
+use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_type_ir::{
+    GenericArgKind, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitableExt, fold_regions,
+    inherent::{GenericArgs as _, IntoKind},
+};
 use tracing::{debug, instrument};
 
 use crate::{
     Span,
     infer::InferenceContext,
     next_solver::{
-        EarlyBinder, OpaqueTypeKey, SolverDefId, TypingMode,
+        Const, ConstKind, DbInterner, EarlyBinder, GenericArg, GenericArgs, OpaqueTypeKey, Region,
+        RegionKind, SolverDefId, Ty, TyKind, TypingMode,
         infer::{opaque_types::OpaqueHiddenType, traits::ObligationCause},
     },
 };
@@ -31,7 +36,7 @@ impl<'db> InferenceContext<'db> {
     }
 }
 
-#[expect(unused, reason = "rustc has this")]
+#[expect(dead_code, reason = "payloads are retained for non-defining-use diagnostics")]
 #[derive(Copy, Clone, Debug)]
 enum UsageKind<'db> {
     None,
@@ -61,6 +66,73 @@ impl<'db> UsageKind<'db> {
             ) => *self = other,
         }
     }
+}
+
+struct ReverseMapper<'db> {
+    interner: DbInterner<'db>,
+    map: FxHashMap<GenericArg<'db>, GenericArg<'db>>,
+}
+
+impl<'db> ReverseMapper<'db> {
+    fn new(interner: DbInterner<'db>, opaque_type_key: OpaqueTypeKey<'db>) -> Self {
+        let id_args = GenericArgs::identity_for_item(interner, opaque_type_key.def_id.into());
+        let map = opaque_type_key.args.iter().zip(id_args.iter()).collect();
+        Self { interner, map }
+    }
+}
+
+impl<'db> TypeFolder<DbInterner<'db>> for ReverseMapper<'db> {
+    fn cx(&self) -> DbInterner<'db> {
+        self.interner
+    }
+
+    fn fold_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
+        match ty.kind() {
+            // A parameter outside the opaque declaration is malformed input. Keep the
+            // recovered type foldable so the caller never passes it to an incompatible binder.
+            TyKind::Param(_) => match self.map.get(&ty.into()).map(|arg| arg.kind()) {
+                Some(GenericArgKind::Type(ty)) => ty,
+                Some(_) | None => self.interner.default_types().types.error,
+            },
+            _ => ty.super_fold_with(self),
+        }
+    }
+
+    fn fold_const(&mut self, konst: Const<'db>) -> Const<'db> {
+        match konst.kind() {
+            ConstKind::Param(_) => match self.map.get(&konst.into()).map(|arg| arg.kind()) {
+                Some(GenericArgKind::Const(konst)) => konst,
+                Some(_) | None => self.interner.default_types().consts.error,
+            },
+            _ => konst.super_fold_with(self),
+        }
+    }
+
+    fn fold_region(&mut self, region: Region<'db>) -> Region<'db> {
+        match region.kind() {
+            RegionKind::ReEarlyParam(_) | RegionKind::ReLateParam(_) => {
+                match self.map.get(&region.into()).map(|arg| arg.kind()) {
+                    Some(GenericArgKind::Lifetime(region)) => region,
+                    Some(_) | None => self.interner.default_types().regions.erased,
+                }
+            }
+            _ => region,
+        }
+    }
+}
+
+fn opaque_type_has_defining_use_args<'db>(
+    interner: DbInterner<'db>,
+    opaque_type_key: OpaqueTypeKey<'db>,
+) -> bool {
+    let mut seen = FxHashSet::default();
+    opaque_type_key.iter_captured_args(interner).all(|(_, arg)| match arg.kind() {
+        GenericArgKind::Lifetime(_) => true,
+        GenericArgKind::Type(ty) => matches!(ty.kind(), TyKind::Param(_)) && seen.insert(arg),
+        GenericArgKind::Const(konst) => {
+            matches!(konst.kind(), ConstKind::Param(_)) && seen.insert(arg)
+        }
+    })
 }
 
 impl<'db> InferenceContext<'db> {
@@ -129,6 +201,10 @@ impl<'db> InferenceContext<'db> {
         opaque_type_key: OpaqueTypeKey<'db>,
         hidden_type: OpaqueHiddenType<'db>,
     ) -> UsageKind<'db> {
+        if !opaque_type_has_defining_use_args(self.interner(), opaque_type_key) {
+            return UsageKind::NonDefiningUse(opaque_type_key, hidden_type);
+        }
+
         // We ignore uses of the opaque if they have any inference variables
         // as this can frequently happen with recursive calls.
         //
@@ -146,6 +222,8 @@ impl<'db> InferenceContext<'db> {
         };
         let hidden_type =
             fold_regions(self.interner(), hidden_type, |_, _| self.types.regions.erased);
+        let hidden_type =
+            hidden_type.fold_with(&mut ReverseMapper::new(self.interner(), opaque_type_key));
         UsageKind::HasDefiningUse(hidden_type)
     }
 }
