@@ -2902,7 +2902,6 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                     ty,
                 };
                 let generics_for_target = GenericArgs::new_from_iter(
-                    self.interner(),
                     generic_args
                         .iter()
                         .enumerate()
