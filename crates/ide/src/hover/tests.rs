@@ -9279,11 +9279,13 @@ fn notable_local() {
 trait Notable {
     type Assoc;
     type Assoc2;
+    const ID: u32;
 }
 
 impl Notable for u32 {
     type Assoc = &str;
     type Assoc2 = char;
+    const ID: u32 = 3;
 }
 fn main(notable$0: u32) {}
 "#,
@@ -9296,7 +9298,7 @@ fn main(notable$0: u32) {}
 
             ---
 
-            Implements notable traits: `Notable<Assoc = &str, Assoc2 = char>`
+            Implements notable traits: `Notable<Assoc = &str, Assoc2 = char, ID = 3>`
 
             ---
 
