@@ -32,7 +32,7 @@ use lsp_types::{
     TypeDefinitionRequest, Uri, WillRenameFilesRequest, WorkDoneProgressParams,
     WorkspaceSymbolRequest,
 };
-use rust_analyzer::lsp::ext::{OnEnterRequest, RunnablesParams, RunnablesRequest};
+use rust_analyzer::lsp::ext::{Health, OnEnterRequest, RunnablesParams, RunnablesRequest};
 use serde_json::json;
 use stdx::format_to_acc;
 
@@ -1612,4 +1612,58 @@ fn test() {
     let arr = res.as_array().unwrap();
     assert_eq!(arr.len(), 1);
     expect![[r#"{"goal":"Goal { param_env: ParamEnv { clauses: [] }, predicate: Binder { value: TraitPredicate(usize: Trait, polarity:Positive), bound_vars: [] } }","result":"Err(NoSolution)","depth":0,"candidates":[]}"#]].assert_eq(&arr[0].to_string());
+}
+
+#[test]
+fn server_status_reports_ready_once_the_workspace_is_loaded() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/lib.rs
+pub fn foo() {}
+"#,
+    )
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    let statuses = server.server_statuses();
+    // The first status is sent while the workspace is still being fetched, when `quiescent`
+    // alone would already have read as ready before the first load.
+    assert!(!statuses[0].ready, "first status: {:?}", statuses[0]);
+    assert!(statuses.last().unwrap().ready, "last status: {:?}", statuses.last());
+    // Once the workspaces are loaded, `ready` stays `true` through cache priming (where
+    // `quiescent` is `false`) and does not go back during the first load.
+    let first_ready = statuses.iter().position(|status| status.ready).unwrap();
+    assert!(statuses[first_ready..].iter().all(|status| status.ready), "{statuses:?}");
+}
+
+#[test]
+fn server_status_reports_ready_when_no_workspace_can_be_loaded() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    // No `Cargo.toml`: nothing is ever loaded, and the server is trivially quiescent from the
+    // start.
+    let server = Project::with_fixture(
+        r#"
+//- /src/lib.rs
+pub fn foo() {}
+"#,
+    )
+    .server();
+    server.wait_until_server_status(|status| status.health == Health::Error);
+
+    let statuses = server.server_statuses();
+    assert!(!statuses[0].ready, "first status: {:?}", statuses[0]);
+    // A load that failed is settled: it is reported through `health`, and `ready` is `true`.
+    assert!(statuses.last().unwrap().ready, "last status: {:?}", statuses.last());
 }
