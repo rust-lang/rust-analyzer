@@ -74,7 +74,7 @@ pub(crate) fn convert_if_to_bool_then(
         return None;
     }
 
-    let target = expr.syntax().text_range();
+    let target = expr.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("convert_if_to_bool_then"),
         "Convert `if` expression to `bool::then` call",
@@ -179,7 +179,7 @@ pub(crate) fn convert_bool_then_to_if(
         return None;
     }
 
-    let target = mcall.syntax().text_range();
+    let target = mcall.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("convert_bool_then_to_if"),
         "Convert `bool::then` call to `if`",

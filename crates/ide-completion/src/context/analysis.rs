@@ -10,10 +10,7 @@ use stdx::always;
 use syntax::{
     AstNode, AstToken, Direction, NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken,
     T, TextRange, TextSize,
-    algo::{
-        self, ancestors_at_offset, find_node_at_offset, non_trivia_sibling,
-        previous_non_trivia_token,
-    },
+    algo::{self, ancestors_at_offset, find_node_at_offset},
     ast::{
         self, AttrKind, HasArgList, HasGenericArgs, HasGenericParams, HasLoopBody, HasName,
         NameOrNameRef,
@@ -382,8 +379,10 @@ fn expand(
         orig_tt.syntax().parent().and_then(ast::MacroCall::cast)?,
         spec_tt.syntax().parent().and_then(ast::MacroCall::cast)?,
     );
-    let mac_call_path0 = actual_macro_call.path().as_ref().map(|s| s.syntax().text());
-    let mac_call_path1 = macro_call_with_fake_ident.path().as_ref().map(|s| s.syntax().text());
+    let mac_call_path0 =
+        actual_macro_call.path().as_ref().map(|s| s.syntax().text_without_outer_trivia());
+    let mac_call_path1 =
+        macro_call_with_fake_ident.path().as_ref().map(|s| s.syntax().text_without_outer_trivia());
 
     // inconsistent state, stop expanding
     if mac_call_path0 != mac_call_path1 {
@@ -458,7 +457,7 @@ fn analyze<'db>(
 
     if original_token.kind() != self_token.kind()
         // FIXME: This check can be removed once we use speculative database forking for completions
-        && !(original_token.kind().is_punct() || original_token.kind().is_trivia())
+        && !(original_token.kind().is_punct() || original_token.is_trivia())
         && !(SyntaxKind::is_any_identifier(original_token.kind())
             && SyntaxKind::is_any_identifier(self_token.kind()))
     {
@@ -500,13 +499,17 @@ fn analyze<'db>(
         } else {
             // Fix up trailing whitespace problem
             // #[attr(foo = $0
-            let token = syntax::algo::skip_trivia_token(self_token.clone(), Direction::Prev)?;
+            let token = if !self_token.is_trivia() {
+                self_token.clone()
+            } else {
+                self_token.prev_non_trivia_token()?
+            };
             let p = token.parent()?;
             if p.kind() == SyntaxKind::TOKEN_TREE
                 && p.ancestors().any(|it| it.kind() == SyntaxKind::TOKEN_TREE_META)
             {
-                let colon_prefix = previous_non_trivia_token(self_token.clone())
-                    .is_some_and(|it| T![:] == it.kind());
+                let colon_prefix =
+                    self_token.prev_non_trivia_token().is_some_and(|it| T![:] == it.kind());
 
                 CompletionAnalysis::UnexpandedAttrTT {
                     fake_attribute_under_caret: fake_ident_token
@@ -518,11 +521,8 @@ fn analyze<'db>(
             } else if p.kind() == SyntaxKind::TOKEN_TREE
                 && p.ancestors().any(|it| ast::Macro::can_cast(it.kind()))
             {
-                if let Some([_ident, colon, _name, dollar]) = fake_ident_token
-                    .siblings_with_tokens(Direction::Prev)
-                    .filter(|it| !it.kind().is_trivia())
-                    .take(4)
-                    .collect_array()
+                if let Some([_ident, colon, _name, dollar]) =
+                    fake_ident_token.siblings_with_tokens(Direction::Prev).take(4).collect_array()
                     && dollar.kind() == T![$]
                     && colon.kind() == T![:]
                 {
@@ -592,7 +592,7 @@ fn expected_type_and_name<'db>(
     name_like: &ast::NameLike,
 ) -> (Option<Type<'db>>, Option<NameOrNameRef>) {
     let token = prev_special_biased_token_at_trivia(self_token.clone());
-    let mut node = match token.parent() {
+    let mut node = match token.owning_node() {
         Some(it) => it,
         None => return (None, None),
     };
@@ -729,7 +729,7 @@ fn expected_type_and_name<'db>(
                         } else {
                             cov_mark::hit!(expected_type_struct_field_without_leading_char);
                             cov_mark::hit!(expected_type_struct_field_followed_by_comma);
-                            let expr_field = previous_non_trivia_token(token.clone())?.parent().and_then(ast::RecordExprField::cast)?;
+                            let expr_field = token.prev_non_trivia_token()?.parent().and_then(ast::RecordExprField::cast)?;
                             let (_, _, ty) = sema.resolve_record_field(&expr_field)?;
                             Some((
                                 Some(ty),
@@ -753,7 +753,7 @@ fn expected_type_and_name<'db>(
                 // match foo { $0 }
                 // match foo { ..., pat => $0 }
                 ast::MatchExpr(it) => {
-                    let on_arrow = previous_non_trivia_token(token.clone()).is_some_and(|it| T![=>] == it.kind());
+                    let on_arrow = token.prev_non_trivia_token().is_some_and(|it| T![=>] == it.kind());
 
                     let ty = if on_arrow {
                         // match foo { ..., pat => $0 }
@@ -768,8 +768,8 @@ fn expected_type_and_name<'db>(
                     (ty, None)
                 },
                 ast::MatchArm(it) => {
-                    let on_arrow = previous_non_trivia_token(token.clone()).is_some_and(|it| T![=>] == it.kind());
-                    let in_body = it.expr().is_some_and(|it| it.syntax().text_range().contains_range(token.text_range()));
+                    let on_arrow = token.prev_non_trivia_token().is_some_and(|it| T![=>] == it.kind());
+                    let in_body = it.expr().is_some_and(|it| it.syntax().text_range_without_outer_trivia().contains_range(token.text_range()));
                     let match_expr = it.parent_match();
 
                     let ty = if on_arrow || in_body {
@@ -786,7 +786,7 @@ fn expected_type_and_name<'db>(
                 },
                 ast::IfExpr(it) => {
                     let ty = if let Some(body) = it.then_branch()
-                        && token.text_range().end() > body.syntax().text_range().start()
+                        && token.text_range().end() > body.syntax().text_range_without_outer_trivia().start()
                     {
                         sema.type_of_expr(&body.into())
                     } else {
@@ -806,7 +806,7 @@ fn expected_type_and_name<'db>(
                 },
                 ast::TupleStructPat(it) => {
                     let fields = sema.resolve_tuple_struct_pat_fields(&it);
-                    let nr = it.fields().take_while(|it| it.syntax().text_range().end() <= token.text_range().start()).count();
+                    let nr = it.fields().take_while(|it| it.syntax().text_range_without_outer_trivia().end() <= token.text_range().start()).count();
                     let ty = fields.and_then(|fields| Some(rebase_ty(fields.get(nr)?.1.clone())));
                     (ty, None)
                 },
@@ -843,7 +843,7 @@ fn expected_type_and_name<'db>(
                 ast::ParamList(it) => {
                     let closure = it.syntax().parent().and_then(ast::ClosureExpr::cast);
                     let ty = closure
-                        .filter(|_| it.syntax().text_range().end() <= self_token.text_range().start())
+                        .filter(|_| it.syntax().text_range_without_outer_trivia().end() <= self_token.text_range().start())
                         .and_then(|it| sema.type_of_expr(&it.into()));
                     ty.and_then(|ty| ty.original.as_callable(sema.db))
                         .map(|c| (Some(c.return_type()), None))
@@ -889,8 +889,10 @@ fn classify_lifetime(
         return None;
     }
 
-    let lifetime =
-        find_node_at_offset::<ast::Lifetime>(original_file, lifetime.syntax().text_range().start());
+    let lifetime = find_node_at_offset::<ast::Lifetime>(
+        original_file,
+        lifetime.syntax().text_range_without_outer_trivia().start(),
+    );
     let kind = match_ast! {
         match parent {
             ast::LifetimeParam(_) => LifetimeKind::LifetimeParam,
@@ -943,7 +945,8 @@ fn classify_name(
             _ => return None,
         }
     };
-    let name = find_node_at_offset(original_file, name.syntax().text_range().start());
+    let name =
+        find_node_at_offset(original_file, name.syntax().text_range_without_outer_trivia().start());
     Some(NameContext { name, kind })
 }
 
@@ -959,8 +962,8 @@ fn classify_name_ref<'db>(
     let make_res = |kind| (NameRefContext { nameref: nameref.clone(), kind }, Default::default());
 
     if let Some(record_field) = ast::RecordExprField::for_field_name(&name_ref) {
-        let dot_prefix = previous_non_trivia_token(name_ref.syntax().clone())
-            .is_some_and(|it| T![.] == it.kind());
+        let dot_prefix =
+            name_ref.syntax().prev_non_trivia_token().is_some_and(|it| T![.] == it.kind());
 
         return find_node_in_file_compensated(
             sema,
@@ -991,15 +994,14 @@ fn classify_name_ref<'db>(
         let receiver_is_ambiguous_float_literal = match &receiver {
             Some(ast::Expr::Literal(l)) => {
                 matches!(l.kind(), ast::LiteralKind::FloatNumber { .. })
-                    && l.syntax().last_token().is_some_and(|it| it.text().ends_with('.'))
+                    && l.syntax().last_non_trivia_token().is_some_and(|it| it.text().ends_with('.'))
             }
             _ => false,
         };
 
         let receiver_is_part_of_indivisible_expression = match &receiver {
             Some(ast::Expr::IfExpr(_)) => {
-                let next_token_kind =
-                    next_non_trivia_token(name_ref.syntax().clone()).map(|t| t.kind());
+                let next_token_kind = name_ref.syntax().next_non_trivia_token().map(|t| t.kind());
                 next_token_kind == Some(SyntaxKind::ELSE_KW)
             }
             _ => false,
@@ -1083,7 +1085,7 @@ fn classify_name_ref<'db>(
             Some(stmt) => stmt.syntax().clone(),
             None => node,
         };
-        let prev_sibling = non_trivia_sibling(node.into(), Direction::Prev)?.into_node()?;
+        let prev_sibling = SyntaxElement::from(node).prev_sibling_or_token()?.into_node()?;
 
         match_ast! {
             match prev_sibling {
@@ -1101,10 +1103,10 @@ fn classify_name_ref<'db>(
         node.parent()
             .and_then(ast::ExprStmt::cast)
             .filter(|stmt| stmt.semicolon_token().is_none())
-            .and_then(|stmt| non_trivia_sibling(stmt.syntax().clone().into(), Direction::Next))
+            .and_then(|stmt| stmt.syntax().next_sibling_or_token())
             .and_then(NodeOrToken::into_node)
             .filter(|next| next.kind() == SyntaxKind::ERROR)
-            .and_then(|next| next.first_token())
+            .and_then(|next| next.first_non_trivia_token())
             .is_some_and(|token| token.kind() == SyntaxKind::ELSE_KW)
     };
 
@@ -1116,8 +1118,7 @@ fn classify_name_ref<'db>(
     // The following code checks if the body is missing, if it is we either cut off the body
     // from the item or it was missing in the first place
     let inbetween_body_and_decl_check = |node: SyntaxNode| {
-        if let Some(NodeOrToken::Node(n)) =
-            syntax::algo::non_trivia_sibling(node.into(), syntax::Direction::Prev)
+        if let Some(NodeOrToken::Node(n)) = SyntaxElement::from(node).prev_sibling_or_token()
             && let Some(item) = ast::Item::cast(n)
         {
             let is_inbetween = match &item {
@@ -1335,9 +1336,7 @@ fn classify_name_ref<'db>(
 
     let make_path_kind_expr = |expr: ast::Expr| {
         let it = expr.syntax();
-        let prev_token = iter::successors(it.first_token(), |it| it.prev_token())
-            .skip(1)
-            .find(|it| !it.kind().is_trivia());
+        let prev_token = it.first_non_trivia_token().and_then(|it| it.prev_non_trivia_token());
         let in_block_expr = is_in_block(it);
         let (in_loop_body, innermost_breakable) = is_in_breakable(it).unzip();
         let after_if_expr = is_after_if_expr(it.clone());
@@ -1512,7 +1511,7 @@ fn classify_name_ref<'db>(
         let kind = attr.kind();
         let attached = attr.syntax().parent()?;
         let is_trailing_outer_attr = kind != AttrKind::Inner
-            && non_trivia_sibling(attr.syntax().clone().into(), syntax::Direction::Next).is_none();
+            && attr.syntax().next_sibling_or_token().is_none_or(|it| it.kind() == SyntaxKind::EOF);
         let annotated_item_kind = if is_trailing_outer_attr { None } else { Some(attached.kind()) };
         let derive_helpers = annotated_item_kind
             .filter(|kind| {
@@ -1709,8 +1708,7 @@ fn classify_name_ref<'db>(
             _ => None,
         };
         if let Some(top) = top_node {
-            if let Some(NodeOrToken::Node(error_node)) =
-                syntax::algo::non_trivia_sibling(top.clone().into(), syntax::Direction::Prev)
+            if let Some(NodeOrToken::Node(error_node)) = top.prev_sibling_or_token()
                 && error_node.kind() == SyntaxKind::ERROR
             {
                 for token in error_node.children_with_tokens().filter_map(NodeOrToken::into_token) {
@@ -1727,9 +1725,8 @@ fn classify_name_ref<'db>(
 
             if let PathKind::Item { .. } = path_ctx.kind
                 && qualifier_ctx.none()
-                && let Some(t) = top.first_token()
-                && let Some(prev) =
-                    t.prev_token().and_then(|t| syntax::algo::skip_trivia_token(t, Direction::Prev))
+                && let Some(t) = top.first_non_trivia_token()
+                && let Some(prev) = t.prev_non_trivia_token()
                 && ![T![;], T!['}'], T!['{'], T![']']].contains(&prev.kind())
             {
                 // This was inferred to be an item position path, but it seems
@@ -1755,15 +1752,7 @@ fn has_parens(node: &dyn HasArgList) -> bool {
     if arg_list.l_paren_token().is_none() {
         return false;
     }
-    let prev_siblings = iter::successors(arg_list.syntax().prev_sibling_or_token(), |it| {
-        it.prev_sibling_or_token()
-    });
-    prev_siblings
-        .take_while(|syntax| syntax.kind().is_trivia())
-        .filter_map(|syntax| {
-            syntax.into_token().filter(|token| token.kind() == SyntaxKind::WHITESPACE)
-        })
-        .all(|whitespace| !whitespace.text().contains('\n'))
+    !arg_list.syntax().trivia_before().any(|it| it.kind() == SyntaxKind::NEWLINE)
 }
 
 fn pattern_context_for(
@@ -1834,7 +1823,7 @@ fn pattern_context_for(
 
                                         let variant_already_present = match_arm_list.arms().any(|arm| {
                                             arm.pat().and_then(|pat| {
-                                                let pat_already_present = pat.syntax().to_string().contains(variant_name.as_str());
+                                                let pat_already_present = pat.syntax().text_without_outer_trivia().to_string().contains(variant_name.as_str());
                                                 pat_already_present.then_some(pat_already_present)
                                             }).is_some()
                                         });
@@ -1919,7 +1908,7 @@ fn find_opt_node_in_file<N: AstNode>(syntax: &SyntaxNode, node: Option<N>) -> Op
 /// If the fake identifier has been inserted after this node or inside of this node use the `_compensated` version instead.
 fn find_node_in_file<N: AstNode>(syntax: &SyntaxNode, node: &N) -> Option<N> {
     let syntax_range = syntax.text_range();
-    let range = node.syntax().text_range();
+    let range = node.syntax().text_range_without_outer_trivia();
     let intersection = range.intersect(syntax_range)?;
     syntax.covering_element(intersection).ancestors().find_map(N::cast)
 }
@@ -1978,8 +1967,8 @@ fn path_or_use_tree_qualifier(path: &ast::Path) -> Option<(ast::Path, bool)> {
 
 fn left_ancestors(node: Option<SyntaxNode>) -> impl Iterator<Item = SyntaxNode> {
     node.into_iter().flat_map(|node| {
-        let end = node.text_range().end();
-        node.ancestors().take_while(move |it| it.text_range().end() == end)
+        let end = node.text_range_without_outer_trivia().end();
+        node.ancestors().take_while(move |it| it.text_range_without_outer_trivia().end() == end)
     })
 }
 
@@ -1992,13 +1981,14 @@ fn is_in_token_of_for_loop(path: &ast::Path) -> bool {
             return Some(false);
         }
         let pat = for_expr.pat()?;
-        let next_sibl = next_non_trivia_sibling(pat.syntax().clone().into())?;
+        let next_sibl = pat.syntax().next_sibling_or_token()?;
         Some(match next_sibl {
             syntax::NodeOrToken::Node(n) => {
-                n.text_range().start() == path.syntax().text_range().start()
+                n.text_range_without_outer_trivia().start()
+                    == path.syntax().text_range_without_outer_trivia().start()
             }
             syntax::NodeOrToken::Token(t) => {
-                t.text_range().start() == path.syntax().text_range().start()
+                t.text_range().start() == path.syntax().text_range_without_outer_trivia().start()
             }
         })
     })()
@@ -2018,7 +2008,7 @@ fn is_in_breakable(node: &SyntaxNode) -> Option<(BreakableKind, SyntaxNode)> {
                     _ => return None,
                 }
             };
-            loop_body.syntax().text_range().contains_range(node.text_range())
+            loop_body.syntax().text_range_without_outer_trivia().contains_range(node.text_range())
                 .then_some((breakable, it))
         })
 }
@@ -2040,12 +2030,13 @@ fn is_in_block(node: &SyntaxNode) -> bool {
 /// it is considered that the `PathExpr` is not part of the `Expr`.
 fn has_in_newline_expr_first(node: &SyntaxNode) -> bool {
     if ast::PathExpr::can_cast(node.kind())
-        && let Some(NodeOrToken::Token(next)) = node.next_sibling_or_token()
-        && next.kind() == SyntaxKind::WHITESPACE
-        && next.text().contains('\n')
+        && node.trivia_after().any(|it| it.kind() == SyntaxKind::NEWLINE)
         && let Some(stmt_like) = node
             .ancestors()
-            .take_while(|it| it.text_range().start() == node.text_range().start())
+            .take_while(|it| {
+                it.text_range_without_outer_trivia().start()
+                    == node.text_range_without_outer_trivia().start()
+            })
             .filter_map(Either::<ast::ExprStmt, ast::Expr>::cast)
             .last()
     {
@@ -2060,44 +2051,18 @@ fn is_after_if_expr(node: SyntaxNode) -> bool {
         Some(stmt) => stmt.syntax().clone(),
         None => node,
     };
-    let Some(prev_token) = previous_non_trivia_token(node) else { return false };
+    let Some(prev_token) = node.prev_non_trivia_token() else { return false };
     prev_token
         .parent_ancestors()
-        .take_while(|it| it.text_range().end() == prev_token.text_range().end())
+        .take_while(|it| {
+            it.text_range_without_outer_trivia().end() == prev_token.text_range().end()
+        })
         .find_map(ast::IfExpr::cast)
         .is_some()
 }
 
-fn next_non_trivia_token(e: impl Into<SyntaxElement>) -> Option<SyntaxToken> {
-    let mut token = match e.into() {
-        SyntaxElement::Node(n) => n.last_token()?,
-        SyntaxElement::Token(t) => t,
-    }
-    .next_token();
-    while let Some(inner) = token {
-        if !inner.kind().is_trivia() {
-            return Some(inner);
-        } else {
-            token = inner.next_token();
-        }
-    }
-    None
-}
-
-fn next_non_trivia_sibling(ele: SyntaxElement) -> Option<SyntaxElement> {
-    let mut e = ele;
-    while let Some(next) = e.next_sibling_or_token() {
-        if !next.kind().is_trivia() {
-            return Some(next);
-        } else {
-            e = next;
-        }
-    }
-    None
-}
-
 fn prev_special_biased_token_at_trivia(mut token: SyntaxToken) -> SyntaxToken {
-    while token.kind().is_trivia()
+    while token.is_trivia()
         && let Some(prev) = token.prev_token()
         && let T![=]
         | T![+=]

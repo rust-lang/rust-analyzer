@@ -27,7 +27,7 @@ pub(super) fn hints(
 ) -> Option<()> {
     let min_lines = config.closing_brace_hints_min_lines?;
 
-    let name = |it: ast::Name| it.syntax().text_range();
+    let name = |it: ast::Name| it.syntax().text_range_without_outer_trivia();
 
     let mut node = node.clone();
     let mut closing_token;
@@ -90,7 +90,7 @@ pub(super) fn hints(
 
         let lifetime = label.lifetime()?.to_string();
 
-        (lifetime, Some(label.syntax().text_range()))
+        (lifetime, Some(label.syntax().text_range_without_outer_trivia()))
     } else if let Some(block) = ast::BlockExpr::cast(node.clone()) {
         closing_token = block.stmt_list()?.r_curly_token()?;
 
@@ -140,7 +140,7 @@ pub(super) fn hints(
         }
     } else {
         let mac = ast::MacroCall::cast(node.clone())?;
-        let last_token = mac.syntax().last_token()?;
+        let last_token = mac.syntax().last_non_trivia_token()?;
         if last_token.kind() != T![;] && last_token.kind() != SyntaxKind::R_CURLY {
             return None;
         }
@@ -148,25 +148,29 @@ pub(super) fn hints(
 
         (
             format!("{}!", mac.path()?),
-            mac.path().and_then(|it| it.segment()).map(|it| it.syntax().text_range()),
+            mac.path()
+                .and_then(|it| it.segment())
+                .map(|it| it.syntax().text_range_without_outer_trivia()),
         )
     };
 
-    if let Some(mut next) = closing_token.next_token() {
-        if next.kind() == T![;]
-            && let Some(tok) = next.next_token()
-        {
-            closing_token = next;
-            next = tok;
-        }
-        if !(next.kind() == SyntaxKind::WHITESPACE && next.text().contains('\n')) {
-            // Only display the hint if the `}` is the last token on the line
-            return None;
-        }
+    if let Some(next) = closing_token.next_token().filter(|it| it.kind() == T![;]) {
+        closing_token = next;
+    }
+    let last_on_line = match closing_token
+        .trivia_after()
+        .find(|it| it.kind() != SyntaxKind::WHITESPACE)
+    {
+        Some(it) => it.kind() == SyntaxKind::NEWLINE,
+        None => closing_token.next_non_trivia_token().is_none_or(|it| it.kind() == SyntaxKind::EOF),
+    };
+    if !last_on_line {
+        // Only display the hint if the `}` is the last token on the line
+        return None;
     }
 
     let mut lines = 1;
-    node.text().for_each_chunk(|s| lines += s.matches('\n').count());
+    node.text_without_outer_trivia().for_each_chunk(|chunk| lines += chunk.matches('\n').count());
     if lines < min_lines {
         return None;
     }
@@ -181,7 +185,7 @@ pub(super) fn hints(
         position: InlayHintPosition::After,
         pad_left: true,
         pad_right: false,
-        resolve_parent: Some(node.text_range()),
+        resolve_parent: Some(node.text_range_without_outer_trivia()),
     });
 
     None
@@ -259,7 +263,7 @@ fn format_let_else_label(let_else: &ast::LetElse, config: &InlayHintsConfig<'_>)
 }
 
 fn snippet_from_node(node: &SyntaxNode, config: &InlayHintsConfig<'_>) -> String {
-    let mut text = node.text().to_string();
+    let mut text = node.text_without_outer_trivia().to_string();
     if text.contains('\n') {
         return ELLIPSIS.into();
     }

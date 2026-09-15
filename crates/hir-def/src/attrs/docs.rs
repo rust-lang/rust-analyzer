@@ -215,7 +215,8 @@ impl Docs {
 
     fn extend_with_doc_comment(&mut self, comment: ast::DocComment, indent: &mut Indent) {
         let doc = comment.text();
-        let offset = comment.syntax().text_range().start() + ast::DocComment::PREFIX_LEN;
+        let offset = comment.syntax().text_range_without_outer_trivia().start()
+            + ast::DocComment::PREFIX_LEN;
         self.extend_with_doc_str(doc, offset, DocCommentKind::Sugared(comment.shape()), indent);
     }
 

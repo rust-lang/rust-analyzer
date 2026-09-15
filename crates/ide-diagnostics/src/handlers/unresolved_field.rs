@@ -8,7 +8,7 @@ use ide_db::{
     source_change::{SourceChange, SourceChangeBuilder},
 };
 use syntax::{
-    AstNode, AstPtr, Direction, SyntaxKind, TextSize, algo,
+    AstNode, AstPtr, SyntaxKind, TextSize,
     ast::{self, FieldList, Name, Visibility, edit::IndentLevel, make},
 };
 use syntax::{
@@ -45,7 +45,7 @@ pub(crate) fn unresolved_field(
                     _ => None,
                 }?
                 .syntax()
-                .text_range(),
+                .text_range_without_outer_trivia(),
             )
         }),
     )
@@ -189,8 +189,7 @@ fn add_field_to_struct_fix(
             let field =
                 make::record_field(visibility, field_name, suggested_type).indent(indent + 1);
             // A Unit Struct with no `;` is invalid syntax. We should not suggest this fix.
-            let semi_colon =
-                algo::skip_trivia_token(struct_syntax.value.last_token()?, Direction::Prev)?;
+            let semi_colon = struct_syntax.value.last_non_trivia_token()?;
             if semi_colon.kind() != SyntaxKind::SEMICOLON {
                 return None;
             }
@@ -225,15 +224,11 @@ fn record_field_layout(
 ) -> Option<(TextSize, String)> {
     let (offset, needs_comma, indent) = match field_list.fields().last() {
         Some(record_field) => {
-            let syntax = algo::skip_trivia_token(field_list.r_curly_token()?, Direction::Prev)?;
+            field_list.r_curly_token()?;
 
             let last_field_syntax = record_field.syntax();
             let last_field_indent = IndentLevel::from_node(last_field_syntax);
-            (
-                last_field_syntax.text_range().end(),
-                syntax.kind() != SyntaxKind::COMMA,
-                last_field_indent,
-            )
+            (last_field_syntax.text_range_without_outer_trivia().end(), true, last_field_indent)
         }
         // Empty Struct. Add a field right before the closing brace
         None => {
@@ -242,7 +237,8 @@ fn record_field_layout(
             (offset, false, indent)
         }
     };
-    let trailing_new_line = if !field_list.syntax().text().contains_char('\n') {
+    let trailing_new_line = if !field_list.syntax().text_without_outer_trivia().contains_char('\n')
+    {
         format!("\n{}", field_list.indent_level())
     } else {
         String::new()

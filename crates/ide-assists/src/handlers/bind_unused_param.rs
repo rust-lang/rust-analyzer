@@ -41,7 +41,7 @@ pub(crate) fn bind_unused_param(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
     acc.add(
         AssistId::quick_fix("bind_unused_param"),
         format!("Bind as `let _ = {name};`"),
-        param.syntax().text_range(),
+        param.syntax().text_range_without_outer_trivia(),
         |builder| {
             let line_index = line_index(ctx.db(), ctx.vfs_file_id());
 

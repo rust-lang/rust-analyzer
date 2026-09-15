@@ -71,7 +71,7 @@ pub(crate) fn generate_blanket_trait_impl(
     acc.add(
         AssistId("generate_blanket_trait_impl", AssistKind::Generate, None),
         "Generate blanket trait implementation",
-        name.syntax().text_range(),
+        name.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(traitd.syntax());
             let make = editor.make();
@@ -130,12 +130,9 @@ pub(crate) fn generate_blanket_trait_impl(
 
             let impl_ = impl_.indent(indent);
 
-            editor.insert_all(
+            editor.insert(
                 Position::after(traitd.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                    impl_.syntax().clone().into(),
-                ],
+                make.with_leading_trivia(impl_.syntax().clone(), &format!("\n\n{indent}")),
             );
 
             if let Some(cap) = ctx.config.snippet_cap

@@ -2,8 +2,8 @@ use ide_assists::utils::extract_trivial_expression;
 use ide_db::syntax_helpers::node_ext::expr_as_name_ref;
 use itertools::Itertools;
 use syntax::{
-    NodeOrToken, SourceFile, SyntaxElement,
-    SyntaxKind::{self, USE_TREE, WHITESPACE},
+    SourceFile, SyntaxElement,
+    SyntaxKind::{self, NEWLINE, USE_TREE, WHITESPACE},
     SyntaxToken, T, TextRange, TextSize,
     ast::{self, AstNode, AstToken, IsString},
 };
@@ -46,14 +46,16 @@ pub(crate) fn join_lines(
     };
 
     let mut edit = TextEdit::builder();
-    match file.syntax().covering_element(range) {
-        NodeOrToken::Node(node) => {
-            for token in node.descendants_with_tokens().filter_map(|it| it.into_token()) {
-                remove_newlines(config, &mut edit, &token, range)
-            }
+    let mut trivia_token = file.syntax().token_at_offset(range.start()).right_biased();
+    while let Some(token) = trivia_token {
+        if token.text_range().start() >= range.end() {
+            break;
         }
-        NodeOrToken::Token(token) => remove_newlines(config, &mut edit, &token, range),
-    };
+        if token.text_range().end() > range.start() {
+            remove_newlines(config, &mut edit, &token, range);
+        }
+        trivia_token = token.next_token();
+    }
     edit.finish()
 }
 
@@ -63,10 +65,15 @@ fn remove_newlines(
     token: &SyntaxToken,
     range: TextRange,
 ) {
-    let intersection = match range.intersect(token.text_range()) {
-        Some(range) => range,
-        None => return,
-    };
+    let Some(intersection) = range.intersect(token.text_range()) else { return };
+
+    if token.kind() == NEWLINE {
+        let offset = token.text_range().start();
+        if !edit.invalidates_offset(offset) {
+            remove_newline(config, edit, token);
+        }
+        return;
+    }
 
     let range = intersection - token.text_range().start();
     let text = token.text();
@@ -74,58 +81,98 @@ fn remove_newlines(
         let pos: TextSize = (pos as u32).into();
         let offset = token.text_range().start() + range.start() + pos;
         if !edit.invalidates_offset(offset) {
-            remove_newline(config, edit, token, offset);
+            join_inside_token(edit, token, offset);
         }
     }
 }
 
-fn remove_newline(
-    config: &JoinLinesConfig,
-    edit: &mut TextEditBuilder,
-    token: &SyntaxToken,
-    offset: TextSize,
-) {
-    if token.kind() != WHITESPACE || token.text().bytes().filter(|&b| b == b'\n').count() != 1 {
-        let n_spaces_after_line_break = {
-            let suff = &token.text()[TextRange::new(
-                offset - token.text_range().start() + TextSize::of('\n'),
-                TextSize::of(token.text()),
-            )];
-            suff.bytes().take_while(|&b| b == b' ').count()
-        };
+fn join_inside_token(edit: &mut TextEditBuilder, token: &SyntaxToken, offset: TextSize) {
+    let n_spaces_after_line_break = {
+        let suff = &token.text()[TextRange::new(
+            offset - token.text_range().start() + TextSize::of('\n'),
+            TextSize::of(token.text()),
+        )];
+        suff.bytes().take_while(|&b| b == b' ').count()
+    };
 
-        let mut no_space = false;
-        if let Some(string) = ast::String::cast(token.clone()) {
-            if let Some(range) = string.open_quote_text_range() {
-                cov_mark::hit!(join_string_literal_open_quote);
-                no_space |= range.end() == offset;
-            }
-            if let Some(range) = string.close_quote_text_range() {
-                cov_mark::hit!(join_string_literal_close_quote);
-                no_space |= range.start()
-                    == offset
-                        + TextSize::of('\n')
-                        + TextSize::try_from(n_spaces_after_line_break).unwrap();
-            }
+    let mut no_space = false;
+    if let Some(string) = ast::String::cast(token.clone()) {
+        if let Some(range) = string.open_quote_text_range() {
+            cov_mark::hit!(join_string_literal_open_quote);
+            no_space |= range.end() == offset;
         }
+        if let Some(range) = string.close_quote_text_range() {
+            cov_mark::hit!(join_string_literal_close_quote);
+            no_space |= range.start()
+                == offset
+                    + TextSize::of('\n')
+                    + TextSize::try_from(n_spaces_after_line_break).unwrap();
+        }
+    }
 
-        let range = TextRange::at(offset, ((n_spaces_after_line_break + 1) as u32).into());
-        let replace_with = if no_space { "" } else { " " };
-        edit.replace(range, replace_with.to_owned());
+    let range = TextRange::at(offset, ((n_spaces_after_line_break + 1) as u32).into());
+    let replace_with = if no_space { "" } else { " " };
+    edit.replace(range, replace_with.to_owned());
+}
+
+fn gap_siblings(prev: &SyntaxToken, next: &SyntaxToken) -> Option<(SyntaxElement, SyntaxElement)> {
+    let parent =
+        prev.parent_ancestors().find(|node| node.text_range().contains_range(next.text_range()))?;
+    let mut children = parent.children_with_tokens();
+    let left = children.find(|it| it.text_range().contains_range(prev.text_range()))?;
+    let right = children.find(|it| it.text_range().contains_range(next.text_range()))?;
+    Some((left, right))
+}
+
+fn remove_newline(config: &JoinLinesConfig, edit: &mut TextEditBuilder, newline: &SyntaxToken) {
+    let syntax::algo::BlankRun { range: gap, before, after, newlines } =
+        syntax::algo::blank_run(newline);
+    if newlines != 1 {
+        let mut end = newline.text_range().end();
+        let mut next = newline.next_token();
+        while let Some(it) = next {
+            if it.kind() != WHITESPACE {
+                break;
+            }
+            end = it.text_range().end();
+            next = it.next_token();
+        }
+        edit.replace(TextRange::new(newline.text_range().start(), end), " ".to_owned());
         return;
     }
 
-    // The node is between two other nodes
-    let (prev, next) = match (token.prev_sibling_or_token(), token.next_sibling_or_token()) {
-        (Some(prev), Some(next)) => (prev, next),
-        _ => return,
+    if let (Some(before), Some(after)) = (&before, &after)
+        && ast::AnyComment::cast(before.clone()).is_some()
+        && let Some(next) = ast::AnyComment::cast(after.clone())
+    {
+        edit.delete(TextRange::new(
+            gap.start(),
+            next.syntax().text_range().start() + TextSize::of(next.prefix()),
+        ));
+        return;
+    }
+
+    let (Some(a), Some(b)) = (newline.prev_non_trivia_token(), newline.next_non_trivia_token())
+    else {
+        return;
     };
+    if b.kind() == SyntaxKind::EOF {
+        return;
+    }
+    if before.is_some_and(|it| ast::AnyComment::can_cast(it.kind()))
+        || after.is_some_and(|it| ast::AnyComment::can_cast(it.kind()))
+    {
+        edit.replace(gap, " ".to_owned());
+        return;
+    }
+
+    let Some((prev, next)) = gap_siblings(&a, &b) else { return };
 
     if config.remove_trailing_comma && prev.kind() == T![,] {
         match next.kind() {
             T![')'] | T![']'] => {
                 // Removes: trailing comma, newline (incl. surrounding whitespace)
-                edit.delete(TextRange::new(prev.text_range().start(), token.text_range().end()));
+                edit.delete(TextRange::new(prev.text_range().start(), gap.end()));
                 return;
             }
             T!['}'] => {
@@ -135,7 +182,7 @@ fn remove_newline(
                     None => " ",
                 };
                 edit.replace(
-                    TextRange::new(prev.text_range().start(), token.text_range().end()),
+                    TextRange::new(prev.text_range().start(), gap.end()),
                     space.to_owned(),
                 );
                 return;
@@ -151,7 +198,7 @@ fn remove_newline(
             Some(_) => cov_mark::hit!(join_two_ifs_with_existing_else),
             None => {
                 cov_mark::hit!(join_two_ifs);
-                edit.replace(token.text_range(), " else ".to_owned());
+                edit.replace(gap, " else ".to_owned());
                 return;
             }
         }
@@ -171,7 +218,7 @@ fn remove_newline(
         // ```
         //
         // into `my_function(<some-expr>)`
-        if join_single_expr_block(edit, token).is_some() {
+        if join_single_expr_block(edit, newline).is_some() {
             return;
         }
         // ditto for
@@ -181,37 +228,24 @@ fn remove_newline(
         //    bar
         // };
         // ```
-        if join_single_use_tree(edit, token).is_some() {
+        if join_single_use_tree(edit, newline).is_some() {
             return;
         }
     }
 
-    // We can't use `prev` and `next`, since `DOC_COMMENT` has only one token, so `token` has no siblings.
-    if let (Some(_), Some(next)) = (
-        token.prev_token().and_then(ast::AnyComment::cast),
-        token.next_token().and_then(ast::AnyComment::cast),
-    ) {
-        // Removes: newline (incl. surrounding whitespace), start of the next comment
-        edit.delete(TextRange::new(
-            token.text_range().start(),
-            next.syntax().text_range().start() + TextSize::of(next.prefix()),
-        ));
-        return;
-    }
-
     // Remove newline but add a computed amount of whitespace characters
-    edit.replace(token.text_range(), compute_ws(prev.kind(), next.kind()).to_owned());
+    edit.replace(gap, compute_ws(prev.kind(), next.kind()).to_owned());
 }
 
 fn join_single_expr_block(edit: &mut TextEditBuilder, token: &SyntaxToken) -> Option<()> {
-    let block_expr = ast::BlockExpr::cast(token.parent_ancestors().nth(1)?)?;
+    let block_expr = ast::BlockExpr::cast(token.owning_node()?.parent()?)?;
     if !block_expr.is_standalone() {
         return None;
     }
     let expr = extract_trivial_expression(&block_expr)?;
 
-    let block_range = block_expr.syntax().text_range();
-    let mut buf = expr.syntax().text().to_string();
+    let block_range = block_expr.syntax().text_range_without_outer_trivia();
+    let mut buf = expr.syntax().text_without_outer_trivia().to_string();
 
     // Match block needs to have a comma after the block
     if let Some(match_arm) = block_expr.syntax().parent().and_then(ast::MatchArm::cast)
@@ -226,9 +260,12 @@ fn join_single_expr_block(edit: &mut TextEditBuilder, token: &SyntaxToken) -> Op
 }
 
 fn join_single_use_tree(edit: &mut TextEditBuilder, token: &SyntaxToken) -> Option<()> {
-    let use_tree_list = ast::UseTreeList::cast(token.parent()?)?;
+    let use_tree_list = ast::UseTreeList::cast(token.owning_node()?)?;
     let (tree,) = use_tree_list.use_trees().collect_tuple()?;
-    edit.replace(use_tree_list.syntax().text_range(), tree.syntax().text().to_string());
+    edit.replace(
+        use_tree_list.syntax().text_range_without_outer_trivia(),
+        tree.syntax().text_without_outer_trivia().to_string(),
+    );
     Some(())
 }
 
@@ -258,12 +295,17 @@ fn join_assignments(
     let lhs = bin_expr.lhs()?;
     let name_ref = expr_as_name_ref(&lhs)?;
 
-    if name_ref.to_string() != let_ident_pat.syntax().to_string() {
+    if name_ref.to_string() != let_ident_pat.syntax().text_without_outer_trivia().to_string() {
         cov_mark::hit!(join_assignments_mismatch);
         return None;
     }
 
-    edit.delete(let_stmt.semicolon_token()?.text_range().cover(lhs.syntax().text_range()));
+    edit.delete(
+        let_stmt
+            .semicolon_token()?
+            .text_range()
+            .cover(lhs.syntax().text_range_without_outer_trivia()),
+    );
     Some(())
 }
 

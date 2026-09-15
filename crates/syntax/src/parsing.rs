@@ -39,7 +39,9 @@ pub(crate) fn build_tree(
     let mut builder = SyntaxTreeBuilder::default();
 
     let is_eof = lexed.intersperse_trivia(&parser_output, &mut |step| match step {
-        parser::StrStep::Token { kind, text } => builder.token(kind, text),
+        parser::StrStep::Token { kind, text, leading, trailing } => {
+            builder.token_with_trivia(kind, text, leading, trailing)
+        }
         parser::StrStep::Enter { kind } => builder.start_node(kind),
         parser::StrStep::Exit => builder.finish_node(),
         parser::StrStep::Error { msg, pos } => {

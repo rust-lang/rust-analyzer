@@ -188,6 +188,11 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
                     placeholder.ident.clone(),
                     PlaceholderMatch::from_range(original_range),
                 );
+                let leading =
+                    code.first_non_trivia_token().into_iter().flat_map(|it| it.leading_trivia());
+                let trailing =
+                    code.last_non_trivia_token().into_iter().flat_map(|it| it.trailing_trivia());
+                phase.record_ignored_comments(leading.chain(trailing));
             }
             return Ok(());
         }
@@ -269,11 +274,7 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
         pattern: &mut Peekable<PatternIterator>,
         code: &syntax::SyntaxToken,
     ) -> Result<(), MatchFailed> {
-        phase.record_ignored_comments(code);
-        // Ignore whitespace and comments.
-        if code.kind().is_trivia() {
-            return Ok(());
-        }
+        phase.record_ignored_comments(code.leading_trivia().chain(code.trailing_trivia()));
         if let Some(SyntaxElement::Token(p)) = pattern.peek() {
             // If the code has a comma and the pattern is about to close something, then accept the
             // comma without advancing the pattern. i.e. ignore trailing commas.
@@ -384,9 +385,15 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
         match (pattern, code) {
             (Some(p), Some(c)) => self.attempt_match_node(phase, p.syntax(), c.syntax()),
             (None, None) => Ok(()),
-            (Some(p), None) => fail_match!("Pattern `{}` had nothing to match", p.syntax().text()),
+            (Some(p), None) => fail_match!(
+                "Pattern `{}` had nothing to match",
+                p.syntax().text_without_outer_trivia()
+            ),
             (None, Some(c)) => {
-                fail_match!("Nothing in pattern to match code `{}`", c.syntax().text())
+                fail_match!(
+                    "Nothing in pattern to match code `{}`",
+                    c.syntax().text_without_outer_trivia()
+                )
             }
         }
     }
@@ -455,7 +462,7 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
                     .peek()
                     .and_then(|p| match p {
                         SyntaxElement::Token(t) => Some(t.clone()),
-                        SyntaxElement::Node(n) => n.first_token(),
+                        SyntaxElement::Node(n) => n.first_non_trivia_token(),
                     })
                     .map(|p| p.text().to_owned());
                 let first_matched_token = child.clone();
@@ -465,13 +472,13 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
                 for next in &mut children {
                     match &next {
                         SyntaxElement::Token(t) => {
-                            if Some(t.to_string()) == next_pattern_token {
+                            if Some(t.text().to_owned()) == next_pattern_token {
                                 pattern.next();
                                 break;
                             }
                         }
                         SyntaxElement::Node(n) => {
-                            if let Some(first_token) = n.first_token()
+                            if let Some(first_token) = n.first_non_trivia_token()
                                 && Some(first_token.text()) == next_pattern_token.as_deref()
                                 && let Some(SyntaxElement::Node(p)) = pattern.next()
                             {
@@ -616,7 +623,10 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
             .sema
             .type_of_expr(expr)
             .ok_or_else(|| {
-                match_error!("Failed to get receiver type for `{}`", expr.syntax().text())
+                match_error!(
+                    "Failed to get receiver type for `{}`",
+                    expr.syntax().text_without_outer_trivia()
+                )
             })?
             .original;
         let krate = self.sema.scope(expr.syntax()).map(|it| it.krate()).unwrap_or_else(|| {
@@ -678,24 +688,19 @@ impl Match {
 
 impl Phase<'_> {
     fn next_non_trivial(&mut self, code_it: &mut SyntaxElementChildren) -> Option<SyntaxElement> {
-        loop {
-            let c = code_it.next();
-            if let Some(SyntaxElement::Token(t)) = &c {
-                self.record_ignored_comments(t);
-                if t.kind().is_trivia() {
-                    continue;
-                }
-            }
-            return c;
+        let c = code_it.next();
+        if let Some(SyntaxElement::Token(t)) = &c {
+            self.record_ignored_comments(t.leading_trivia().chain(t.trailing_trivia()));
         }
+        c
     }
 
-    fn record_ignored_comments(&mut self, token: &SyntaxToken) {
-        if token.kind() == SyntaxKind::COMMENT
-            && let Phase::Second(match_out) = self
-            && let Some(comment) = ast::Comment::cast(token.clone())
-        {
-            match_out.ignored_comments.push(comment);
+    fn record_ignored_comments(&mut self, trivia: impl Iterator<Item = SyntaxToken>) {
+        let Phase::Second(match_out) = self else { return };
+        for comment in trivia.filter_map(ast::Comment::cast) {
+            if !match_out.ignored_comments.contains(&comment) {
+                match_out.ignored_comments.push(comment);
+            }
         }
     }
 }
@@ -778,7 +783,7 @@ impl Iterator for PatternIterator {
     type Item = SyntaxElement;
 
     fn next(&mut self) -> Option<SyntaxElement> {
-        self.iter.find(|element| !element.kind().is_trivia())
+        self.iter.next()
     }
 }
 

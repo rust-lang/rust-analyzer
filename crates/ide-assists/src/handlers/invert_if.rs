@@ -55,11 +55,11 @@ pub(crate) fn invert_if(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Optio
         edit.replace_ast(cond, flip_cond);
 
         let else_node = else_block.syntax();
-        let else_range = else_node.text_range();
-        let then_range = then_node.text_range();
+        let else_range = else_node.text_range_without_outer_trivia();
+        let then_range = then_node.text_range_without_outer_trivia();
 
-        edit.replace(else_range, then_node.text());
-        edit.replace(then_range, else_node.text());
+        edit.replace(else_range, then_node.text_without_outer_trivia().to_string());
+        edit.replace(then_range, else_node.text_without_outer_trivia().to_string());
     })
 }
 

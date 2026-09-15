@@ -70,7 +70,7 @@ pub(crate) fn folding_ranges(file: &SourceFile, add_collapsed_text: bool) -> Vec
         // Fold items that span multiple lines
         if let Some((kind, collapsed_text)) = fold_kind(element.clone(), add_collapsed_text) {
             let is_multiline = match &element {
-                NodeOrToken::Node(node) => node.text().contains_char('\n'),
+                NodeOrToken::Node(node) => node.text_without_outer_trivia().contains_char('\n'),
                 NodeOrToken::Token(token) => token.text().contains('\n'),
             };
 
@@ -80,7 +80,9 @@ pub(crate) fn folding_ranges(file: &SourceFile, add_collapsed_text: bool) -> Vec
                 {
                     if !fn_
                         .param_list()
-                        .map(|param_list| param_list.syntax().text().contains_char('\n'))
+                        .map(|param_list| {
+                            param_list.syntax().text_without_outer_trivia().contains_char('\n')
+                        })
                         .unwrap_or_default()
                     {
                         continue;
@@ -91,16 +93,20 @@ pub(crate) fn folding_ranges(file: &SourceFile, add_collapsed_text: bool) -> Vec
                         let fn_start = fn_
                             .fn_token()
                             .map(|token| token.text_range().start())
-                            .unwrap_or(node.text_range().start());
+                            .unwrap_or(node.text_range_without_outer_trivia().start());
                         res.push(Fold::new(
-                            TextRange::new(fn_start, body.syntax().text_range().end()),
+                            TextRange::new(
+                                fn_start,
+                                body.syntax().text_range_without_outer_trivia().end(),
+                            ),
                             FoldKind::Function,
                         ));
                         continue;
                     }
                 }
 
-                let fold = Fold::new(element.text_range(), kind).with_text(collapsed_text);
+                let fold = Fold::new(element.text_range_without_outer_trivia(), kind)
+                    .with_text(collapsed_text);
                 res.push(fold);
                 continue;
             }
@@ -108,8 +114,12 @@ pub(crate) fn folding_ranges(file: &SourceFile, add_collapsed_text: bool) -> Vec
 
         match element {
             NodeOrToken::Token(token) => {
-                // Fold groups of comments
-                if let Some(comment) = ast::AnyComment::cast(token) {
+                let trivia = token
+                    .leading_trivia()
+                    .chain(std::iter::once(token.clone()))
+                    .chain(token.trailing_trivia());
+                for trivia_token in trivia {
+                    let Some(comment) = ast::AnyComment::cast(trivia_token) else { continue };
                     if visited_comments.contains(&comment) {
                         continue;
                     }
@@ -122,6 +132,10 @@ pub(crate) fn folding_ranges(file: &SourceFile, add_collapsed_text: bool) -> Vec
                                 TextRange::new(region, comment.syntax().text_range().end()),
                                 FoldKind::Region,
                             ));
+                        }
+                    } else if !comment.kind().shape.is_line() {
+                        if comment.syntax().text().contains('\n') {
+                            res.push(Fold::new(comment.syntax().text_range(), FoldKind::Comment));
                         }
                     } else if let Some(range) =
                         contiguous_range_for_comment(comment, &mut visited_comments)
@@ -200,7 +214,6 @@ fn fold_kind(
     }
 
     match element.kind() {
-        COMMENT | INNER_DOC_COMMENT | OUTER_DOC_COMMENT => Some(FoldKind::Comment),
         ARG_LIST | PARAM_LIST | GENERIC_ARG_LIST | GENERIC_PARAM_LIST => Some(FoldKind::ArgList),
         ARRAY_EXPR => Some(FoldKind::Array),
         RET_TYPE => Some(FoldKind::ReturnType),
@@ -258,9 +271,10 @@ fn collapsed_stmt(stmt: ast::Stmt) -> Option<String> {
             let Some(eq_token) = let_stmt.eq_token() else {
                 break 'blk None;
             };
-            let eq_token_offset =
-                eq_token.text_range().end() - let_stmt.syntax().text_range().start();
-            let text_until_eq_token = let_stmt.syntax().text().slice(..eq_token_offset);
+            let eq_token_offset = eq_token.text_range().end()
+                - let_stmt.syntax().text_range_without_outer_trivia().start();
+            let text_until_eq_token =
+                let_stmt.syntax().text_without_outer_trivia().slice(..eq_token_offset);
             if text_until_eq_token.contains_char('\n') {
                 break 'blk None;
             }
@@ -315,11 +329,7 @@ fn collapse_expr(expr: ast::Expr) -> Option<String> {
                     }
                 }
             }
-            syntax::WalkEvent::Enter(NodeOrToken::Token(token)) => {
-                if !token.kind().is_trivia() {
-                    text.push_str(token.text());
-                }
-            }
+            syntax::WalkEvent::Enter(NodeOrToken::Token(token)) => text.push_str(token.text()),
             syntax::WalkEvent::Leave(_) => {}
         }
 
@@ -347,19 +357,18 @@ where
     let (mut last, mut last_vis) = (first.clone(), first.visibility());
     for element in first.syntax().siblings_with_tokens(Direction::Next) {
         let node = match element {
-            NodeOrToken::Token(token) => {
-                if let Some(ws) = ast::Whitespace::cast(token)
-                    && !ws.spans_multiple_lines()
-                {
-                    // Ignore whitespace without blank lines
-                    continue;
-                }
-                // There is a blank line or another token, which means that the
-                // group ends here
-                break;
-            }
+            NodeOrToken::Token(_) => break,
             NodeOrToken::Node(node) => node,
         };
+        if node != *first.syntax() {
+            let gap = node.trivia_before().map(|it| it.text().to_owned()).collect::<String>();
+            let mut lines = gap.split('\n');
+            lines.next();
+            lines.next_back();
+            if lines.any(|line| line.trim().is_empty()) {
+                break;
+            }
+        }
 
         if let Some(next) = N::cast(node) {
             let next_vis = next.visibility();
@@ -375,7 +384,10 @@ where
     }
 
     if first != last {
-        Some(TextRange::new(first.syntax().text_range().start(), last.syntax().text_range().end()))
+        Some(TextRange::new(
+            first.syntax().text_range_without_outer_trivia().start(),
+            last.syntax().text_range_without_outer_trivia().end(),
+        ))
     } else {
         // The group consists of only one element, therefore it cannot be folded
         None
@@ -403,14 +415,7 @@ fn contiguous_range_for_comment(
     }
 
     let mut last = first.clone();
-    let next_comments = std::iter::successors(Some(first.syntax().clone()), |it| it.next_token());
-    for token in next_comments {
-        if let Some(ws) = ast::Whitespace::cast(token.clone())
-            && !ws.spans_multiple_lines()
-        {
-            // Ignore whitespace without blank lines
-            continue;
-        }
+    while let Some(token) = syntax::algo::adjacent_comment(last.syntax(), Direction::Next) {
         if let Some(c) = ast::AnyComment::cast(token)
             && c.kind() == group_kind
         {
@@ -439,8 +444,8 @@ fn contiguous_range_for_comment(
 fn fold_range_for_multiline_match_arm(match_arm: ast::MatchArm) -> Option<TextRange> {
     if fold_kind(match_arm.expr()?.syntax().syntax_element(), false).is_some() {
         None
-    } else if match_arm.expr()?.syntax().text().contains_char('\n') {
-        Some(match_arm.expr()?.syntax().text_range())
+    } else if match_arm.expr()?.syntax().text_without_outer_trivia().contains_char('\n') {
+        Some(match_arm.expr()?.syntax().text_range_without_outer_trivia())
     } else {
         None
     }

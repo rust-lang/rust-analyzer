@@ -24,7 +24,7 @@ pub(crate) fn introduce_named_type_parameter(
     let fn_ = param.syntax().ancestors().nth(2).and_then(ast::Fn::cast)?;
     let type_bound_list = impl_trait_type.type_bound_list()?;
 
-    let target = fn_.syntax().text_range();
+    let target = fn_.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("introduce_named_type_parameter"),
         "Replace impl trait with type parameter",
@@ -65,7 +65,10 @@ pub(crate) fn introduce_named_type_parameter(
 }
 
 fn non_default_bounds(bounds: &ast::TypeBoundList) -> bool {
-    bounds.bounds().collect_array().is_none_or(|[bound]| bound.syntax().text() != "Sized")
+    bounds
+        .bounds()
+        .collect_array()
+        .is_none_or(|[bound]| bound.syntax().text_without_outer_trivia() != "Sized")
 }
 
 #[cfg(test)]

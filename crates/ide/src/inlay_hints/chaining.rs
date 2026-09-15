@@ -2,7 +2,7 @@
 use hir::DisplayTarget;
 use ide_db::famous_defs::FamousDefs;
 use syntax::{
-    Direction, NodeOrToken, SyntaxKind, T, TextRange,
+    SyntaxKind, T, TextRange,
     ast::{self, AstNode},
 };
 
@@ -28,60 +28,42 @@ pub(super) fn hints(
     let descended = sema.descend_node_into_attributes(expr.clone()).pop();
     let desc_expr = descended.as_ref().unwrap_or(expr);
 
-    let mut tokens = expr
-        .syntax()
-        .siblings_with_tokens(Direction::Next)
-        .filter_map(NodeOrToken::into_token)
-        .filter(|t| match t.kind() {
-            SyntaxKind::WHITESPACE if !t.text().contains('\n') => false,
-            SyntaxKind::COMMENT | SyntaxKind::OUTER_DOC_COMMENT | SyntaxKind::INNER_DOC_COMMENT => {
-                false
+    let last = expr.syntax().last_non_trivia_token()?;
+    let next_token = last.next_non_trivia_token()?;
+    let newline_token =
+        last.trivia_after().find(|trivia_token| trivia_token.kind() == SyntaxKind::NEWLINE)?;
+    if next_token.kind() == T![.] {
+        let ty = sema.type_of_expr(desc_expr)?.original;
+        if ty.is_unknown() {
+            return None;
+        }
+        if matches!(expr, ast::Expr::PathExpr(_))
+            && let Some(hir::Adt::Struct(st)) = ty.as_adt()
+            && st.fields(sema.db).is_empty()
+        {
+            return None;
+        }
+        let label = label_of_ty(famous_defs, config, &ty, display_target)?;
+        let range = {
+            let mut range = expr.syntax().text_range_without_outer_trivia();
+            if config.type_hints_placement == TypeHintsPlacement::EndOfLine {
+                range = TextRange::new(
+                    range.start(),
+                    newline_token.text_range().start().max(range.end()),
+                );
             }
-            _ => true,
+            range
+        };
+        acc.push(InlayHint {
+            range,
+            kind: InlayKind::Chaining,
+            label,
+            text_edit: None,
+            position: InlayHintPosition::After,
+            pad_left: true,
+            pad_right: false,
+            resolve_parent: Some(expr.syntax().text_range_without_outer_trivia()),
         });
-
-    // Chaining can be defined as an expression whose next sibling tokens are newline and dot
-    // Ignoring extra whitespace and comments
-    let next_token = tokens.next()?;
-    if next_token.kind() == SyntaxKind::WHITESPACE {
-        let newline_token = next_token;
-        let mut next_next = tokens.next()?;
-        while next_next.kind() == SyntaxKind::WHITESPACE {
-            next_next = tokens.next()?;
-        }
-        if next_next.kind() == T![.] {
-            let ty = sema.type_of_expr(desc_expr)?.original;
-            if ty.is_unknown() {
-                return None;
-            }
-            if matches!(expr, ast::Expr::PathExpr(_))
-                && let Some(hir::Adt::Struct(st)) = ty.as_adt()
-                && st.fields(sema.db).is_empty()
-            {
-                return None;
-            }
-            let label = label_of_ty(famous_defs, config, &ty, display_target)?;
-            let range = {
-                let mut range = expr.syntax().text_range();
-                if config.type_hints_placement == TypeHintsPlacement::EndOfLine {
-                    range = TextRange::new(
-                        range.start(),
-                        newline_token.text_range().start().max(range.end()),
-                    );
-                }
-                range
-            };
-            acc.push(InlayHint {
-                range,
-                kind: InlayKind::Chaining,
-                label,
-                text_edit: None,
-                position: InlayHintPosition::After,
-                pad_left: true,
-                pad_right: false,
-                resolve_parent: Some(expr.syntax().text_range()),
-            });
-        }
     }
     Some(())
 }

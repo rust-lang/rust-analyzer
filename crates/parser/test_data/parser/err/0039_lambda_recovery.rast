@@ -1,40 +1,33 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       PATH_TYPE
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "i32"
-    WHITESPACE " "
+              IDENT "i32" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           METHOD_CALL_EXPR
             METHOD_CALL_EXPR
               METHOD_CALL_EXPR
                 ARRAY_EXPR
-                  L_BRACK "["
+                  L_BRACK "[" [WHITESPACE("    ")] []
                   LITERAL
                     INT_NUMBER "1"
-                  COMMA ","
-                  WHITESPACE " "
+                  COMMA "," [] [WHITESPACE(" ")]
                   LITERAL
                     INT_NUMBER "2"
-                  COMMA ","
-                  WHITESPACE " "
+                  COMMA "," [] [WHITESPACE(" ")]
                   LITERAL
                     INT_NUMBER "3"
                   R_BRACK "]"
@@ -43,9 +36,8 @@ SOURCE_FILE
                   IDENT "iter"
                 ARG_LIST
                   L_PAREN "("
-                  R_PAREN ")"
-              WHITESPACE "\n        "
-              DOT "."
+                  R_PAREN ")" [] [NEWLINE("\n")]
+              DOT "." [WHITESPACE("        ")] []
               NAME_REF
                 IDENT "map"
               ARG_LIST
@@ -58,9 +50,8 @@ SOURCE_FILE
                         NAME
                           IDENT "it"
                     PIPE "|"
-                R_PAREN ")"
-            WHITESPACE "\n        "
-            DOT "."
+                R_PAREN ")" [] [NEWLINE("\n")]
+            DOT "." [WHITESPACE("        ")] []
             NAME_REF
               IDENT "max"
             GENERIC_ARG_LIST
@@ -76,8 +67,7 @@ SOURCE_FILE
             ARG_LIST
               L_PAREN "("
               R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 56: expected expression

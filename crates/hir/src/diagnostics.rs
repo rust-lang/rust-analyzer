@@ -738,8 +738,8 @@ fn precise_macro_call_location(
                 .path()
                 .and_then(|it| it.segment())
                 .and_then(|it| it.name_ref())
-                .map(|it| it.syntax().text_range());
-            let range = range.unwrap_or_else(|| node.syntax().text_range());
+                .map(|it| it.syntax().text_range_without_outer_trivia());
+            let range = range.unwrap_or_else(|| node.syntax().text_range_without_outer_trivia());
             ast_id.with_value(range)
         }
         MacroCallKind::Derive { ast_id, derive_attr_index, derive_index, .. } => {
@@ -747,8 +747,12 @@ fn precise_macro_call_location(
             ast_id.with_value(range)
         }
         MacroCallKind::Attr { ast_id, censored_attr_ids: attr_ids, .. } => {
-            let attr_range =
-                attr_ids.invoc_attr().find_attr_range(db, krate, *ast_id).1.syntax().text_range();
+            let attr_range = attr_ids
+                .invoc_attr()
+                .find_attr_range(db, krate, *ast_id)
+                .1
+                .syntax()
+                .text_range_without_outer_trivia();
             ast_id.with_value(attr_range)
         }
     }
@@ -844,12 +848,16 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
                 let (_, attr) = id.find_attr_range(self.db, self.krate, *ast);
                 let derive = attr
                     .path()
-                    .map(|path| path.syntax().text_range())
-                    .unwrap_or_else(|| attr.syntax().text_range());
+                    .map(|path| path.syntax().text_range_without_outer_trivia())
+                    .unwrap_or_else(|| attr.syntax().text_range_without_outer_trivia());
                 self.acc.push(InvalidDeriveTarget { range: ast.with_value(derive) }.into());
             }
             DefDiagnosticKind::MalformedDerive { ast, id } => {
-                let derive = id.find_attr_range(self.db, self.krate, *ast).1.syntax().text_range();
+                let derive = id
+                    .find_attr_range(self.db, self.krate, *ast)
+                    .1
+                    .syntax()
+                    .text_range_without_outer_trivia();
                 self.acc.push(MalformedDerive { range: ast.with_value(derive) }.into());
             }
             DefDiagnosticKind::MacroDefError { ast, message } => {
@@ -857,7 +865,7 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
                 self.acc.push(
                     MacroDefError {
                         node: InFile::new(ast.file_id, AstPtr::new(&node)),
-                        name: node.name().map(|it| it.syntax().text_range()),
+                        name: node.name().map(|it| it.syntax().text_range_without_outer_trivia()),
                         message: message.clone(),
                     }
                     .into(),
@@ -892,7 +900,8 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
                     + file_id
                         .ast_id_map(self.db)
                         .get_erased(err.span().anchor.ast_id)
-                        .text_range()
+                        .to_node(&file_id.parse_or_expand(self.db))
+                        .text_range_without_outer_trivia()
                         .start();
             }
             self.acc.push(MacroError { range, message, error, kind }.into());

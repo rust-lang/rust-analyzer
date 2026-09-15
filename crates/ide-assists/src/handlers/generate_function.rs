@@ -13,7 +13,7 @@ use ide_db::{
 use itertools::Itertools;
 use stdx::to_lower_snake_case;
 use syntax::{
-    Edition, SyntaxKind, SyntaxNode, T, TextRange,
+    Edition, SyntaxKind, SyntaxNode, SyntaxToken, T, TextRange,
     ast::{
         self, AstNode, BlockExpr, CallExpr, HasArgList, HasGenericParams, HasModuleItem,
         HasTypeBounds,
@@ -80,7 +80,7 @@ fn gen_fn(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
 
     let function_builder =
         FunctionBuilder::from_call(&make, ctx, &call, fn_name, target_module, target, &adt_info)?;
-    let text_range = call.syntax().text_range();
+    let text_range = call.syntax().text_range_without_outer_trivia();
     let label = format!("Generate {} function", function_builder.fn_name);
     add_func_to_accumulator(acc, ctx, text_range, function_builder, file, adt_info, label)
 }
@@ -174,7 +174,7 @@ fn gen_method(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
         target_module,
         target,
     )?;
-    let text_range = call.syntax().text_range();
+    let text_range = call.syntax().text_range_without_outer_trivia();
     let adt_info = AdtInfo::new(adt, impl_.is_some());
     let label = format!("Generate {} method", function_builder.fn_name);
     add_func_to_accumulator(acc, ctx, text_range, function_builder, file, Some(adt_info), label)
@@ -653,8 +653,11 @@ impl GeneratedFunctionTarget {
                     None => Position::first_child_of(item_list),
                 };
 
-                let indent = IndentLevel::from_node(item_list);
-                let leading_indent = indent + 1;
+                let leading_indent = IndentLevel::from_node(item_list) + 1;
+                let r_curly = item_list
+                    .last_child_or_token()
+                    .and_then(|it| it.into_token())
+                    .filter(|it| it.kind() == T!['}']);
                 insert_rendered_fn(
                     &editor,
                     edit,
@@ -662,7 +665,7 @@ impl GeneratedFunctionTarget {
                     position,
                     leading_indent,
                     format!("\n{leading_indent}"),
-                    Some(format!("\n{indent}")),
+                    r_curly,
                     cap,
                 );
             }
@@ -685,13 +688,13 @@ impl GeneratedFunctionTarget {
                         Some(child) => Position::after(child),
                         None => Position::first_child_of(item_list.syntax()),
                     };
-                    let indent = impl_.indent_level();
                     let leading_ws = if insert_after_item.is_some() {
                         format!("\n\n{leading_indent}")
                     } else {
                         format!("\n{leading_indent}")
                     };
-                    let trailing_ws = insert_after_item.is_none().then(|| format!("\n{indent}"));
+                    let r_curly =
+                        if insert_after_item.is_none() { item_list.r_curly_token() } else { None };
                     insert_rendered_fn(
                         &editor,
                         edit,
@@ -699,7 +702,7 @@ impl GeneratedFunctionTarget {
                         position,
                         leading_indent,
                         leading_ws,
-                        trailing_ws,
+                        r_curly,
                         cap,
                     );
                 } else {
@@ -728,7 +731,6 @@ fn insert_rendered_impl(
     cap: Option<SnippetCap>,
 ) {
     let make = editor.make();
-    let leading_ws = make.whitespace(&format!("\n{leading_ws_indent}"));
     let name = make.ty_path(make.ident_path(&format!(
         "{}",
         adt.name(ctx.db()).display(ctx.db(), function_builder.target_edition)
@@ -743,7 +745,10 @@ fn insert_rendered_impl(
         add_generated_fn_annotation(editor, edit, function_builder, &fn_, cap);
     }
 
-    editor.insert_all(position, vec![leading_ws.into(), impl_.syntax().clone().into()]);
+    editor.insert(
+        position,
+        make.with_leading_trivia(impl_.syntax(), &format!("\n{leading_ws_indent}")),
+    );
 }
 
 fn insert_rendered_fn(
@@ -753,19 +758,19 @@ fn insert_rendered_fn(
     position: Position,
     indent: IndentLevel,
     leading_ws: String,
-    trailing_ws: Option<String>,
+    r_curly: Option<SyntaxToken>,
     cap: Option<SnippetCap>,
 ) {
     let make = editor.make();
-    let leading_ws = make.whitespace(&leading_ws);
     let func = function_builder.render(make).indent(indent);
     add_generated_fn_annotation(editor, edit, function_builder, &func, cap);
 
-    let mut elements = vec![leading_ws.into(), func.syntax().clone().into()];
-    if let Some(trailing_ws) = trailing_ws {
-        elements.push(make.whitespace(&trailing_ws).into());
+    let mut func = make.with_leading_trivia(func.syntax(), &leading_ws);
+    if let Some(r_curly) = r_curly {
+        func = make.with_trailing_trivia(func, "\n");
+        editor.prepend_leading_trivia(&r_curly, &IndentLevel::from_token(&r_curly).to_string());
     }
-    editor.insert_all(position, elements);
+    editor.insert(position, func);
 }
 
 fn add_generated_fn_annotation(

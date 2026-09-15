@@ -16,16 +16,19 @@ pub(super) fn extern_block_hints(
     let abi = extern_block.abi()?;
     sema.to_def(&extern_block)?;
     acc.push(InlayHint {
-        range: abi.syntax().text_range(),
+        range: abi.syntax().text_range_without_outer_trivia(),
         position: crate::InlayHintPosition::Before,
         pad_left: false,
         pad_right: true,
         kind: crate::InlayKind::ExternUnsafety,
         label: crate::InlayHintLabel::from("unsafe"),
         text_edit: Some(config.lazy_text_edit(|| {
-            TextEdit::insert(abi.syntax().text_range().start(), "unsafe ".to_owned())
+            TextEdit::insert(
+                abi.syntax().text_range_without_outer_trivia().start(),
+                "unsafe ".to_owned(),
+            )
         })),
-        resolve_parent: Some(extern_block.syntax().text_range()),
+        resolve_parent: Some(extern_block.syntax().text_range_without_outer_trivia()),
     });
     Some(())
 }
@@ -84,11 +87,14 @@ fn item_hint(
             if extern_block.unsafe_token().is_none()
                 && let Some(abi) = extern_block.abi()
             {
-                builder.insert(abi.syntax().text_range().start(), "unsafe ".to_owned());
+                builder.insert(
+                    abi.syntax().text_range_without_outer_trivia().start(),
+                    "unsafe ".to_owned(),
+                );
             }
             builder.finish()
         })),
-        resolve_parent: Some(extern_block.syntax().text_range()),
+        resolve_parent: Some(extern_block.syntax().text_range_without_outer_trivia()),
     }
 }
 

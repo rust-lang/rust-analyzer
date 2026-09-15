@@ -2,7 +2,7 @@
 
 use ide_db::SymbolKind;
 use itertools::Itertools;
-use syntax::{AstToken, Direction, NodeOrToken, SmolStr, SyntaxKind, algo, ast::Ident};
+use syntax::{AstToken, SmolStr, SyntaxKind, ast::Ident};
 
 use crate::{CompletionItem, completions::Completions, context::CompletionContext};
 
@@ -15,22 +15,11 @@ pub(crate) fn complete_cfg(acc: &mut Completions, ctx: &CompletionContext<'_, '_
     };
 
     // FIXME: Move this into context/analysis.rs
-    let previous = ctx
-        .original_token
-        .prev_token()
-        .and_then(|it| {
-            if matches!(it.kind(), SyntaxKind::EQ) {
-                Some(it.into())
-            } else {
-                algo::non_trivia_sibling(it.into(), Direction::Prev)
-            }
-        })
-        .filter(|t| matches!(t.kind(), SyntaxKind::EQ))
-        .and_then(|it| algo::non_trivia_sibling(it.prev_sibling_or_token()?, Direction::Prev))
-        .map(|it| match it {
-            NodeOrToken::Node(_) => None,
-            NodeOrToken::Token(t) => Ident::cast(t),
-        });
+    let equals = match ctx.original_token.kind() {
+        SyntaxKind::EQ => Some(ctx.original_token.clone()),
+        _ => ctx.original_token.prev_non_trivia_token().filter(|it| it.kind() == SyntaxKind::EQ),
+    };
+    let previous = equals.and_then(|it| it.prev_non_trivia_token()).map(Ident::cast);
     match previous {
         Some(None) => (),
         Some(Some(p)) => match p.text() {

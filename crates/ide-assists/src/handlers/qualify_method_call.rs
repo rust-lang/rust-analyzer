@@ -38,7 +38,7 @@ pub(crate) fn qualify_method_call(acc: &mut Assists, ctx: &AssistContext<'_, '_>
 
     let ident = name.ident_token()?;
 
-    let range = call.syntax().text_range();
+    let range = call.syntax().text_range_without_outer_trivia();
     let resolved_call = ctx.sema.resolve_method_call(&call)?;
 
     let current_module = ctx.sema.scope(call.syntax())?.module();

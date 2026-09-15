@@ -85,9 +85,9 @@ pub enum FileReferenceNode {
 impl FileReferenceNode {
     pub fn text_range(&self) -> TextRange {
         match self {
-            FileReferenceNode::Name(it) => it.syntax().text_range(),
-            FileReferenceNode::NameRef(it) => it.syntax().text_range(),
-            FileReferenceNode::Lifetime(it) => it.syntax().text_range(),
+            FileReferenceNode::Name(it) => it.syntax().text_range_without_outer_trivia(),
+            FileReferenceNode::NameRef(it) => it.syntax().text_range_without_outer_trivia(),
+            FileReferenceNode::Lifetime(it) => it.syntax().text_range_without_outer_trivia(),
             FileReferenceNode::FormatStringEntry(_, range) => *range,
         }
     }
@@ -412,8 +412,8 @@ impl<'db> Definition<'db> {
         }
 
         let range = match module_source {
-            ModuleSource::Module(m) => Some(m.syntax().text_range()),
-            ModuleSource::BlockExpr(b) => Some(b.syntax().text_range()),
+            ModuleSource::Module(m) => Some(m.syntax().text_range_without_outer_trivia()),
+            ModuleSource::BlockExpr(b) => Some(b.syntax().text_range_without_outer_trivia()),
             ModuleSource::SourceFile(_) => None,
         };
         match range {
@@ -712,7 +712,7 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                             }) {
                                 if seen.insert(InFileWrapper::new(
                                     file_id,
-                                    alias.syntax().text_range(),
+                                    alias.syntax().text_range_without_outer_trivia(),
                                 )) {
                                     tracing::debug!("found alias: {alias}");
                                     cov_mark::hit!(container_use_rename);
@@ -725,8 +725,10 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                             } else if let Some(alias) =
                                 usage.ancestors().find_map(ast::TypeAlias::cast)
                                 && let Some(name) = alias.name()
-                                && seen
-                                    .insert(InFileWrapper::new(file_id, name.syntax().text_range()))
+                                && seen.insert(InFileWrapper::new(
+                                    file_id,
+                                    name.syntax().text_range_without_outer_trivia(),
+                                ))
                             {
                                 if let Some(def) = is_alias(&alias) {
                                     cov_mark::hit!(container_type_alias);
@@ -789,7 +791,7 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                                     }
                                     if seen.insert(InFileWrapper::new(
                                         file_id,
-                                        name.syntax().text_range(),
+                                        name.syntax().text_range_without_outer_trivia(),
                                     )) {
                                         if let Some(def) = is_alias(&type_alias) {
                                             cov_mark::hit!(self_type_alias);
@@ -864,7 +866,10 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                             .map(|path_segment| {
                                 container_predicate(
                                     path_segment.parent_path().syntax(),
-                                    InFileWrapper::new(file_id, usage.syntax().text_range()),
+                                    InFileWrapper::new(
+                                        file_id,
+                                        usage.syntax().text_range_without_outer_trivia(),
+                                    ),
                                 )
                             })
                             .unwrap_or(false);
@@ -1088,8 +1093,12 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                 let src = module.definition_source(sema.db);
                 let file_id = src.file_id.original_file(sema.db);
                 let (file_id, search_range) = match src.value {
-                    ModuleSource::Module(m) => (file_id, Some(m.syntax().text_range())),
-                    ModuleSource::BlockExpr(b) => (file_id, Some(b.syntax().text_range())),
+                    ModuleSource::Module(m) => {
+                        (file_id, Some(m.syntax().text_range_without_outer_trivia()))
+                    }
+                    ModuleSource::BlockExpr(b) => {
+                        (file_id, Some(b.syntax().text_range_without_outer_trivia()))
+                    }
                     ModuleSource::SourceFile(_) => (file_id, None),
                 };
 
@@ -1415,7 +1424,7 @@ impl ReferenceCategory {
                             // If the variable or field ends on the LHS's end then it's a Write
                             // (covers fields and locals). FIXME: This is not terribly accurate.
                             if let Some(lhs) = expr.lhs()
-                            && lhs.syntax().text_range().contains_range(r.syntax().text_range()) {
+                            && lhs.syntax().text_range_without_outer_trivia().contains_range(r.syntax().text_range_without_outer_trivia()) {
                                     return Some(ReferenceCategory::WRITE)
                                 }
                         }

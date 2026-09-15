@@ -17,8 +17,8 @@ use itertools::Itertools;
 use span::Edition;
 use stdx::format_to;
 use syntax::{
-    AstNode, Direction, NodeOrToken, SyntaxElementChildren, SyntaxNode, SyntaxToken, T, TextRange,
-    TextSize, ToSmolStr, algo,
+    AstNode, NodeOrToken, SyntaxElementChildren, SyntaxNode, SyntaxToken, T, TextRange, TextSize,
+    ToSmolStr,
     ast::{self, AstChildren},
     match_ast,
 };
@@ -77,12 +77,10 @@ pub(crate) fn signature_help(
     let sema = Semantics::new(db);
     let file = sema.parse_guess_edition(file_id);
     let file = file.syntax();
-    let token = file
-        .token_at_offset(offset)
-        .left_biased()
-        // if the cursor is sandwiched between two space tokens and the call is unclosed
-        // this prevents us from leaving the CallExpression
-        .and_then(|tok| algo::skip_trivia_token(tok, Direction::Prev))?;
+    let token = file.token_at_offset(offset).left_biased()?;
+    // if the cursor is sandwiched between two space tokens and the call is unclosed
+    // this prevents us from leaving the CallExpression
+    let token = if !token.is_trivia() { token } else { token.prev_non_trivia_token()? };
     let token = sema.descend_into_macros_single_exact(token);
     let edition = sema.attach_first_edition(file_id).edition(db);
     let display_target = sema.first_crate(file_id)?.to_display_target(db);
@@ -147,7 +145,7 @@ pub(crate) fn signature_help(
         // helpful inside them.
         if let Some(expr) = ast::Expr::cast(node.clone())
             && !matches!(expr, ast::Expr::RecordExpr(..))
-            && expr.syntax().text().contains_char('\n')
+            && expr.syntax().text_without_outer_trivia().contains_char('\n')
         {
             break;
         }
@@ -704,8 +702,9 @@ fn signature_help_for_tuple_pat_ish<'db>(
     display_target: DisplayTarget,
 ) -> SignatureHelp {
     let rest_pat = field_pats.find(|it| matches!(it, ast::Pat::RestPat(_)));
-    let is_left_of_rest_pat =
-        rest_pat.is_none_or(|it| token.text_range().start() < it.syntax().text_range().end());
+    let is_left_of_rest_pat = rest_pat.is_none_or(|it| {
+        token.text_range().start() < it.syntax().text_range_without_outer_trivia().end()
+    });
 
     let commas = pat
         .children_with_tokens()

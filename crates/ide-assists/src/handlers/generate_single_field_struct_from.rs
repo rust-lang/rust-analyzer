@@ -74,7 +74,7 @@ pub(crate) fn generate_single_field_struct_from(
     acc.add(
         AssistId::generate("generate_single_field_struct_from"),
         "Generate single field `From`",
-        strukt.syntax().text_range(),
+        strukt.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(strukt.syntax());
             let make = editor.make();
@@ -142,12 +142,9 @@ pub(crate) fn generate_single_field_struct_from(
                 .unwrap()
                 .indent_with_mapping(indent, make);
 
-            editor.insert_all(
+            editor.insert(
                 Position::after(strukt.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                    impl_.syntax().clone().into(),
-                ],
+                make.with_leading_trivia(impl_.syntax().clone(), &format!("\n\n{indent}")),
             );
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },

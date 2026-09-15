@@ -6,8 +6,8 @@ use ide_db::{
     syntax_helpers::{LexedStr, suggest_name},
 };
 use syntax::{
-    Direction, NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T, TextRange,
-    algo::{ancestors_at_offset, skip_trivia_token},
+    NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T, TextRange,
+    algo::{self, ancestors_at_offset},
     ast::{
         self, AstNode,
         edit::{AstNodeEdit, IndentLevel},
@@ -171,7 +171,10 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             _ => false,
         };
     let module = ctx.sema.scope(analysis.syntax())?.module();
-    let target = to_replace.start().text_range().cover(to_replace.end().text_range());
+    let target = to_replace
+        .start()
+        .text_range_without_outer_trivia()
+        .cover(to_replace.end().text_range_without_outer_trivia());
     let needs_mut = match &parent {
         Some(ast::Expr::RefExpr(expr)) => expr.mut_token().is_some(),
         _ => needs_adjust && !needs_ref && ty.as_ref().is_some_and(|ty| ty.is_mutable_reference()),
@@ -272,23 +275,19 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
 
                 match &anchor {
                     Anchor::Before(place) => {
-                        let prev_ws = place.prev_sibling_or_token().and_then(|it| it.into_token());
                         let indent_to = IndentLevel::from_node(place);
 
-                        // Adjust ws to insert depending on if this is all inline or on separate lines
-                        let trailing_ws = if prev_ws.is_some_and(|it| it.text().starts_with('\n')) {
-                            format!("\n{indent_to}")
+                        let stmt = if algo::starts_line(&place.clone().into()) {
+                            let stmt = make.with_leading_trivia(
+                                new_stmt.syntax().clone(),
+                                &indent_to.to_string(),
+                            );
+                            make.with_trailing_trivia(&stmt, "\n")
                         } else {
-                            " ".to_owned()
+                            make.with_trailing_trivia(new_stmt.syntax().clone(), " ")
                         };
 
-                        editor.insert_all(
-                            Position::before(place),
-                            vec![
-                                new_stmt.syntax().clone().into(),
-                                make.whitespace(&trailing_ws).into(),
-                            ],
-                        );
+                        editor.insert(Position::before(place), stmt);
 
                         editor.replace_all(to_replace, vec![name_expr.syntax().syntax_element()]);
                     }
@@ -332,8 +331,8 @@ fn extract_token_range_of(
     let first = node.token_at_offset(range.start()).right_biased()?;
     let last = node.token_at_offset(range.end()).left_biased()?;
 
-    let first = skip_trivia_token(first, Direction::Next)?;
-    let last = skip_trivia_token(last, Direction::Next)?;
+    let first = if !first.is_trivia() { first } else { first.next_non_trivia_token()? };
+    let last = if !last.is_trivia() { last } else { last.next_non_trivia_token()? };
 
     if first.text_range().ordering(last.text_range()).is_gt() {
         return None;

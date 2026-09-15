@@ -1,7 +1,6 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "f"
     GENERIC_PARAM_LIST
@@ -9,8 +8,7 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -20,26 +18,23 @@ SOURCE_FILE
                     IDENT "Clone"
       COMMA ","
       ERROR
-        COMMA ","
-      WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
           IDENT "U"
         COLON ":"
         TYPE_BOUND_LIST
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
           IDENT "V"
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 14: expected generic parameter

@@ -1,37 +1,29 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           WHILE_EXPR
-            WHILE_KW "while"
-            WHITESPACE " "
+            WHILE_KW "while" [WHITESPACE("    ")] [WHITESPACE(" ")]
             LITERAL
-              TRUE_KW "true"
-            WHITESPACE " "
+              TRUE_KW "true" [] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
                 L_CURLY "{"
                 R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           WHILE_EXPR
-            WHILE_KW "while"
-            WHITESPACE " "
+            WHILE_KW "while" [WHITESPACE("    ")] [WHITESPACE(" ")]
             LET_EXPR
-              LET_KW "let"
-              WHITESPACE " "
+              LET_KW "let" [] [WHITESPACE(" ")]
               TUPLE_STRUCT_PAT
                 PATH
                   PATH_SEGMENT
@@ -41,10 +33,8 @@ SOURCE_FILE
                 IDENT_PAT
                   NAME
                     IDENT "x"
-                R_PAREN ")"
-              WHITESPACE " "
-              EQ "="
-              WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+              EQ "=" [] [WHITESPACE(" ")]
               METHOD_CALL_EXPR
                 PATH_EXPR
                   PATH
@@ -56,32 +46,25 @@ SOURCE_FILE
                   IDENT "next"
                 ARG_LIST
                   L_PAREN "("
-                  R_PAREN ")"
-            WHITESPACE " "
+                  R_PAREN ")" [] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
                 L_CURLY "{"
                 R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           WHILE_EXPR
-            WHILE_KW "while"
-            WHITESPACE " "
+            WHILE_KW "while" [WHITESPACE("    ")] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
-                L_CURLY "{"
-                WHITESPACE " "
+                L_CURLY "{" [] [WHITESPACE(" ")]
                 LITERAL
-                  TRUE_KW "true"
-                WHITESPACE " "
-                R_CURLY "}"
-            WHITESPACE " "
+                  TRUE_KW "true" [] [WHITESPACE(" ")]
+                R_CURLY "}" [] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
                 L_CURLY "{"
                 R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

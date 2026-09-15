@@ -1,16 +1,13 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "test"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE " "
+      WHERE_KW "where" [] [WHITESPACE(" ")]
       WHERE_PRED
         TUPLE_TYPE
           L_PAREN "("
@@ -19,25 +16,23 @@ SOURCE_FILE
               PATH_SEGMENT
                 NAME_REF
                   IDENT "u64"
-          COMMA ","
-          WHITESPACE " "
+          COMMA "," [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
                   IDENT "u64"
           R_PAREN ")"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "Foo"
-    WHITESPACE " "
+                    IDENT "Foo" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
         R_CURLY "}"
+  EOF ""

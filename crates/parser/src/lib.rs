@@ -52,7 +52,7 @@ pub use crate::{
     input::Input,
     lexed_str::LexedStr,
     output::{Output, Step},
-    shortcuts::StrStep,
+    shortcuts::{StrStep, Trivia},
     syntax_kind::SyntaxKind,
 };
 

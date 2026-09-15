@@ -90,7 +90,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_, '_>
         .clone()
         .in_scope(&SearchScope::file_range(FileRange {
             file_id: def_file,
-            range: func_body.syntax().text_range(),
+            range: func_body.syntax().text_range_without_outer_trivia(),
         }))
         .at_least_one();
     if is_recursive_fn {
@@ -101,7 +101,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_, '_>
     acc.add(
         AssistId::refactor_inline("inline_into_callers"),
         "Inline into all callers",
-        name.syntax().text_range(),
+        name.syntax().text_range_without_outer_trivia(),
         |builder| {
             let mut usages = usages.all();
             let current_file_usage = usages.references.remove(&def_file);
@@ -123,11 +123,13 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_, '_>
 
                 // Skip calls nested inside other calls being inlined to avoid overlapping
                 // edits. Nested calls are implicitly replaced when the outer call is inlined.
-                let all_ranges: Vec<TextRange> =
-                    call_infos.iter().map(|ci| ci.node.syntax().text_range()).collect();
+                let all_ranges: Vec<TextRange> = call_infos
+                    .iter()
+                    .map(|ci| ci.node.syntax().text_range_without_outer_trivia())
+                    .collect();
                 let (call_infos, nested_infos): (Vec<_>, Vec<_>) =
                     call_infos.into_iter().partition(|ci| {
-                        let r = ci.node.syntax().text_range();
+                        let r = ci.node.syntax().text_range_without_outer_trivia();
                         !all_ranges.iter().any(|&other| other != r && other.contains_range(r))
                     });
                 let nested_count = nested_infos.len();
@@ -172,7 +174,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_, '_>
                 file_editors
                     .entry(vfs_def_file)
                     .or_insert_with(|| builder.make_editor(ast_func.syntax()))
-                    .delete(ast_func.syntax());
+                    .delete_keeping_edges(ast_func.syntax());
             }
             for (file_id, editor) in file_editors {
                 builder.add_file_edits(file_id, editor);
@@ -261,12 +263,17 @@ pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opt
         return None;
     }
 
-    acc.add(AssistId::refactor_inline("inline_call"), label, syntax.text_range(), |builder| {
-        let replacement =
-            inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info, &editor);
-        editor.replace(call_info.node.syntax(), replacement.syntax());
-        builder.add_file_edits(ctx.vfs_file_id(), editor);
-    })
+    acc.add(
+        AssistId::refactor_inline("inline_call"),
+        label,
+        syntax.text_range_without_outer_trivia(),
+        |builder| {
+            let replacement =
+                inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info, &editor);
+            editor.replace(call_info.node.syntax(), replacement.syntax());
+            builder.add_file_edits(ctx.vfs_file_id(), editor);
+        },
+    )
 }
 
 struct CallInfo {
@@ -374,7 +381,9 @@ fn inline<'db>(
                     .map(|FileReference { name, .. }| match name {
                         FileReferenceNode::NameRef(it) => body
                             .syntax()
-                            .covering_element(it.syntax().text_range() - body_offset)
+                            .covering_element(
+                                it.syntax().text_range_without_outer_trivia() - body_offset,
+                            )
                             .ancestors()
                             .nth(3)
                             .and_then(ast::PathExpr::cast),
@@ -399,9 +408,9 @@ fn inline<'db>(
             .map(|self_local| {
                 usages_for_locals(self_local)
                     .filter_map(|FileReference { name, .. }| match name {
-                        FileReferenceNode::NameRef(it) => Some(
-                            body.syntax().covering_element(it.syntax().text_range() - body_offset),
-                        ),
+                        FileReferenceNode::NameRef(it) => Some(body.syntax().covering_element(
+                            it.syntax().text_range_without_outer_trivia() - body_offset,
+                        )),
                         _ => None,
                     })
                     .collect()
@@ -431,14 +440,14 @@ fn inline<'db>(
                 // generics aren't valid in expression position. The outermost
                 // `GenericArgList` text is unique within `t`'s text (any inner generics
                 // are nested inside it), so `replacen(.., 1)` is safe.
-                let stripped = t.syntax().text().to_string().replacen(
-                    &generic_arg_list.syntax().text().to_string(),
+                let stripped = t.syntax().text_without_outer_trivia().to_string().replacen(
+                    &generic_arg_list.syntax().text_without_outer_trivia().to_string(),
                     "",
                     1,
                 );
                 editor.make().ty(&stripped).syntax().clone()
             } else {
-                t.syntax().clone()
+                t.detached().syntax().clone()
             };
             editor.replace(self_tok, replace_with);
         }
@@ -453,7 +462,8 @@ fn inline<'db>(
                 if let Some(node) = has_token.as_node()
                     && let Some(ident_pat) = ast::IdentPat::cast(node.to_owned())
                 {
-                    func_let_vars.insert(ident_pat.syntax().text().to_string());
+                    func_let_vars
+                        .insert(ident_pat.syntax().text_without_outer_trivia().to_string());
                 }
             }
         }
@@ -465,7 +475,7 @@ fn inline<'db>(
         .make()
         .name_ref("this")
         .syntax()
-        .first_token()
+        .first_non_trivia_token()
         .expect("NameRef should have had a token.");
     let rewrite_self_to_this = |editor: &SyntaxEditor| {
         for usage in &self_token_usages {
@@ -540,7 +550,7 @@ fn inline<'db>(
 
         // check if there is a local var in the function that conflicts with parameter
         // if it does then emit a let statement and continue
-        if func_let_vars.contains(&expr.syntax().text().to_string()) {
+        if func_let_vars.contains(&expr.syntax().text_without_outer_trivia().to_string()) {
             if is_self_param {
                 rewrite_self_to_this(&editor);
             }
@@ -549,9 +559,10 @@ fn inline<'db>(
         }
 
         let inline_direct = |editor: &SyntaxEditor, usage: &PathExpr, replacement: &ast::Expr| {
+            let replacement = replacement.detached();
             if let Some(field) = path_expr_as_record_field(usage) {
                 cov_mark::hit!(inline_call_inline_direct_field);
-                field.replace_expr(editor, replacement.clone());
+                field.replace_expr(editor, replacement);
             } else {
                 editor.replace(usage.syntax(), replacement.syntax());
             }
@@ -633,14 +644,14 @@ fn inline<'db>(
         ast::CallableExpr::Call(it) => it.indent_level(),
         ast::CallableExpr::MethodCall(it) => it.indent_level(),
     };
-    body = body.dedent(original_body_indent).indent(original_indentation);
+    body = body.dedent(original_body_indent).indent(original_indentation).detached();
 
     let no_stmts = body.statements().next().is_none();
     match body.tail_expr() {
         Some(expr) if matches!(expr, ast::Expr::ClosureExpr(_)) && no_stmts => {
             make.expr_paren(expr).into()
         }
-        Some(expr) if !is_async_fn && no_stmts => expr,
+        Some(expr) if !is_async_fn && no_stmts => expr.detached(),
         _ => match node
             .syntax()
             .parent()

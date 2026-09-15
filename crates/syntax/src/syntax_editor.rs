@@ -6,9 +6,9 @@
 
 use std::{
     cell::RefCell,
-    fmt, iter,
+    fmt,
     num::NonZeroU32,
-    ops::RangeInclusive,
+    ops::{RangeBounds, RangeInclusive},
     sync::atomic::{AtomicU32, Ordering},
 };
 
@@ -16,8 +16,9 @@ use rowan::TextRange;
 use rustc_hash::FxHashMap;
 
 use crate::{
-    AstNode, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
+    AstNode, Direction, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
     ast::{self, edit::IndentLevel, syntax_factory::SyntaxFactory},
+    syntax_node::token_payload,
 };
 
 mod edit_algo;
@@ -26,6 +27,12 @@ mod mapping;
 
 pub use edits::{GetOrCreateWhereClause, Removable};
 pub use mapping::{SyntaxMapping, SyntaxMappingBuilder};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TriviaSide {
+    Leading,
+    Trailing,
+}
 
 #[derive(Debug)]
 pub struct SyntaxEditor {
@@ -73,13 +80,42 @@ impl SyntaxEditor {
     }
 
     pub fn add_annotation(&self, element: impl Element, annotation: SyntaxAnnotation) {
-        self.annotations.borrow_mut().push((element.syntax_element(), annotation))
+        let element = element.syntax_element();
+        debug_assert!(!element.is_trivia(), "trivia cannot carry an annotation");
+        self.annotations.borrow_mut().push((element, annotation))
     }
 
     pub fn add_annotation_all(&self, elements: Vec<impl Element>, annotation: SyntaxAnnotation) {
-        self.annotations
-            .borrow_mut()
-            .extend(elements.into_iter().map(|e| e.syntax_element()).zip(iter::repeat(annotation)));
+        for element in elements {
+            self.add_annotation(element, annotation);
+        }
+    }
+
+    pub(super) fn with_trivia(
+        &self,
+        element: &SyntaxElement,
+        side: TriviaSide,
+        text: &str,
+    ) -> SyntaxElement {
+        let decorated = match side {
+            TriviaSide::Leading => self.make.with_leading_trivia(element, text),
+            TriviaSide::Trailing => self.make.with_trailing_trivia(element, text),
+        };
+        self.transfer_annotations(element, &decorated);
+        decorated
+    }
+
+    fn transfer_annotations(&self, from: &SyntaxElement, to: &SyntaxElement) {
+        if from.as_token().is_none() {
+            return;
+        }
+        let mut annotations = self.annotations.borrow_mut();
+        let transferred: Vec<_> = annotations
+            .iter()
+            .filter(|(annotated, _)| annotated == from)
+            .map(|(_, annotation)| (to.clone(), *annotation))
+            .collect();
+        annotations.extend(transferred);
     }
 
     pub fn merge(&self, other: SyntaxEditor) {
@@ -99,55 +135,263 @@ impl SyntaxEditor {
 
     pub fn insert(&self, position: Position, element: impl Element) {
         debug_assert!(is_ancestor_or_self(&position.parent(), &self.root));
-        self.changes.borrow_mut().push(Change::Insert(position, element.syntax_element()))
+        let element = element.syntax_element();
+        self.make_room_at(&position, &element);
+        let element = self.take_line_break(&position, element);
+        self.changes.borrow_mut().push(Change::Insert(position, element))
     }
 
-    pub fn insert_all(&self, position: Position, elements: Vec<SyntaxElement>) {
+    pub fn insert_all(&self, position: Position, mut elements: Vec<SyntaxElement>) {
         debug_assert!(is_ancestor_or_self(&position.parent(), &self.root));
+        if let Some(first) = elements.first().cloned() {
+            self.make_room_at(&position, &first);
+            elements[0] = self.take_line_break(&position, first);
+        }
         self.changes.borrow_mut().push(Change::InsertAll(position, elements))
     }
 
-    pub fn insert_with_whitespace(&self, position: Position, element: impl Element) {
-        self.insert_all_with_whitespace(position, vec![element.syntax_element()])
+    fn take_line_break(&self, position: &Position, element: SyntaxElement) -> SyntaxElement {
+        let PositionRepr::Before(anchor) = &position.repr else { return element };
+        let Some(token) = anchor.first_non_trivia_token() else { return element };
+        if !is_ancestor_or_self_of_element(&SyntaxElement::Token(token.clone()), &self.root) {
+            return element;
+        }
+        let starts_own_line = element
+            .first_non_trivia_token()
+            .and_then(|it| it.leading_trivia().next())
+            .is_some_and(|it| it.kind() == SyntaxKind::NEWLINE);
+        match starts_own_line {
+            true => self.open_line_before(&token, element),
+            false => self.take_anchor_line_prefix(&token, element),
+        }
     }
 
-    pub fn insert_all_with_whitespace(&self, position: Position, mut elements: Vec<SyntaxElement>) {
-        if let Some(first) = elements.first()
-            && let Some(ws) = ws_before(&position, first, &self.make)
-        {
-            elements.insert(0, ws.into());
+    fn open_line_before(&self, token: &SyntaxToken, element: SyntaxElement) -> SyntaxElement {
+        if let Some(decorated) = self.take_comment_lines(token, &element) {
+            return decorated;
         }
-        if let Some(last) = elements.last()
-            && let Some(ws) = ws_after(&position, last, &self.make)
+        if let Some(prev) = self.surviving_token(token, Direction::Prev)
+            && is_ancestor_or_self_of_element(&SyntaxElement::Token(prev.clone()), &self.root)
+            && !self.covered_by(prev.text_range(), |_| true)
+            && let Some(pending) = self.pending_token(&prev)
         {
-            elements.push(ws.into());
+            let blank = crate::algo::outer_blank_trivia(&pending, TriviaSide::Trailing);
+            let mut tail = pending.trailing_trivia().skip(blank.start);
+            if tail.any(|it| it.kind() == SyntaxKind::NEWLINE) {
+                self.splice_trailing_trivia(&prev, blank, []);
+            }
         }
-        self.insert_all(position, elements)
+        let Some(pending) = self.pending_token(token) else { return element };
+        let end = pending
+            .leading_trivia()
+            .position(|it| it.kind() != SyntaxKind::WHITESPACE)
+            .unwrap_or(0);
+        let opens_line =
+            pending.leading_trivia().nth(end).is_some_and(|it| it.kind() == SyntaxKind::NEWLINE);
+        if end > 0 && opens_line {
+            self.splice_leading_trivia(token, ..end, []);
+        }
+        let anchor_keeps_its_lines =
+            pending.leading_trivia().any(|it| it.kind() == SyntaxKind::COMMENT);
+        let Some(last) = element.last_non_trivia_token() else { return element };
+        if !anchor_keeps_its_lines
+            || last.trailing_trivia().next_back().is_some_and(|it| it.kind() == SyntaxKind::NEWLINE)
+        {
+            return element;
+        }
+        let trailing: String = last.trailing_trivia().map(|it| it.text().to_owned()).collect();
+        self.with_trivia(&element, TriviaSide::Trailing, &format!("{trailing}\n"))
+    }
+
+    fn take_anchor_line_prefix(
+        &self,
+        token: &SyntaxToken,
+        element: SyntaxElement,
+    ) -> SyntaxElement {
+        if token.prev_non_trivia_token().is_none() {
+            return element;
+        }
+        let Some(pending) = self.pending_token(token) else { return element };
+        let Some(end) = pending
+            .leading_trivia()
+            .rposition(|it| it.kind() == SyntaxKind::NEWLINE)
+            .map(|index| index + 1)
+        else {
+            return element;
+        };
+        let comment_attached_to_anchor = pending
+            .leading_trivia()
+            .take(end)
+            .rposition(|it| it.kind() == SyntaxKind::COMMENT)
+            .is_some_and(|comment| {
+                pending
+                    .leading_trivia()
+                    .take(end)
+                    .skip(comment + 1)
+                    .filter(|it| it.kind() == SyntaxKind::NEWLINE)
+                    .count()
+                    < 2
+            });
+        if comment_attached_to_anchor {
+            return element;
+        }
+        self.move_leading_trivia(token, end, element)
+    }
+
+    fn take_comment_lines(
+        &self,
+        token: &SyntaxToken,
+        element: &SyntaxElement,
+    ) -> Option<SyntaxElement> {
+        let pending = self.pending_token(token)?;
+        let first = pending.leading_trivia().position(|it| it.kind() == SyntaxKind::COMMENT)?;
+        let newline = |it: &SyntaxToken| it.kind() == SyntaxKind::NEWLINE;
+        let blank_lines_before = self
+            .surviving_token(token, Direction::Prev)
+            .and_then(|prev| self.pending_token(&prev))
+            .map_or(0, |prev| prev.trailing_trivia().filter(newline).count())
+            + pending.leading_trivia().take(first).filter(newline).count();
+        if blank_lines_before > 1 {
+            return None;
+        }
+        let end = pending.leading_trivia().rposition(|it| it.kind() == SyntaxKind::COMMENT)? + 1;
+        if !matches!(token.kind(), T!['}'] | T![')'] | T![']'])
+            && pending.leading_trivia().skip(end).filter(newline).count() < 2
+        {
+            return None;
+        }
+        Some(self.move_leading_trivia(token, end, element.clone()))
+    }
+
+    fn move_leading_trivia(
+        &self,
+        token: &SyntaxToken,
+        end: usize,
+        element: SyntaxElement,
+    ) -> SyntaxElement {
+        let Some(pending) = self.pending_token(token).filter(|_| end > 0) else { return element };
+        let mut moved: String =
+            pending.leading_trivia().take(end).map(|it| it.text().to_owned()).collect();
+        if let Some(first) = element.first_non_trivia_token() {
+            moved.extend(first.leading_trivia().map(|it| it.text().to_owned()));
+        }
+        self.splice_leading_trivia(token, ..end, []);
+        self.with_trivia(&element, TriviaSide::Leading, &moved)
+    }
+
+    fn covered_by(&self, range: TextRange, mut which: impl FnMut(&Change) -> bool) -> bool {
+        self.changes.borrow().iter().any(|change| {
+            let target = match change {
+                Change::Insert(..) | Change::InsertAll(..) => return false,
+                Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => {
+                    target.text_range()
+                }
+                Change::ReplaceAll(targets, _) => TextRange::new(
+                    targets.start().text_range().start(),
+                    targets.end().text_range().end(),
+                ),
+            };
+            which(change) && target.contains_range(range)
+        })
+    }
+
+    fn surviving_token(&self, token: &SyntaxToken, direction: Direction) -> Option<SyntaxToken> {
+        let step = |it: &SyntaxToken| match direction {
+            Direction::Next => it.next_non_trivia_token(),
+            Direction::Prev => it.prev_non_trivia_token(),
+        };
+
+        let mut current = step(token);
+        while let Some(it) = &current {
+            let deleted = self.covered_by(it.text_range(), |change| match change {
+                Change::Replace(_, replacement) => replacement.is_none(),
+                Change::ReplaceWithMany(_, new) | Change::ReplaceAll(_, new) => new.is_empty(),
+                Change::Insert(..) | Change::InsertAll(..) => false,
+            });
+            if !deleted {
+                break;
+            }
+            current = step(it);
+        }
+        current
+    }
+
+    fn make_room_at(&self, position: &Position, element: &SyntaxElement) {
+        let PositionRepr::After(anchor) = &position.repr else { return };
+        let Some(token) = anchor.last_non_trivia_token() else { return };
+        let Some(next) = token.next_non_trivia_token() else { return };
+        if !is_ancestor_or_self_of_element(&SyntaxElement::Token(next.clone()), &self.root) {
+            return;
+        }
+        let inside_replacement = |range: TextRange| {
+            self.changes.borrow().iter().any(|change| match change {
+                Change::Replace(SyntaxElement::Node(target), _)
+                | Change::ReplaceWithMany(SyntaxElement::Node(target), _) => {
+                    let target = target.text_range();
+                    target.contains_range(range) && target != range
+                }
+                _ => false,
+            })
+        };
+        if inside_replacement(token.text_range()) || inside_replacement(next.text_range()) {
+            return;
+        }
+        let Some(pending) = self.pending_token(&token) else { return };
+        let len = pending.trailing_trivia().len();
+        let line_comment = pending
+            .trailing_trivia()
+            .any(|it| it.kind() == SyntaxKind::COMMENT && it.text().starts_with("//"));
+        let starts_own_line = element
+            .first_non_trivia_token()
+            .and_then(|it| it.leading_trivia().next())
+            .is_some_and(|it| it.kind() == SyntaxKind::NEWLINE);
+        let start = match line_comment && !starts_own_line {
+            true => 0,
+            false => crate::algo::outer_blank_trivia(&pending, TriviaSide::Trailing).start,
+        };
+        if start == len || self.pending_token(&next).is_none() {
+            return;
+        }
+        let moved: Vec<_> = pending.trailing_trivia().skip(start).collect();
+        self.splice_leading_trivia(&next, ..0, moved.iter().map(|it| (it.kind(), it.text())));
+        self.splice_trailing_trivia(&token, start..len, []);
+    }
+
+    pub fn insert_with_whitespace(&self, position: Position, element: impl Element) {
+        let mut element = element.syntax_element();
+        if let Some(ws) = ws_before(&position, &element) {
+            element = self.with_trivia(&element, TriviaSide::Leading, &ws);
+        }
+        if let Some(ws) = ws_after(&position, &element) {
+            element = self.with_trivia(&element, TriviaSide::Trailing, &ws);
+        }
+        self.insert(position, element)
     }
 
     pub fn delete(&self, element: impl Element) {
         let element = element.syntax_element();
+        debug_assert!(!element.is_trivia(), "trivia is not a structural delete target");
         debug_assert!(is_ancestor_or_self_of_element(&element, &self.root));
         debug_assert!(
             !matches!(&element, SyntaxElement::Node(node) if node == &self.root),
             "should not delete root node"
         );
         let mut changes = self.changes.borrow_mut();
-        for change in changes.iter_mut() {
-            if let Change::Replace(existing, replacement) = change
-                && *existing == element
-            {
-                if replacement.is_none() {
-                    return;
-                }
-                *replacement = None;
-                return;
-            }
+        let queued = changes.iter_mut().find_map(|change| match change {
+            Change::Replace(existing, replacement) if *existing == element => Some(replacement),
+            _ => None,
+        });
+        match queued {
+            Some(replacement) => *replacement = None,
+            None => changes.push(Change::Replace(element, None)),
         }
-        changes.push(Change::Replace(element, None));
     }
 
     pub fn delete_all(&self, range: RangeInclusive<SyntaxElement>) {
+        debug_assert!(
+            !range.start().is_trivia() && !range.end().is_trivia(),
+            "trivia is not a structural delete target"
+        );
         if range.start() == range.end() {
             self.delete(range.start());
             return;
@@ -159,28 +403,233 @@ impl SyntaxEditor {
 
     pub fn replace(&self, old: impl Element, new: impl Element) {
         let old = old.syntax_element();
+        let new = self.keep_edges(&old, &old, vec![new.syntax_element()]);
+        self.replace_verbatim(old, new.into_iter().next().expect("one replacement in, one out"));
+    }
+
+    pub fn replace_verbatim(&self, old: impl Element, new: impl Element) {
+        let old = old.syntax_element();
+        debug_assert!(!old.is_trivia(), "trivia is not a structural replace target");
         debug_assert!(is_ancestor_or_self_of_element(&old, &self.root));
         let new = new.syntax_element();
         let mut changes = self.changes.borrow_mut();
-        for change in changes.iter_mut() {
-            if let Change::Replace(existing, replacement) = change
-                && *existing == old
-            {
-                match replacement {
-                    None => return,
-                    Some(existing_new) if *existing_new == new => return,
-                    Some(existing_new) => {
-                        *existing_new = new;
-                        return;
-                    }
-                }
+        let queued = changes.iter_mut().find_map(|change| match change {
+            Change::Replace(existing, replacement) if *existing == old => Some(replacement),
+            _ => None,
+        });
+        match queued {
+            Some(Some(existing)) => *existing = new,
+            Some(None) => (),
+            None => changes.push(Change::Replace(old, Some(new))),
+        }
+    }
+
+    pub fn replace_token(&self, old: &SyntaxToken, new: &SyntaxToken) {
+        let Some(current) = self.pending_token(old) else { return };
+        let green = current.green();
+        let payload = token_payload(
+            new.kind(),
+            new.text(),
+            green.leading_trivia().to_vec(),
+            green.trailing_trivia().to_vec(),
+        );
+
+        self.transfer_annotations(
+            &SyntaxElement::Token(new.clone()),
+            &SyntaxElement::Token(payload.clone()),
+        );
+        self.replace_verbatim(old, payload);
+    }
+
+    pub fn splice_leading_trivia<'a>(
+        &self,
+        token: &SyntaxToken,
+        range: impl RangeBounds<usize>,
+        replacement: impl IntoIterator<Item = (SyntaxKind, &'a str)>,
+    ) {
+        self.splice_trivia(token, TriviaSide::Leading, range, replacement);
+    }
+
+    fn keep_edges(
+        &self,
+        start: &SyntaxElement,
+        end: &SyntaxElement,
+        mut new: Vec<SyntaxElement>,
+    ) -> Vec<SyntaxElement> {
+        if new.is_empty() || matches!(start, SyntaxElement::Node(node) if node == &self.root) {
+            return new;
+        }
+
+        let leading: String = start
+            .first_non_trivia_token()
+            .and_then(|token| self.pending_token(&token))
+            .map(|token| token.leading_trivia().map(|it| it.text().to_owned()).collect())
+            .unwrap_or_default();
+        if !leading.is_empty()
+            && let Some(first) = new[0].first_non_trivia_token()
+            && first.leading_trivia().next().is_none_or(|it| it.kind() == SyntaxKind::COMMENT)
+        {
+            let own: String = first.leading_trivia().map(|it| it.text().to_owned()).collect();
+            new[0] = self.with_trivia(&new[0], TriviaSide::Leading, &format!("{leading}{own}"));
+        }
+
+        let trailing: String = end
+            .last_non_trivia_token()
+            .and_then(|token| self.pending_token(&token))
+            .map(|token| token.trailing_trivia().map(|it| it.text().to_owned()).collect())
+            .unwrap_or_default();
+        let index = new.len() - 1;
+        if !trailing.is_empty()
+            && new[index].last_non_trivia_token().is_some_and(|it| it.trailing_trivia().len() == 0)
+        {
+            new[index] = self.with_trivia(&new[index], TriviaSide::Trailing, &trailing);
+        }
+
+        new
+    }
+
+    fn delete_moving_trivia(
+        &self,
+        element: impl Element,
+        take: fn(&SyntaxToken, &SyntaxToken) -> String,
+    ) {
+        let element = element.syntax_element();
+        if let (Some(first), Some(last)) =
+            (element.first_non_trivia_token(), element.last_non_trivia_token())
+            && let Some(next) = self.surviving_token(&last, Direction::Next)
+            && is_ancestor_or_self_of_element(&SyntaxElement::Token(next.clone()), &self.root)
+        {
+            let moved = take(&first, &last);
+            if !moved.is_empty() {
+                self.prepend_leading_trivia(&next, &moved);
             }
         }
-        changes.push(Change::Replace(old, Some(new)));
+        self.delete(element);
+    }
+
+    pub fn delete_keeping_edges(&self, element: impl Element) {
+        self.delete_moving_trivia(element, |first, last| {
+            first
+                .leading_trivia()
+                .chain(last.trailing_trivia())
+                .map(|it| it.text().to_owned())
+                .collect()
+        });
+    }
+
+    pub fn insert_taking_leading(&self, anchor: impl Element, element: impl Element) {
+        let anchor = anchor.syntax_element();
+        let mut element = element.syntax_element();
+        if let Some(first) = anchor.first_non_trivia_token()
+            && let Some(token) = self.pending_token(&first)
+            && token.leading_trivia().len() > 0
+        {
+            let leading: String = token.leading_trivia().map(|it| it.text().to_owned()).collect();
+            self.splice_leading_trivia(&first, .., []);
+            element = self.with_trivia(&element, TriviaSide::Leading, &leading);
+        }
+        self.insert(Position::before(anchor), element);
+    }
+
+    pub fn delete_keeping_leading(&self, element: impl Element) {
+        self.delete_moving_trivia(element, |first, _| {
+            first.leading_trivia().map(|it| it.text().to_owned()).collect()
+        });
+    }
+
+    pub fn delete_keeping_lines(&self, element: impl Element) {
+        self.delete_moving_trivia(element, |first, _| {
+            let trivia: Vec<_> = first.leading_trivia().collect();
+            match trivia.iter().rposition(|it| it.kind() == SyntaxKind::NEWLINE) {
+                Some(end) => trivia[..=end].iter().map(|it| it.text()).collect(),
+                None => String::new(),
+            }
+        });
+    }
+
+    pub fn strip_trailing_blank_trivia(&self, token: &SyntaxToken) {
+        let blank = crate::algo::outer_blank_trivia(token, TriviaSide::Trailing);
+        if !blank.is_empty() {
+            self.splice_trailing_trivia(token, blank, []);
+        }
+    }
+
+    pub fn prepend_leading_trivia(&self, element: impl Element, text: &str) {
+        let Some(token) = element.syntax_element().first_non_trivia_token() else { return };
+        self.splice_leading_trivia(&token, ..0, ast::make::tokens::trivia(text));
+    }
+
+    pub fn splice_trailing_trivia<'a>(
+        &self,
+        token: &SyntaxToken,
+        range: impl RangeBounds<usize>,
+        replacement: impl IntoIterator<Item = (SyntaxKind, &'a str)>,
+    ) {
+        self.splice_trivia(token, TriviaSide::Trailing, range, replacement);
+    }
+
+    fn splice_trivia<'a>(
+        &self,
+        token: &SyntaxToken,
+        side: TriviaSide,
+        range: impl RangeBounds<usize>,
+        replacement: impl IntoIterator<Item = (SyntaxKind, &'a str)>,
+    ) {
+        let Some(current) = self.pending_token(token) else { return };
+        let replacement = replacement.into_iter().collect::<Vec<_>>();
+        debug_assert!(
+            replacement.iter().all(|(kind, _)| kind.is_trivia()),
+            "a trivia token must have a trivia kind"
+        );
+
+        let rewritten = self.covered_by(token.text_range(), |change| {
+            matches!(change, Change::ReplaceWithMany(..) | Change::ReplaceAll(..))
+        });
+        if rewritten {
+            return;
+        }
+
+        let green = current.green();
+        let mut leading = green.leading_trivia().to_vec();
+        let mut trailing = green.trailing_trivia().to_vec();
+        let target = match side {
+            TriviaSide::Leading => &mut leading,
+            TriviaSide::Trailing => &mut trailing,
+        };
+
+        let replacement = replacement
+            .into_iter()
+            .map(|(kind, text)| rowan::GreenToken::new(rowan::SyntaxKind(kind.into()), text));
+        target.splice(range, replacement).for_each(drop);
+
+        debug_assert!(
+            trailing.iter().enumerate().all(|(index, it)| {
+                SyntaxKind::from(it.kind().0) != SyntaxKind::NEWLINE || index + 1 == trailing.len()
+            }),
+            "trailing trivia must end at the newline delimiter"
+        );
+
+        let payload = token_payload(current.kind(), current.text(), leading, trailing);
+        self.replace_verbatim(token, payload);
+    }
+
+    pub fn pending_token(&self, token: &SyntaxToken) -> Option<SyntaxToken> {
+        let element = SyntaxElement::Token(token.clone());
+        let changes = self.changes.borrow();
+        let queued = changes.iter().find_map(|change| match change {
+            Change::Replace(existing, replacement) if *existing == element => Some(replacement),
+            _ => None,
+        });
+        match queued {
+            Some(replacement) => replacement.as_ref()?.as_token().cloned(),
+            None => Some(token.clone()),
+        }
     }
 
     pub fn replace_with_many(&self, old: impl Element, new: Vec<SyntaxElement>) {
         let old = old.syntax_element();
+        let new = self.keep_edges(&old, &old, new);
+        debug_assert!(!old.is_trivia(), "trivia is not a structural replace target");
         debug_assert!(is_ancestor_or_self_of_element(&old, &self.root));
         debug_assert!(
             !(matches!(&old, SyntaxElement::Node(node) if node == &self.root) && new.len() > 1),
@@ -190,10 +639,15 @@ impl SyntaxEditor {
     }
 
     pub fn replace_all(&self, range: RangeInclusive<SyntaxElement>, new: Vec<SyntaxElement>) {
+        debug_assert!(
+            !range.start().is_trivia() && !range.end().is_trivia(),
+            "trivia is not a structural replace target"
+        );
         if range.start() == range.end() {
             self.replace_with_many(range.start(), new);
             return;
         }
+        let new = self.keep_edges(range.start(), range.end(), new);
 
         debug_assert!(is_ancestor_or_self_of_element(range.start(), &self.root));
         self.changes.borrow_mut().push(Change::ReplaceAll(range, new))
@@ -291,7 +745,12 @@ impl Position {
     pub(crate) fn place(&self) -> (SyntaxNode, usize) {
         match &self.repr {
             PositionRepr::FirstChild(parent) => (parent.clone(), 0),
-            PositionRepr::After(child) => (child.parent().unwrap(), child.index() + 1),
+            PositionRepr::After(child) | PositionRepr::LastChild(child) => {
+                (child.parent().unwrap(), child.index().expect("checked at insertion") + 1)
+            }
+            PositionRepr::Before(child) => {
+                (child.parent().unwrap(), child.index().expect("checked at insertion"))
+            }
         }
     }
 }
@@ -300,32 +759,32 @@ impl Position {
 enum PositionRepr {
     FirstChild(SyntaxNode),
     After(SyntaxElement),
+    LastChild(SyntaxElement),
+    Before(SyntaxElement),
 }
 
 impl Position {
     pub fn after(elem: impl Element) -> Position {
-        let repr = PositionRepr::After(elem.syntax_element());
-        Position { repr }
+        let elem = elem.syntax_element();
+        debug_assert!(!elem.is_trivia(), "trivia is not a structural insertion anchor");
+        Position { repr: PositionRepr::After(elem) }
     }
 
     pub fn before(elem: impl Element) -> Position {
         let elem = elem.syntax_element();
-        let repr = match elem.prev_sibling_or_token() {
-            Some(it) => PositionRepr::After(it),
-            None => PositionRepr::FirstChild(elem.parent().unwrap()),
-        };
-        Position { repr }
+        debug_assert!(!elem.is_trivia(), "trivia is not a structural insertion anchor");
+        debug_assert!(elem.parent().is_some(), "a root is not an insertion anchor");
+        Position { repr: PositionRepr::Before(elem) }
     }
 
     pub fn first_child_of(node: &(impl Into<SyntaxNode> + Clone)) -> Position {
-        let repr = PositionRepr::FirstChild(node.clone().into());
-        Position { repr }
+        Position { repr: PositionRepr::FirstChild(node.clone().into()) }
     }
 
     pub fn last_child_of(node: &(impl Into<SyntaxNode> + Clone)) -> Position {
         let node = node.clone().into();
         let repr = match node.last_child_or_token() {
-            Some(it) => PositionRepr::After(it),
+            Some(it) => PositionRepr::LastChild(it),
             None => PositionRepr::FirstChild(node),
         };
         Position { repr }
@@ -351,16 +810,23 @@ impl Change {
     fn target_range(&self) -> TextRange {
         match self {
             Change::Insert(target, _) | Change::InsertAll(target, _) => match &target.repr {
-                PositionRepr::FirstChild(parent) => TextRange::at(
-                    parent.first_child_or_token().unwrap().text_range().start(),
-                    0.into(),
-                ),
-                PositionRepr::After(child) => TextRange::at(child.text_range().end(), 0.into()),
+                PositionRepr::FirstChild(parent) => {
+                    TextRange::at(parent.text_range().start(), 0.into())
+                }
+                PositionRepr::After(child) | PositionRepr::LastChild(child) => {
+                    TextRange::at(child.text_range_including_trivia().end(), 0.into())
+                }
+                PositionRepr::Before(child) => {
+                    TextRange::at(child.text_range_including_trivia().start(), 0.into())
+                }
             },
-            Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => target.text_range(),
-            Change::ReplaceAll(range, _) => {
-                range.start().text_range().cover(range.end().text_range())
+            Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => {
+                target.text_range_including_trivia()
             }
+            Change::ReplaceAll(range, _) => range
+                .start()
+                .text_range_including_trivia()
+                .cover(range.end().text_range_including_trivia()),
         }
     }
 
@@ -429,14 +895,18 @@ impl fmt::Display for Change {
             Change::ReplaceAll(range, vec) => {
                 let parent = range.start().parent().unwrap();
                 let parent_str = parent.to_string();
-                let pre_range =
-                    TextRange::new(parent.text_range().start(), range.start().text_range().start());
-                let old_range = TextRange::new(
-                    range.start().text_range().start(),
-                    range.end().text_range().end(),
+                let pre_range = TextRange::new(
+                    parent.text_range().start(),
+                    range.start().text_range_including_trivia().start(),
                 );
-                let post_range =
-                    TextRange::new(range.end().text_range().end(), parent.text_range().end());
+                let old_range = TextRange::new(
+                    range.start().text_range_including_trivia().start(),
+                    range.end().text_range_including_trivia().end(),
+                );
+                let post_range = TextRange::new(
+                    range.end().text_range_including_trivia().end(),
+                    parent.text_range().end(),
+                );
 
                 let pre_str = &parent_str[pre_range - parent.text_range().start()];
                 let old_str = &parent_str[old_range - parent.text_range().start()];
@@ -479,15 +949,13 @@ impl Element for SyntaxToken {
     }
 }
 
-fn ws_before(
-    position: &Position,
-    new: &SyntaxElement,
-    factory: &SyntaxFactory,
-) -> Option<SyntaxToken> {
+fn ws_before(position: &Position, new: &SyntaxElement) -> Option<String> {
     let prev = match &position.repr {
         PositionRepr::FirstChild(_) => return None,
-        PositionRepr::After(it) => it,
+        PositionRepr::After(it) | PositionRepr::LastChild(it) => it.clone(),
+        PositionRepr::Before(it) => it.prev_sibling_or_token()?,
     };
+    let prev = &prev;
 
     if prev.kind() == T!['{']
         && new.kind() == SyntaxKind::USE
@@ -495,7 +963,7 @@ fn ws_before(
     {
         let mut indent = IndentLevel::from_element(&item_list.syntax().clone().into());
         indent.0 += 1;
-        return Some(factory.whitespace(&format!("\n{indent}")));
+        return Some(format!("\n{indent}"));
     }
 
     if prev.kind() == T!['{']
@@ -504,33 +972,30 @@ fn ws_before(
     {
         let mut indent = IndentLevel::from_element(&stmt_list.syntax().clone().into());
         indent.0 += 1;
-        return Some(factory.whitespace(&format!("\n{indent}")));
+        return Some(format!("\n{indent}"));
     }
 
-    ws_between(prev, new, factory)
+    ws_between(prev, new)
 }
 
-fn ws_after(
-    position: &Position,
-    new: &SyntaxElement,
-    factory: &SyntaxFactory,
-) -> Option<SyntaxToken> {
+fn ws_after(position: &Position, new: &SyntaxElement) -> Option<String> {
     let next = match &position.repr {
         PositionRepr::FirstChild(parent) => parent.first_child_or_token()?,
-        PositionRepr::After(sibling) => sibling.next_sibling_or_token()?,
+        PositionRepr::After(sibling) | PositionRepr::LastChild(sibling) => {
+            sibling.next_sibling_or_token()?
+        }
+        PositionRepr::Before(sibling) => sibling.clone(),
     };
-    ws_between(new, &next, factory)
+    ws_between(new, &next)
 }
 
-fn ws_between(
-    left: &SyntaxElement,
-    right: &SyntaxElement,
-    factory: &SyntaxFactory,
-) -> Option<SyntaxToken> {
-    if left.kind() == SyntaxKind::WHITESPACE || right.kind() == SyntaxKind::WHITESPACE {
+fn ws_between(left: &SyntaxElement, right: &SyntaxElement) -> Option<String> {
+    if left.last_non_trivia_token().is_some_and(|token| token.trailing_trivia().len() > 0)
+        || right.first_non_trivia_token().is_some_and(|token| token.leading_trivia().len() > 0)
+    {
         return None;
     }
-    if right.kind() == T![;] || right.kind() == T![,] {
+    if matches!(right.kind(), T![;] | T![,] | SyntaxKind::EOF) {
         return None;
     }
     if left.kind() == T![<] || right.kind() == T![>] {
@@ -547,16 +1012,16 @@ fn ws_between(
         if left.kind() == SyntaxKind::USE {
             indent.0 = IndentLevel::from_element(right).0.max(indent.0);
         }
-        return Some(factory.whitespace(&format!("\n{indent}")));
+        return Some(format!("\n{indent}"));
     }
     if left.kind() == SyntaxKind::ATTR {
         let mut indent = IndentLevel::from_element(right);
         if right.kind() == SyntaxKind::ATTR {
             indent.0 = IndentLevel::from_element(left).0.max(indent.0);
         }
-        return Some(factory.whitespace(&format!("\n{indent}")));
+        return Some(format!("\n{indent}"));
     }
-    Some(factory.whitespace(" "))
+    Some(" ".to_owned())
 }
 
 fn is_ancestor_or_self(node: &SyntaxNode, ancestor: &SyntaxNode) -> bool {
@@ -737,7 +1202,7 @@ mod tests {
         let expect = expect![[r#"
             {
                 {
-                let first = 1;{
+            let first = 1;    {
                 let second = 2;let third = 3;
             }
             }
@@ -792,7 +1257,7 @@ mod tests {
             {
                 {
                 {
-                let first = 1;{
+            let first = 1;    {
                 let second = 2;
             }
             }
@@ -836,7 +1301,7 @@ mod tests {
 
         let expect = expect![[r#"
             {
-                let first = 1;{
+            let first = 1;    {
                 let second = 2;
             }
             }"#]];
@@ -864,12 +1329,6 @@ mod tests {
 
         if let Some(ret_ty) = parent_fn.ret_type() {
             editor.delete(ret_ty.syntax().clone());
-
-            if let Some(SyntaxElement::Token(token)) = ret_ty.syntax().next_sibling_or_token()
-                && token.kind().is_trivia()
-            {
-                editor.delete(token);
-            }
         }
 
         if let Some(tail) = parent_fn.body().unwrap().tail_expr() {
@@ -878,7 +1337,9 @@ mod tests {
 
         let edit = editor.finish();
 
-        let expect = expect![["fn it() {\n    \n}"]];
+        let expect = expect![[r#"
+            fn it() {
+            }"#]];
         expect.assert_eq(&edit.new_root.to_string());
     }
 

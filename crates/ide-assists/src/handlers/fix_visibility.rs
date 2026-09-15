@@ -87,19 +87,13 @@ fn add_vis_to_referenced_module_def(acc: &mut Assists, ctx: &AssistContext<'_, '
                 .syntax()
                 .children_with_tokens()
                 .find(|it| {
-                    !matches!(
-                        it.kind(),
-                        syntax::SyntaxKind::WHITESPACE
-                            | syntax::SyntaxKind::COMMENT
-                            | syntax::SyntaxKind::DOC_COMMENT
-                            | syntax::SyntaxKind::ATTR
-                    )
+                    !matches!(it.kind(), syntax::SyntaxKind::DOC_COMMENT | syntax::SyntaxKind::ATTR)
                 })
                 .unwrap_or_else(|| vis_owner.syntax().first_child_or_token().unwrap());
 
-            editor.insert_all(
-                syntax::syntax_editor::Position::before(vis_before),
-                vec![missing_visibility.syntax().clone().into(), make.whitespace(" ").into()],
+            editor.insert_taking_leading(
+                vis_before,
+                editor.make().with_trailing_trivia(missing_visibility.syntax().clone(), " "),
             );
         }
 
@@ -168,7 +162,7 @@ fn target_data_for_def(
             target_name = m.name(db);
             let in_file_source = m.declaration_source(db)?;
             let file_id = in_file_source.file_id.original_file(db);
-            let range = in_file_source.value.syntax().text_range();
+            let range = in_file_source.value.syntax().text_range_without_outer_trivia();
             (ast::AnyHasVisibility::new(in_file_source.value), range, file_id.file_id(db))
         }
         // FIXME

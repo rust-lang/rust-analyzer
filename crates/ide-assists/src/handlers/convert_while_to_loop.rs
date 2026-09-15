@@ -45,7 +45,7 @@ pub(crate) fn convert_while_to_loop(acc: &mut Assists, ctx: &AssistContext<'_, '
     let while_cond = while_expr.condition()?;
     let l_curly = while_body.stmt_list()?.l_curly_token()?;
 
-    let target = while_expr.syntax().text_range();
+    let target = while_expr.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("convert_while_to_loop"),
         "Convert while to loop",
@@ -76,19 +76,17 @@ pub(crate) fn convert_while_to_loop(acc: &mut Assists, ctx: &AssistContext<'_, '
             } else {
                 let if_cond = invert_boolean_expression(make, while_cond);
                 let if_expr = make.expr_if(if_cond, break_block, None).indent(while_indent_level);
-                if !while_body.syntax().text().contains_char('\n') {
-                    editor.insert(
-                        Position::after(&l_curly),
-                        make.whitespace(&format!("\n{while_indent_level}")),
-                    );
-                }
-                editor.insert_all(
-                    Position::after(&l_curly),
-                    vec![
-                        make.whitespace(&format!("\n{}", while_indent_level + 1)).into(),
-                        if_expr.syntax().syntax_element(),
-                    ],
+                let mut if_expr = make.with_leading_trivia(
+                    if_expr.syntax(),
+                    &format!("\n{}", while_indent_level + 1),
                 );
+                if !while_body.syntax().text_without_outer_trivia().contains_char('\n') {
+                    if_expr = make.with_trailing_trivia(if_expr, "\n");
+                    if let Some(next) = l_curly.next_non_trivia_token() {
+                        editor.prepend_leading_trivia(next, &while_indent_level.to_string());
+                    }
+                }
+                editor.insert(Position::after(&l_curly), if_expr);
             };
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },

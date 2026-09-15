@@ -1,19 +1,15 @@
 SOURCE_FILE
   IMPL
-    IMPL_KW "impl"
-    WHITESPACE " "
+    IMPL_KW "impl" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "S"
-    WHITESPACE " "
+            IDENT "S" [] [WHITESPACE(" ")]
     ASSOC_ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
           IDENT "a"
         PARAM_LIST
@@ -21,8 +17,7 @@ SOURCE_FILE
           SELF_PARAM
             NAME
               SELF_KW "self"
-            COLON ":"
-            WHITESPACE " "
+            COLON ":" [] [WHITESPACE(" ")]
             REF_TYPE
               AMP "&"
               PATH_TYPE
@@ -30,27 +25,22 @@ SOURCE_FILE
                   PATH_SEGMENT
                     NAME_REF
                       SELF_TYPE_KW "Self"
-          R_PAREN ")"
-        WHITESPACE " "
+          R_PAREN ")" [] [WHITESPACE(" ")]
         BLOCK_EXPR
           STMT_LIST
             L_CURLY "{"
-            R_CURLY "}"
-      WHITESPACE "\n    "
+            R_CURLY "}" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
           IDENT "b"
         PARAM_LIST
           L_PAREN "("
           SELF_PARAM
-            MUT_KW "mut"
-            WHITESPACE " "
+            MUT_KW "mut" [] [WHITESPACE(" ")]
             NAME
               SELF_KW "self"
-            COLON ":"
-            WHITESPACE " "
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
@@ -65,12 +55,10 @@ SOURCE_FILE
                             NAME_REF
                               SELF_TYPE_KW "Self"
                     R_ANGLE ">"
-          R_PAREN ")"
-        WHITESPACE " "
+          R_PAREN ")" [] [WHITESPACE(" ")]
         BLOCK_EXPR
           STMT_LIST
             L_CURLY "{"
-            R_CURLY "}"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n"
+            R_CURLY "}" [] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

@@ -118,10 +118,12 @@ pub(crate) fn remove_unused_imports(acc: &mut Assists, ctx: &AssistContext<'_, '
         acc.add(
             AssistId::quick_fix("remove_unused_imports"),
             "Remove all unused imports",
-            selected_el.text_range(),
+            selected_el.text_range_without_outer_trivia(),
             |builder| {
                 let editor = builder.make_editor(&selected_el);
-                unused.sort_by_key(|use_tree| use_tree.syntax().text_range().start());
+                unused.sort_by_key(|use_tree| {
+                    use_tree.syntax().text_range_without_outer_trivia().start()
+                });
                 for node in &unused {
                     editor.delete(node.syntax());
                 }
@@ -209,8 +211,10 @@ fn module_search_scope(db: &RootDatabase, module: hir::Module) -> Vec<SearchScop
                 file_id.original_file(db),
                 match value {
                     ModuleSource::SourceFile(_) => None,
-                    ModuleSource::Module(it) => Some(it.syntax().text_range()),
-                    ModuleSource::BlockExpr(it) => Some(it.syntax().text_range()),
+                    ModuleSource::Module(it) => Some(it.syntax().text_range_without_outer_trivia()),
+                    ModuleSource::BlockExpr(it) => {
+                        Some(it.syntax().text_range_without_outer_trivia())
+                    }
                 },
             )
         }
@@ -238,7 +242,7 @@ fn module_search_scope(db: &RootDatabase, module: hir::Module) -> Vec<SearchScop
         for child in module.children(db) {
             let rng = match child.definition_source(db).value {
                 ModuleSource::SourceFile(_) => continue,
-                ModuleSource::Module(it) => it.syntax().text_range(),
+                ModuleSource::Module(it) => it.syntax().text_range_without_outer_trivia(),
                 ModuleSource::BlockExpr(_) => continue,
             };
             let mut new_ranges = Vec::new();
@@ -679,9 +683,7 @@ mod m {
     }
 }
 
-use m::
-    x::B
-;
+use m::x::B;
 
 fn main() {
     B;

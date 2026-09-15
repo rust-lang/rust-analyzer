@@ -52,8 +52,8 @@ pub(crate) fn replace_if_let_with_match(
 ) -> Option<()> {
     let if_expr: ast::IfExpr = ctx.find_node_at_offset()?;
     let available_range = TextRange::new(
-        if_expr.syntax().text_range().start(),
-        if_expr.then_branch()?.syntax().text_range().start(),
+        if_expr.syntax().text_range_without_outer_trivia().start(),
+        if_expr.then_branch()?.syntax().text_range_without_outer_trivia().start(),
     );
     let cursor_in_range = available_range.contains_range(ctx.selection_trimmed());
     if !cursor_in_range {
@@ -82,7 +82,9 @@ pub(crate) fn replace_if_let_with_match(
         let (cond, guard) = match let_and_guard(&cond, ctx)? {
             (None, guard) => (None, Some(guard?)),
             (Some((pat, expr)), guard) => {
-                if scrutinee_to_be_expr.syntax().text() != expr.syntax().text() {
+                if scrutinee_to_be_expr.syntax().text_without_outer_trivia()
+                    != expr.syntax().text_without_outer_trivia()
+                {
                     // Only if all condition expressions are equal we can merge them into a match
                     return None;
                 }
@@ -232,8 +234,8 @@ pub(crate) fn replace_match_with_if_let(
     let match_expr: ast::MatchExpr = ctx.find_node_at_offset()?;
     let match_arm_list = match_expr.match_arm_list()?;
     let available_range = TextRange::new(
-        match_expr.syntax().text_range().start(),
-        match_arm_list.syntax().text_range().start(),
+        match_expr.syntax().text_range_without_outer_trivia().start(),
+        match_arm_list.syntax().text_range_without_outer_trivia().start(),
     );
     let cursor_in_range = available_range.contains_range(ctx.selection_trimmed());
     if !cursor_in_range {
@@ -265,7 +267,7 @@ pub(crate) fn replace_match_with_if_let(
     acc.add(
         AssistId::refactor_rewrite("replace_match_with_if_let"),
         format!("Replace match with if{let_}"),
-        match_expr.syntax().text_range(),
+        match_expr.syntax().text_range_without_outer_trivia(),
         move |builder| {
             let editor = builder.make_editor(match_expr.syntax());
             let make = editor.make();
@@ -296,7 +298,7 @@ pub(crate) fn replace_match_with_if_let(
                     ast::Pat::WildcardPat(_) => make.expr_literal("true").into(),
                     _ => make.expr_let(pat, scrutinee.clone()).into(),
                 };
-                let condition = if condition.syntax().text() == "true"
+                let condition = if condition.syntax().text_without_outer_trivia() == "true"
                     && let Some(guard) = guard
                 {
                     guard
@@ -422,11 +424,6 @@ fn let_and_guard(
         if let Some(rhs) = left_bin.rhs() {
             editor.replace(left_bin.syntax(), rhs.syntax());
         } else {
-            if let Some(next) = left_bin.syntax().next_sibling_or_token()
-                && next.kind() == SyntaxKind::WHITESPACE
-            {
-                editor.delete(next);
-            }
             editor.delete(left_bin.syntax());
         }
 
@@ -483,8 +480,8 @@ fn parse_matches_macro(
     let input_guard =
         if_kwd.as_ref().map(|if_kwd| { input_rest }.skip_while(|it| it != if_kwd).skip(1).join(""));
 
-    let pat_token = match { input_pat }.find(|it| !it.kind().is_trivia())? {
-        syntax::NodeOrToken::Node(node) => node.first_token()?,
+    let pat_token = match { input_pat }.next()? {
+        syntax::NodeOrToken::Node(node) => node.first_non_trivia_token()?,
         syntax::NodeOrToken::Token(t) => t,
     };
     // XXX: Use descend pat for sema analysis

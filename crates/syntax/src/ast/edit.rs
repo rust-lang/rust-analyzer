@@ -2,16 +2,12 @@
 //! immutable, all function here return a fresh copy of the tree, instead of
 //! doing an in-place modification.
 use parser::{SyntaxKind::DOC_COMMENT, T};
-use std::{
-    fmt,
-    iter::{self, once},
-    ops,
-};
+use std::{fmt, iter::once, ops};
 
 use crate::{
-    AstToken, NodeOrToken, SyntaxElement,
-    SyntaxKind::{ATTR, COMMENT, WHITESPACE},
-    SyntaxNode, SyntaxToken,
+    SyntaxElement,
+    SyntaxKind::ATTR,
+    SyntaxNode, SyntaxToken, algo,
     ast::{self, AstNode, HasName, make},
     syntax_editor::{Position, Removable, SyntaxEditor, SyntaxMappingBuilder},
 };
@@ -70,61 +66,68 @@ impl IndentLevel {
     }
 
     pub fn from_node(node: &SyntaxNode) -> IndentLevel {
-        match node.first_token() {
+        match node.first_non_trivia_token() {
             Some(it) => Self::from_token(&it),
             None => IndentLevel(0),
         }
     }
 
     pub fn from_token(token: &SyntaxToken) -> IndentLevel {
-        for ws in prev_tokens(token.clone()).filter_map(ast::Whitespace::cast) {
-            let text = ws.syntax().text();
-            if let Some(pos) = text.rfind('\n') {
-                let level = text[pos + 1..].chars().count() / 4;
-                return IndentLevel(level as u8);
-            }
+        let mut line = String::new();
+        let mut current = token.prev_token();
+        while let Some(prev) = current.filter(|it| it.kind() != crate::SyntaxKind::NEWLINE) {
+            line.insert_str(0, prev.text());
+            current = prev.prev_token();
         }
-        IndentLevel(0)
+        IndentLevel((line.chars().take_while(|&ch| ch == ' ').count() / 4) as u8)
     }
 
     pub(super) fn clone_increase_indent(self, node: &SyntaxNode) -> SyntaxNode {
-        let (editor, node) = SyntaxEditor::new(node.clone());
-        let tokens = node
-            .preorder_with_tokens()
-            .filter_map(|event| match event {
-                rowan::WalkEvent::Leave(NodeOrToken::Token(it)) => Some(it),
-                _ => None,
-            })
-            .filter_map(ast::Whitespace::cast)
-            .filter(|ws| ws.text().contains('\n'));
-        for ws in tokens {
-            let new_ws = make::tokens::whitespace(&format!("{}{self}", ws.syntax()));
-            editor.replace(ws.syntax(), &new_ws);
-        }
-        editor.finish().new_root().clone()
+        self.clone_adjust_indent(node, true, false)
     }
 
     pub(super) fn clone_decrease_indent(self, node: &SyntaxNode) -> SyntaxNode {
+        self.clone_adjust_indent(node, false, false)
+    }
+
+    fn clone_adjust_indent(
+        self,
+        node: &SyntaxNode,
+        increase: bool,
+        from_line_start: bool,
+    ) -> SyntaxNode {
         let (editor, node) = SyntaxEditor::new(node.clone());
-        let tokens = node
-            .preorder_with_tokens()
-            .filter_map(|event| match event {
-                rowan::WalkEvent::Leave(NodeOrToken::Token(it)) => Some(it),
-                _ => None,
-            })
-            .filter_map(ast::Whitespace::cast)
-            .filter(|ws| ws.text().contains('\n'));
-        for ws in tokens {
-            let new_ws =
-                make::tokens::whitespace(&ws.syntax().text().replace(&format!("\n{self}"), "\n"));
-            editor.replace(ws.syntax(), &new_ws);
+        let indent = self.to_string();
+        let mut line_start = from_line_start;
+        for token in node.descendants_with_tokens().filter_map(|it| it.into_token()) {
+            let text: String = token.leading_trivia().map(|it| it.text().to_owned()).collect();
+            let lines = text.split('\n').collect::<Vec<_>>();
+            let mut adjusted = String::new();
+            for (index, line) in lines.iter().enumerate() {
+                let last = index + 1 == lines.len();
+                let at_line_start = (index > 0 || line_start) && !(line.is_empty() && !last);
+                match (at_line_start, increase) {
+                    (true, true) => {
+                        adjusted.push_str(&indent);
+                        adjusted.push_str(line);
+                    }
+                    (true, false) => adjusted.push_str(line.strip_prefix(&indent).unwrap_or(line)),
+                    (false, _) => adjusted.push_str(line),
+                }
+                if !last {
+                    adjusted.push('\n');
+                }
+            }
+            if adjusted != text {
+                editor.splice_leading_trivia(&token, .., make::tokens::trivia(&adjusted));
+            }
+            line_start = token
+                .trailing_trivia()
+                .next_back()
+                .is_some_and(|it| it.kind() == crate::SyntaxKind::NEWLINE);
         }
         editor.finish().new_root().clone()
     }
-}
-
-fn prev_tokens(token: SyntaxToken) -> impl Iterator<Item = SyntaxToken> {
-    iter::successors(Some(token), |token| token.prev_token())
 }
 
 pub trait AstNodeEdit: AstNode + Clone + Sized {
@@ -148,13 +151,24 @@ pub trait AstNodeEdit: AstNode + Clone + Sized {
         new_node
     }
     #[must_use]
+    fn detached(&self) -> Self {
+        let (editor, node) = SyntaxEditor::new(self.syntax().clone());
+        if let Some(first) = node.first_non_trivia_token() {
+            editor.splice_leading_trivia(&first, .., []);
+        }
+        if let Some(last) = node.last_non_trivia_token() {
+            editor.splice_trailing_trivia(&last, .., []);
+        }
+        Self::cast(editor.finish().new_root().clone()).unwrap()
+    }
+    #[must_use]
     fn dedent(&self, level: IndentLevel) -> Self {
         Self::cast(level.clone_decrease_indent(self.syntax())).unwrap()
     }
     #[must_use]
     fn reset_indent(&self) -> Self {
         let level = IndentLevel::from_node(self.syntax());
-        self.dedent(level)
+        Self::cast(level.clone_adjust_indent(self.syntax(), false, true)).unwrap()
     }
 }
 
@@ -162,20 +176,10 @@ impl<N: AstNode + Clone> AstNodeEdit for N {}
 
 pub trait AttrsOwnerEdit: ast::HasAttrs {
     fn remove_attrs_and_docs(&self, editor: &SyntaxEditor) {
-        let mut remove_next_ws = false;
         for child in self.syntax().children_with_tokens() {
-            match child.kind() {
-                ATTR | COMMENT | DOC_COMMENT => {
-                    remove_next_ws = true;
-                    editor.delete(child);
-                    continue;
-                }
-                WHITESPACE if remove_next_ws => {
-                    editor.delete(child);
-                }
-                _ => (),
+            if matches!(child.kind(), ATTR | DOC_COMMENT) {
+                editor.delete(child);
             }
-            remove_next_ws = false;
         }
     }
 }
@@ -196,11 +200,14 @@ impl ast::IdentPat {
                         .unwrap_or_else(|| at_token.into());
                     editor.delete_all(start..=end);
 
-                    // Remove any trailing ws
-                    if let Some(last) =
-                        self.syntax().last_token().filter(|it| it.kind() == WHITESPACE)
+                    if let Some(name) = self.name()
+                        && let Some(last) = name.syntax().last_non_trivia_token()
                     {
-                        editor.delete(last);
+                        let blank = algo::outer_blank_trivia(
+                            &last,
+                            crate::syntax_editor::TriviaSide::Trailing,
+                        );
+                        editor.splice_trailing_trivia(&last, blank, []);
                     }
                 }
             }
@@ -215,10 +222,8 @@ impl ast::IdentPat {
                     // Don't have an `@`, should have a name
                     let name = self.name().unwrap();
                     let elements = vec![
-                        make.whitespace(" ").into(),
-                        make.token(T![@]).into(),
-                        make.whitespace(" ").into(),
-                        pat.syntax().clone().into(),
+                        make.with_leading_trivia(make.token(T![@]), " "),
+                        make.with_leading_trivia(pat.syntax(), " "),
                     ];
 
                     if self.syntax().parent().is_none() {
@@ -339,7 +344,10 @@ impl ast::UseTree {
             )
         };
         let use_tree_list = make.use_tree_list(once(suffix));
-        let new_use_tree = make.use_tree(prefix.clone(), Some(use_tree_list), None, false);
+        let prefix =
+            ast::Path::cast(make.with_trailing_trivia(prefix.syntax(), "").into_node().unwrap())
+                .unwrap();
+        let new_use_tree = make.use_tree(prefix, Some(use_tree_list), None, false);
 
         editor.replace(self.syntax(), new_use_tree.syntax());
     }
