@@ -3583,7 +3583,7 @@ struct GlobalWorkspaceLocalConfigInput {
 
 impl GlobalWorkspaceLocalConfigInput {
     const FIELDS: &'static [&'static [&'static str]] =
-        &[GlobalConfigInput::FIELDS, LocalConfigInput::FIELDS];
+        &[GlobalConfigInput::FIELDS, WorkspaceConfigInput::FIELDS, LocalConfigInput::FIELDS];
     fn from_toml(
         toml: toml::Table,
         error_sink: &mut Vec<(String, toml::de::Error)>,
@@ -4342,6 +4342,26 @@ mod tests {
 
     fn remove_ws(text: &str) -> String {
         text.replace(char::is_whitespace, "")
+    }
+
+    #[test]
+    fn user_config_accepts_workspace_level_configs() {
+        let mut config =
+            Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
+
+        let mut change = ConfigChange::default();
+        change.change_user_config(Some(
+            r#"check.overrideCommand = ["custom-cargo", "check"]"#.into(),
+        ));
+
+        let errors;
+        (config, errors, _) = config.apply_change(change);
+
+        assert!(errors.is_empty(), "{errors}");
+        assert_eq!(
+            config.check_overrideCommand(None).as_deref(),
+            Some(&["custom-cargo".to_owned(), "check".to_owned()][..])
+        );
     }
 
     #[test]
