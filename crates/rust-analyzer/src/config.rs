@@ -3583,7 +3583,7 @@ struct GlobalWorkspaceLocalConfigInput {
 
 impl GlobalWorkspaceLocalConfigInput {
     const FIELDS: &'static [&'static [&'static str]] =
-        &[GlobalConfigInput::FIELDS, LocalConfigInput::FIELDS];
+        &[GlobalConfigInput::FIELDS, LocalConfigInput::FIELDS, WorkspaceConfigInput::FIELDS];
     fn from_toml(
         toml: toml::Table,
         error_sink: &mut Vec<(String, toml::de::Error)>,
