@@ -372,6 +372,76 @@ fn update_usages(
     }
 }
 
+fn can_reconstruct_whole_usage(ctx: &AssistContext<'_, '_>, path: &ast::PathExpr) -> bool {
+    let mut parent = path.syntax().parent();
+
+    while parent.as_ref().is_some_and(|node| ast::ParenExpr::can_cast(node.kind())) {
+        parent = parent.and_then(|node| node.parent());
+    }
+
+    let Some(parent) = parent else {
+        return false;
+    };
+
+    if let Some(call) = ast::MethodCallExpr::cast(parent.clone()) {
+        return ctx
+            .sema
+            .resolve_method_call(&call)
+            .and_then(|function| function.self_param(ctx.db()))
+            .is_some_and(|param| matches!(param.access(ctx.db()), hir::Access::Owned));
+    }
+
+    ast::LetStmt::can_cast(parent.kind())
+        || ast::ArgList::can_cast(parent.kind())
+        || ast::ReturnExpr::can_cast(parent.kind())
+        || ast::ExprStmt::can_cast(parent.kind())
+        || ast::RecordExprField::can_cast(parent.kind())
+}
+
+fn reconstruct_whole_struct(
+    ctx: &AssistContext<'_, '_>,
+    make: &SyntaxFactory,
+    data: &StructEditData,
+    field_names: &FxHashMap<SmolStr, SmolStr>,
+) -> Option<ast::Expr> {
+    if data.has_private_members || data.is_ref || data.target.is_ref() {
+        return None;
+    }
+
+    let path = mod_path_to_ast_with_factory(make, &data.struct_def_path, data.edition);
+
+    match data.kind {
+        hir::StructKind::Record => {
+            let fields = data
+                .visible_fields
+                .iter()
+                .map(|field| {
+                    let old_name = field.name(ctx.db()).display_no_db(data.edition).to_smolstr();
+                    let new_name = field_names.get(&old_name)?;
+                    let value =
+                        (old_name != *new_name).then(|| make.expr_path(make.ident_path(new_name)));
+
+                    Some(make.record_expr_field(make.name_ref(&old_name), value))
+                })
+                .collect::<Option<Vec<_>>>()?;
+
+            Some(make.record_expr(path, make.record_expr_field_list(fields)).into())
+        }
+        hir::StructKind::Tuple => {
+            let args = (0..data.visible_fields.len())
+                .map(|index| {
+                    let name: SmolStr = index.to_string().into();
+                    let replacement = field_names.get(&name)?;
+                    Some(make.expr_path(make.ident_path(replacement)))
+                })
+                .collect::<Option<Vec<_>>>()?;
+
+            Some(make.expr_call(make.expr_path(path), make.arg_list(args)).into())
+        }
+        hir::StructKind::Unit => None,
+    }
+}
+
 fn build_usage_edit(
     ctx: &AssistContext<'_, '_>,
     make: &SyntaxFactory,
@@ -393,15 +463,36 @@ fn build_usage_edit(
                 (field_expr.syntax().clone(), new_expr.syntax().clone())
             }
         }),
-        None => Some((
-            usage.name.syntax().as_node().unwrap().clone(),
-            make.expr_macro(
-                make.ident_path("todo"),
-                make.token_tree(syntax::SyntaxKind::L_PAREN, []),
-            )
-            .syntax()
-            .clone(),
-        )),
+        None => {
+            let path = usage.name.syntax().ancestors().find_map(ast::PathExpr::cast);
+            if let Some((path, reconstructed)) =
+                path.filter(|path| can_reconstruct_whole_usage(ctx, path)).and_then(|path| {
+                    reconstruct_whole_struct(ctx, make, data, field_names).map(|expr| (path, expr))
+                })
+            {
+                let replacement = if path
+                    .syntax()
+                    .parent()
+                    .is_some_and(|parent| ast::MethodCallExpr::can_cast(parent.kind()))
+                {
+                    make.expr_paren(reconstructed).into()
+                } else {
+                    reconstructed
+                };
+
+                Some((path.syntax().clone(), replacement.syntax().clone()))
+            } else {
+                Some((
+                    usage.name.syntax().as_node().unwrap().clone(),
+                    make.expr_macro(
+                        make.ident_path("todo"),
+                        make.token_tree(syntax::SyntaxKind::L_PAREN, []),
+                    )
+                    .syntax()
+                    .clone(),
+                ))
+            }
+        }
     }
 }
 
@@ -434,7 +525,7 @@ mod tests {
                 let bar2 = bar;
                 let baz2 = &baz;
 
-                let foo2 = todo!();
+                let foo2 = Foo { bar, baz };
             }
             "#,
         )
@@ -463,7 +554,225 @@ mod tests {
                 let bar2 = _0;
                 let baz2 = _1;
 
-                let foo2 = todo!();
+                let foo2 = Foo(_0, _1);
+            }
+            "#,
+        )
+    }
+
+    #[test]
+    fn reconstruct_record_for_method_call() {
+        check_assist(
+            destructure_struct_binding,
+            r#"
+            struct Foo { bar: i32, baz: i32 }
+
+            impl Foo {
+                fn consume(self) {}
+            }
+
+            fn main() {
+                let $0foo = Foo { bar: 1, baz: 2 };
+                let bar2 = foo.bar;
+                foo.consume();
+            }
+            "#,
+            r#"
+            struct Foo { bar: i32, baz: i32 }
+
+            impl Foo {
+                fn consume(self) {}
+            }
+
+            fn main() {
+                let Foo { bar, baz } = Foo { bar: 1, baz: 2 };
+                let bar2 = bar;
+                (Foo { bar, baz }).consume();
+            }
+            "#,
+        )
+    }
+
+    #[test]
+    fn reconstruct_tuple_struct_for_method_call() {
+        check_assist(
+            destructure_struct_binding,
+            r#"
+            struct Foo(i32, i32);
+
+            impl Foo {
+                fn consume(self) {}
+            }
+
+            fn main() {
+                let $0foo = Foo(1, 2);
+                let first = foo.0;
+                foo.consume();
+            }
+            "#,
+            r#"
+            struct Foo(i32, i32);
+
+            impl Foo {
+                fn consume(self) {}
+            }
+
+            fn main() {
+                let Foo(_0, _1) = Foo(1, 2);
+                let first = _0;
+                (Foo(_0, _1)).consume();
+            }
+            "#,
+        )
+    }
+
+    #[test]
+    fn reconstruct_record_with_name_collision() {
+        check_assist(
+            destructure_struct_binding,
+            r#"
+            struct Foo { bar: i32, baz: i32 }
+
+            fn main(bar: i32) {
+                let $0foo = Foo { bar: 1, baz: 2 };
+                let whole = foo;
+            }
+            "#,
+            r#"
+            struct Foo { bar: i32, baz: i32 }
+
+            fn main(bar: i32) {
+                let Foo { bar: bar_1, baz } = Foo { bar: 1, baz: 2 };
+                let whole = Foo { bar: bar_1, baz };
+            }
+            "#,
+        )
+    }
+
+    #[test]
+    fn reconstruct_tuple_struct_with_name_collision() {
+        check_assist(
+            destructure_struct_binding,
+            r#"
+            struct Foo(i32, i32);
+
+            fn main() {
+                let _0 = 9;
+                let $0foo = Foo(1, 2);
+                let whole = foo;
+            }
+            "#,
+            r#"
+            struct Foo(i32, i32);
+
+            fn main() {
+                let _0 = 9;
+                let Foo(_0_1, _1) = Foo(1, 2);
+                let whole = Foo(_0_1, _1);
+            }
+            "#,
+        )
+    }
+
+    #[test]
+    fn preserve_fallback_for_borrowed_whole_value() {
+        check_assist(
+            destructure_struct_binding,
+            r#"
+            struct Foo { bar: i32, baz: i32 }
+
+            fn main() {
+                let $0foo = Foo { bar: 1, baz: 2 };
+                let borrowed = &foo;
+                let value = foo.bar;
+            }
+            "#,
+            r#"
+            struct Foo { bar: i32, baz: i32 }
+
+            fn main() {
+                let Foo { bar, baz } = Foo { bar: 1, baz: 2 };
+                let borrowed = &todo!();
+                let value = bar;
+            }
+            "#,
+        )
+    }
+
+    #[test]
+    fn preserve_fallback_for_borrowing_method() {
+        check_assist(
+            destructure_struct_binding,
+            r#"
+            struct Foo { bar: i32, baz: i32 }
+
+            impl Foo {
+                fn inspect(&self) {}
+            }
+
+            fn main() {
+                let $0foo = Foo { bar: 1, baz: 2 };
+                foo.inspect();
+                let value = foo.bar;
+            }
+            "#,
+            r#"
+            struct Foo { bar: i32, baz: i32 }
+
+            impl Foo {
+                fn inspect(&self) {}
+            }
+
+            fn main() {
+                let Foo { bar, baz } = Foo { bar: 1, baz: 2 };
+                todo!().inspect();
+                let value = bar;
+            }
+            "#,
+        )
+    }
+
+    #[test]
+    fn preserve_fallback_for_reference_binding() {
+        check_assist(
+            destructure_struct_binding,
+            r#"
+            struct Foo { bar: i32 }
+
+            fn main() {
+                let ref $0foo = Foo { bar: 1 };
+                let whole = foo;
+            }
+            "#,
+            r#"
+            struct Foo { bar: i32 }
+
+            fn main() {
+                let Foo { ref bar } = Foo { bar: 1 };
+                let whole = todo!();
+            }
+            "#,
+        )
+    }
+
+    #[test]
+    fn preserve_fallback_for_private_fields() {
+        check_assist(
+            destructure_struct_binding,
+            r#"
+            //- /lib.rs crate:dep
+            pub struct Foo { pub bar: i32, baz: i32 };
+
+            //- /main.rs crate:main deps:dep
+            fn main(foo: dep::Foo) {
+                let $0foo2 = foo;
+                let whole = foo2;
+            }
+            "#,
+            r#"
+            fn main(foo: dep::Foo) {
+                let dep::Foo { bar, .. } = foo;
+                let whole = todo!();
             }
             "#,
         )
