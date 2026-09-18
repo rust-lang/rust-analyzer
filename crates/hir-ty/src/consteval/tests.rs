@@ -2983,3 +2983,14 @@ fn recursive_adt() {
         },
     );
 }
+
+#[test]
+fn tuple_struct_ctor_arg_count_mismatch() {
+    check_fail(
+        r#"
+    struct Color(u8, u8);
+    const GOAL: Color = Color(0xCF, 0xCE, 0xC1);
+    "#,
+        |e| matches!(e, ConstEvalError::MirEvalError(MirEvalError::InternalError(_))),
+    );
+}
