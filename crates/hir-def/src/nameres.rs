@@ -381,6 +381,11 @@ pub fn crate_def_map(db: &dyn SourceDatabase, crate_id: Crate) -> &DefMap {
     crate_local_def_map(db, crate_id).def_map(db)
 }
 
+#[inline]
+pub fn crate_recursion_limit(db: &dyn SourceDatabase, crate_id: Crate) -> u32 {
+    crate_local_def_map(db, crate_id).recursion_limit(db)
+}
+
 #[salsa::tracked]
 pub(crate) struct DefMapPair<'db> {
     #[tracked]
@@ -388,6 +393,10 @@ pub(crate) struct DefMapPair<'db> {
     pub(crate) def_map: DefMap,
     #[returns(ref)]
     pub(crate) local: LocalDefMap,
+    // Track the scalar separately so unrelated item edits do not invalidate trait solving.
+    #[tracked]
+    #[returns(copy)]
+    pub(crate) recursion_limit: u32,
 }
 
 #[salsa::tracked(returns(ref))]
@@ -421,7 +430,8 @@ pub(crate) fn crate_local_def_map(db: &dyn SourceDatabase, crate_id: Crate) -> D
     let (def_map, local_def_map) =
         collector::collect_defs(db, def_map, TreeId::new(root_file_id.into(), None), None);
 
-    DefMapPair::new(db, def_map, local_def_map)
+    let recursion_limit = def_map.recursion_limit();
+    DefMapPair::new(db, def_map, local_def_map, recursion_limit)
 }
 
 #[salsa::tracked(returns(ref))]

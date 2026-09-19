@@ -343,6 +343,7 @@ pub struct DbInterner<'db> {
     pub(crate) db: &'db dyn HirDatabase,
     krate: Option<Crate>,
     lang_items: Option<&'db LangItems>,
+    recursion_limit: u32,
 }
 
 // FIXME: very wrong, see https://github.com/rust-lang/rust/pull/144808
@@ -358,6 +359,7 @@ impl<'db> DbInterner<'db> {
             db: unsafe { std::mem::transmute::<&dyn HirDatabase, &'db dyn HirDatabase>(db) },
             krate: None,
             lang_items: None,
+            recursion_limit: 128,
         })
     }
 
@@ -368,7 +370,7 @@ impl<'db> DbInterner<'db> {
     pub fn new_no_crate(db: &'db dyn HirDatabase) -> Self {
         // We do not reinit the cache here, since anything accessing the cache needs an InferCtxt,
         // and we panic when trying to construct an InferCtxt for an Interner without a crate.
-        DbInterner { db, krate: None, lang_items: None }
+        DbInterner { db, krate: None, lang_items: None, recursion_limit: 128 }
     }
 
     pub fn new_with(db: &'db dyn HirDatabase, krate: Crate) -> DbInterner<'db> {
@@ -379,6 +381,8 @@ impl<'db> DbInterner<'db> {
             // As an approximation, when we call `new_with` we're trait solving, therefore we need the lang items.
             // This is also convenient since here we have a starting crate but not in `new_no_crate`.
             lang_items: Some(hir_def::lang_item::lang_items(db, krate)),
+            // Read the crate limit once, rather than querying the def-map in solver loops.
+            recursion_limit: hir_def::nameres::crate_recursion_limit(db, krate),
         }
     }
 
@@ -1241,7 +1245,7 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn recursion_limit(self) -> usize {
-        50
+        self.recursion_limit as usize
     }
 
     fn is_type_const(self, _def_id: Self::DefId) -> bool {

@@ -529,190 +529,49 @@ impl SomeStruct {
     );
 }
 
-// FIXME(next-solver): does this test make sense with fast path?
 #[test]
-fn add_struct_invalidates_trait_solve() {
-    let (mut db, file_id) = TestDB::with_single_file(
-        "
-//- /main.rs crate:main
-struct SomeStruct;
+fn changing_recursion_limit_invalidates_inferred_types() {
+    use hir_def::{expr_store::Body, hir::Expr};
 
-trait Trait<T> {
-    fn method(&self) -> T;
-}
-impl Trait<u32> for SomeStruct {}
+    use crate::display::{DisplayTarget, HirDisplay};
 
-fn main() {
-    let s = SomeStruct;
-    s.method();
-    s.$0
-}",
-    );
-
-    execute_assert_events(
-        &db,
-        || {
-            let module = db.module_for_file(file_id.file_id(&db));
-            let crate_def_map = module.def_map(&db);
-            let mut defs: Vec<DefWithBodyId> = vec![];
-            visit_module(&db, crate_def_map, module, &mut |it| {
-                let def = match it {
-                    ModuleDefId::FunctionId(it) => it.into(),
-                    ModuleDefId::EnumVariantId(it) => it.into(),
-                    ModuleDefId::ConstId(it) => it.into(),
-                    ModuleDefId::StaticId(it) => it.into(),
-                    _ => return,
-                };
-                defs.push(def);
+    let source = r#"
+#![recursion_limit = "16"]
+trait Decode<O> {}
+impl Decode<u32> for () {}
+impl<T: Decode<O>, O> Decode<O> for (T,) {}
+type Eight<T> = ((((((((T,),),),),),),),);
+type Deep = Eight<Eight<Eight<Eight<Eight<Eight<Eight<Eight<()>>>>>>>>;
+fn decode<T: Decode<O>, O>(_: T) -> O { loop {} }
+fn test(value: Deep) { decode(value); }
+"#;
+    let (mut db, file_id) = TestDB::with_single_file(source);
+    let inferred_type = |db: &TestDB| {
+        crate::attach_db(db, || {
+            let module = db.module_for_file(file_id.file_id(db));
+            let display_target = DisplayTarget::from_crate(db, module.krate(db));
+            let mut actual = None;
+            visit_module(db, module.def_map(db), module, &mut |def| {
+                if let ModuleDefId::FunctionId(function) = def {
+                    let def = DefWithBodyId::FunctionId(function);
+                    let body = Body::of(db, def);
+                    let result = InferenceResult::of(db, def);
+                    for (expr, ty) in result.type_of_expr.iter() {
+                        if matches!(body[expr], Expr::Call { .. }) {
+                            actual = Some(ty.as_ref().display_test(db, display_target).to_string());
+                        }
+                    }
+                }
             });
+            actual.expect("the fixture contains a call")
+        })
+    };
 
-            for def in defs {
-                let _inference_result = InferenceResult::of(&db, def);
-            }
-        },
-        // FIXME: What does this test check for now? trait_solve_shim is no longer a query
-        &[("trait_solve_shim", 0)],
-        expect_test::expect![[r#"
-            [
-                "source_root_crates",
-                "crate_local_def_map",
-                "file_item_tree_query",
-                "HirFileId::ast_id_map_",
-                "EditionedFileId::parse_",
-                "real_span_map",
-                "TraitItems::query_with_diagnostics_",
-                "Body::of_",
-                "Body::with_source_map_",
-                "AttrFlags::query_",
-                "ImplItems::of_",
-                "InferenceResult < 'db >::for_body_",
-                "TraitSignature::of_",
-                "TraitSignature::with_source_map_",
-                "AttrFlags::query_",
-                "FunctionSignature::of_",
-                "FunctionSignature::with_source_map_",
-                "AttrFlags::query_",
-                "Body::of_",
-                "Body::with_source_map_",
-                "trait_environment_query",
-                "lang_items",
-                "crate_lang_items",
-                "GenericPredicates::query_with_diagnostics_",
-                "GenericPredicates::query_with_diagnostics_",
-                "fn_sig_for_fn",
-                "body_upvars_mentioned",
-                "InferenceResult < 'db >::for_body_",
-                "FunctionSignature::of_",
-                "FunctionSignature::with_source_map_",
-                "trait_environment_query",
-                "GenericPredicates::query_with_diagnostics_",
-                "fn_sig_for_fn",
-                "ExprScopes::body_expr_scopes_",
-                "StructSignature::of_",
-                "StructSignature::with_source_map_",
-                "AttrFlags::query_",
-                "GenericPredicates::query_with_diagnostics_",
-                "InherentImpls < 'db >::for_crate_",
-                "TraitImpls < 'db >::for_crate_and_deps_",
-                "TraitImpls < 'db >::for_crate_",
-                "impl_trait_with_diagnostics",
-                "ImplSignature::of_",
-                "ImplSignature::with_source_map_",
-                "impl_self_ty_with_diagnostics",
-                "AttrFlags::query_",
-                "GenericPredicates::query_with_diagnostics_",
-                "body_upvars_mentioned",
-            ]
-        "#]],
-    );
-
-    let new_text = "
-//- /main.rs crate:main
-struct AnotherStruct;
-
-struct SomeStruct;
-
-trait Trait<T> {
-    fn method(&self) -> T;
-}
-impl Trait<u32> for SomeStruct {}
-
-fn main() {
-    let s = SomeStruct;
-    s.method();
-    s.$0
-}";
-
-    db.set_file_text(file_id.file_id(&db), new_text);
-
-    execute_assert_events(
-        &db,
-        || {
-            let module = db.module_for_file(file_id.file_id(&db));
-            let crate_def_map = module.def_map(&db);
-            let mut defs: Vec<DefWithBodyId> = vec![];
-
-            visit_module(&db, crate_def_map, module, &mut |it| {
-                let def = match it {
-                    ModuleDefId::FunctionId(it) => it.into(),
-                    ModuleDefId::EnumVariantId(it) => it.into(),
-                    ModuleDefId::ConstId(it) => it.into(),
-                    ModuleDefId::StaticId(it) => it.into(),
-                    _ => return,
-                };
-                defs.push(def);
-            });
-
-            for def in defs {
-                let _inference_result = InferenceResult::of(&db, def);
-            }
-        },
-        &[("trait_solve_shim", 0)],
-        expect_test::expect![[r#"
-            [
-                "EditionedFileId::parse_",
-                "HirFileId::ast_id_map_",
-                "file_item_tree_query",
-                "real_span_map",
-                "crate_local_def_map",
-                "TraitItems::query_with_diagnostics_",
-                "Body::with_source_map_",
-                "AttrFlags::query_",
-                "Body::of_",
-                "ImplItems::of_",
-                "InferenceResult < 'db >::for_body_",
-                "AttrFlags::query_",
-                "TraitSignature::with_source_map_",
-                "AttrFlags::query_",
-                "FunctionSignature::with_source_map_",
-                "FunctionSignature::of_",
-                "Body::with_source_map_",
-                "Body::of_",
-                "crate_lang_items",
-                "GenericPredicates::query_with_diagnostics_",
-                "GenericPredicates::query_with_diagnostics_",
-                "fn_sig_for_fn",
-                "body_upvars_mentioned",
-                "InferenceResult < 'db >::for_body_",
-                "FunctionSignature::with_source_map_",
-                "GenericPredicates::query_with_diagnostics_",
-                "fn_sig_for_fn",
-                "ExprScopes::body_expr_scopes_",
-                "StructSignature::with_source_map_",
-                "AttrFlags::query_",
-                "GenericPredicates::query_with_diagnostics_",
-                "InherentImpls < 'db >::for_crate_",
-                "TraitImpls < 'db >::for_crate_",
-                "ImplSignature::with_source_map_",
-                "ImplSignature::of_",
-                "impl_trait_with_diagnostics",
-                "impl_self_ty_with_diagnostics",
-                "AttrFlags::query_",
-                "GenericPredicates::query_with_diagnostics_",
-                "body_upvars_mentioned",
-            ]
-        "#]],
-    );
+    assert_eq!(inferred_type(&db), "{unknown}");
+    db.set_file_text(file_id.file_id(&db), &source.replace("\"16\"", "\"128\""));
+    assert_eq!(inferred_type(&db), "u32");
+    db.set_file_text(file_id.file_id(&db), source);
+    assert_eq!(inferred_type(&db), "{unknown}");
 }
 
 fn execute_assert_events(

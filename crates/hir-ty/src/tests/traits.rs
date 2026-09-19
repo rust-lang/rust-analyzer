@@ -444,6 +444,76 @@ fn test() {
 }
 
 #[test]
+fn solver_recursion_limit_default() {
+    check_types(
+        r#"
+trait Decode<O> {}
+impl Decode<u32> for () {}
+impl<T: Decode<O>, O> Decode<O> for (T,) {}
+type Eight<T> = ((((((((T,),),),),),),),);
+type Deep = Eight<Eight<Eight<Eight<Eight<Eight<Eight<Eight<()>>>>>>>>;
+
+fn decode<T: Decode<O>, O>(_: T) -> O { loop {} }
+fn test(value: Deep) {
+    decode(value);
+ // ^^^^^^^^^^^^^ u32
+}
+"#,
+    );
+}
+
+#[test]
+fn solver_recursion_limit_crate_attr() {
+    check_types(
+        r#"
+//- /main.rs crate:main
+#![recursion_limit = "256"]
+trait Decode<O> {}
+impl Decode<u32> for () {}
+impl<T: Decode<O>, O> Decode<O> for (T,) {}
+type Eight<T> = ((((((((T,),),),),),),),);
+type SixtyFour<T> = Eight<Eight<Eight<Eight<Eight<Eight<Eight<Eight<T>>>>>>>>;
+type Deep = SixtyFour<SixtyFour<SixtyFour<()>>>;
+
+fn decode<T: Decode<O>, O>(_: T) -> O { loop {} }
+fn test(value: Deep) {
+    decode(value);
+ // ^^^^^^^^^^^^^ u32
+}
+"#,
+    );
+}
+
+#[test]
+fn solver_recursion_limit_uses_calling_crate() {
+    check_types(
+        r#"
+//- /lib.rs crate:dep
+#![recursion_limit = "16"]
+pub trait Decode<O> {}
+impl Decode<u32> for () {}
+impl<T: Decode<O>, O> Decode<O> for (T,) {}
+type Eight<T> = ((((((((T,),),),),),),),);
+pub type Deep = Eight<Eight<Eight<Eight<Eight<Eight<Eight<Eight<()>>>>>>>>;
+pub fn decode<T: Decode<O>, O>(_: T) -> O { loop {} }
+
+//- /high.rs crate:high deps:dep
+fn test(value: dep::Deep) {
+    dep::decode(value);
+ // ^^^^^^^^^^^^^^^^^^ u32
+}
+
+//- /low.rs crate:low deps:dep
+#![recursion_limit = "16"]
+fn test(value: dep::Deep) {
+    dep::decode(value);
+ // ^^^^^^^^^^^^^^^^^^ {unknown}
+}
+"#,
+    );
+}
+
+#[test]
 fn associated_type_shorthand_from_method_bound() {
     check_types(
         r#"
