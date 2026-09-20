@@ -14,3 +14,6 @@ linker = "arm-linux-gnueabihf-gcc-8"
 
 [env]
 CARGO_WORKSPACE_DIR = { value = "", relative = true }
+# Match the stack size used by rust-analyzer's worker threads.
+# Deep trait solving in debug builds can exceed libtest's default stack.
+RUST_MIN_STACK = "16777216"
