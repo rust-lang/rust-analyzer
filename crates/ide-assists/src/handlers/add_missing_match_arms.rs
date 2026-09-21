@@ -338,7 +338,7 @@ fn cursor_at_trivial_match_arm_list(
             return Some(());
         }
 
-        if ast::Expr::cast(last_node.clone()).is_some_and(is_empty_expr)
+        if is_empty_arm(&last_arm)
             && last_node_range.contains(ctx.offset())
             && !last_node.text().contains_char('\n')
         {
@@ -372,7 +372,7 @@ impl ArmsEdit {
                 self.last_arm = Some(arm);
                 continue;
             }
-            if !arm.expr().is_none_or(is_empty_expr) {
+            if !is_empty_arm(&arm) {
                 cov_mark::hit!(add_missing_match_arms_empty_expr);
                 self.last_arm = Some(arm);
                 continue;
@@ -458,10 +458,14 @@ fn is_variant_missing(existing_pats: &[Pat], var: &Pat) -> bool {
     !existing_pats.iter().any(|pat| does_pat_match_variant(pat, var))
 }
 
-fn is_empty_expr(e: ast::Expr) -> bool {
-    match e {
-        ast::Expr::BlockExpr(b) => b.statements().next().is_none() && b.tail_expr().is_none(),
-        ast::Expr::TupleExpr(t) => t.fields().next().is_none(),
+fn is_empty_arm(arm: &ast::MatchArm) -> bool {
+    if arm.guard().is_some() {
+        return false;
+    }
+    match arm.expr() {
+        Some(ast::Expr::BlockExpr(b)) => b.statements().next().is_none() && b.tail_expr().is_none(),
+        Some(ast::Expr::TupleExpr(t)) => t.fields().next().is_none(),
+        Some(ast::Expr::MacroExpr(t)) => t.syntax().text() == "todo!()",
         _ => false,
     }
 }
@@ -1600,7 +1604,7 @@ fn main() {
 
     #[test]
     fn add_missing_match_arms_trivial_arm() {
-        cov_mark::check!(add_missing_match_arms_trivial_arm);
+        cov_mark::check_count!(add_missing_match_arms_trivial_arm, 2);
         check_assist(
             add_missing_match_arms,
             r#"
@@ -1609,6 +1613,28 @@ enum E { X, Y }
 fn main() {
     match E::X {
         $0_ => {}
+    }
+}
+"#,
+            r#"
+enum E { X, Y }
+
+fn main() {
+    match E::X {
+        E::X => ${1:todo!()},
+        E::Y => ${2:todo!()},$0
+    }
+}
+"#,
+        );
+        check_assist(
+            add_missing_match_arms,
+            r#"
+enum E { X, Y }
+
+fn main() {
+    match E::X {
+        $0_ => todo!(),
     }
 }
 "#,
