@@ -23,8 +23,8 @@ fn method_range(item: SyntaxNode) -> Option<(TextRange, Option<TextRange>)> {
             None
         } else {
             Some((
-                fn_def.syntax().text_range(),
-                fn_def.name().map(|name| name.syntax().text_range()),
+                fn_def.syntax().text_range_without_outer_trivia(),
+                fn_def.name().map(|name| name.syntax().text_range_without_outer_trivia()),
             ))
         }
     })

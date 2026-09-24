@@ -210,6 +210,23 @@ impl<'a> Converter<'a> {
         // being `u16` that come from `rowan::SyntaxKind`.
         let mut errors: Vec<String> = vec![];
 
+        if let rustc_lexer::TokenKind::Whitespace = kind {
+            let mut rest = token_text;
+            while let Some(idx) = rest.find('\n') {
+                let (line, tail) = rest.split_at(idx + 1);
+                let newline = if line.ends_with("\r\n") { 2 } else { 1 };
+                if line.len() > newline {
+                    self.push(WHITESPACE, line.len() - newline, Vec::new());
+                }
+                self.push(NEWLINE, newline, Vec::new());
+                rest = tail;
+            }
+            if !rest.is_empty() {
+                self.push(WHITESPACE, rest.len(), Vec::new());
+            }
+            return;
+        }
+
         let syntax_kind = {
             match kind {
                 rustc_lexer::TokenKind::LineComment { doc_style } => Self::comment_kind(*doc_style),

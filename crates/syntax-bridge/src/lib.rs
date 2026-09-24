@@ -289,7 +289,11 @@ where
                     }
 
                     let spacing = match conv.peek().map(|next| next.kind(conv)) {
-                        Some(kind) if is_single_token_op(kind) => tt::Spacing::Joint,
+                        Some(kind)
+                            if is_single_token_op(kind) && conv.next_starts_at(abs_range.end()) =>
+                        {
+                            tt::Spacing::Joint
+                        }
                         _ => tt::Spacing::Alone,
                     };
                     let Some(char) = token.to_char(conv) else {
@@ -498,6 +502,8 @@ trait TokenConverter: Sized {
 
     fn peek(&self) -> Option<Self::Token>;
 
+    fn next_starts_at(&self, end: TextSize) -> bool;
+
     fn span_for(&self, range: TextRange) -> Span;
 
     fn call_site(&self) -> Span;
@@ -564,6 +570,10 @@ impl TokenConverter for RawConverter<'_> {
         Some(self.pos)
     }
 
+    fn next_starts_at(&self, _end: TextSize) -> bool {
+        true
+    }
+
     fn span_for(&self, range: TextRange) -> Span {
         Span { range, anchor: self.anchor, ctx: self.ctx }
     }
@@ -604,6 +614,10 @@ impl TokenConverter for StaticRawConverter<'_> {
             return None;
         }
         Some(self.pos)
+    }
+
+    fn next_starts_at(&self, _end: TextSize) -> bool {
+        true
     }
 
     fn span_for(&self, _: TextRange) -> Span {
@@ -826,6 +840,15 @@ where
         Some(token)
     }
 
+    fn next_starts_at(&self, end: TextSize) -> bool {
+        if let Some((punct, offset)) = &self.punct_offset
+            && usize::from(*offset) + 1 < punct.text().len()
+        {
+            return true;
+        }
+        self.current.as_ref().is_some_and(|it| it.text_range().start() == end)
+    }
+
     fn span_for(&self, range: TextRange) -> Span {
         self.map.span_for(range)
     }
@@ -1009,21 +1032,30 @@ impl TtTreeSink<'_> {
         }
 
         self.token_map.push(self.text_pos, combined_span.expect("expected at least one token"));
-        self.inner.token(kind, self.buf.as_str());
-        self.buf.clear();
-        // FIXME: Emitting whitespace for this is really just a hack, we should get rid of it.
-        // Add whitespace between adjoint puncts
-        if let Some([tt::Leaf::Punct(curr), tt::Leaf::Punct(next)]) = last_two {
-            // Note: We always assume the semi-colon would be the last token in
-            // other parts of RA such that we don't add whitespace here.
-            //
-            // When `next` is a `Punct` of `'`, that's a part of a lifetime identifier so we don't
-            // need to add whitespace either.
-            if curr.spacing == tt::Spacing::Alone && curr.char != ';' && next.char != '\'' {
-                self.inner.token(WHITESPACE, " ");
-                self.text_pos += TextSize::of(' ');
-                self.token_map.push(self.text_pos, curr.span);
+        // Note: We always assume the semi-colon would be the last token in
+        // other parts of RA such that we don't add whitespace here.
+        //
+        // When `next` is a `Punct` of `'`, that's a part of a lifetime identifier so we don't
+        // need to add whitespace either.
+        let separator = match last_two {
+            Some([tt::Leaf::Punct(curr), tt::Leaf::Punct(next)])
+                if curr.spacing == tt::Spacing::Alone && curr.char != ';' && next.char != '\'' =>
+            {
+                Some(curr.span)
             }
+            _ => None,
+        };
+        let trailing = [parser::Trivia { kind: WHITESPACE, text: " " }];
+        self.inner.token_with_trivia(
+            kind,
+            self.buf.as_str(),
+            &[],
+            if separator.is_some() { &trailing } else { &[] },
+        );
+        self.buf.clear();
+        if let Some(span) = separator {
+            self.text_pos += TextSize::of(' ');
+            self.token_map.push(self.text_pos, span);
         }
     }
 

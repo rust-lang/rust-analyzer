@@ -36,12 +36,12 @@ pub(crate) fn stmt(s: &str) -> Result<SyntaxNode, ()> {
     let node = ast::Stmt::cast(node).ok_or(())?;
     if !s.ends_with(';')
         && node.to_string().ends_with(';')
-        && let Some(token) = node.syntax().last_token()
+        && let Some(token) = node.syntax().last_non_trivia_token()
     {
         editor.delete(token);
     }
     let node = editor.finish().new_root().clone();
-    if node.to_string() != s {
+    if node.text_without_outer_trivia() != s {
         return Err(());
     }
     Ok(node)
@@ -56,7 +56,7 @@ fn fragment<T: AstNode>(template: &str, s: &str) -> Result<SyntaxNode, ()> {
     }
     let node = parse.tree().syntax().descendants().find_map(T::cast).ok_or(())?;
     let (_, node) = SyntaxEditor::new(node.syntax().clone());
-    if node.text() != s {
+    if node.text_without_outer_trivia() != s {
         return Err(());
     }
     Ok(node)

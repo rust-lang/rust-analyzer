@@ -6,8 +6,7 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -15,8 +14,7 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Clone"
-      R_ANGLE ">"
-  WHITESPACE "\n"
+      R_ANGLE ">" [] [NEWLINE("\n")]
   IMPL
     IMPL_KW "impl"
     GENERIC_PARAM_LIST
@@ -24,8 +22,7 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-      R_ANGLE ">"
-    WHITESPACE " "
+      R_ANGLE ">" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -39,11 +36,10 @@ SOURCE_FILE
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "T"
-            R_ANGLE ">"
-    WHITESPACE " "
+            R_ANGLE ">" [] [WHITESPACE(" ")]
     ASSOC_ITEM_LIST
       L_CURLY "{"
-      R_CURLY "}"
-  WHITESPACE "\n"
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 14: expected trait or type
 error 14: expected `{`

@@ -561,9 +561,10 @@ impl MacroCallId {
         let (is_derive, censor_item_tree_attr_ids, item_node, span) = match &loc.kind {
             MacroCallKind::FnLike { ast_id, .. } => {
                 let node = &ast_id.to_ptr(db).to_node(&root);
-                let path_range = node
-                    .path()
-                    .map_or_else(|| node.syntax().text_range(), |path| path.syntax().text_range());
+                let path_range = node.path().map_or_else(
+                    || node.syntax().text_range_without_outer_trivia(),
+                    |path| path.syntax().text_range_without_outer_trivia(),
+                );
                 let span = map.span_for_range(path_range);
 
                 let dummy_tt = |kind| {
@@ -632,8 +633,8 @@ impl MacroCallId {
                     attr_ids.invoc_attr().find_attr_range_with_source(db, loc.krate, &node);
                 let range = attr
                     .path()
-                    .map(|path| path.syntax().text_range())
-                    .unwrap_or_else(|| attr.syntax().text_range());
+                    .map(|path| path.syntax().text_range_without_outer_trivia())
+                    .unwrap_or_else(|| attr.syntax().text_range_without_outer_trivia());
                 let span = map.span_for_range(range);
 
                 let is_derive = matches!(loc.def.kind, MacroDefKind::BuiltInAttr(_, expander) if expander.is_derive());
@@ -978,8 +979,10 @@ fn proc_macro_span(db: &dyn SourceDatabase, ast: AstId<ast::Fn>) -> Span {
         let ast_id_map = ast.file_id.ast_id_map(db);
 
         let node = ast_id_map.get(ast.value).to_node(&root);
-        let range = ast::HasName::name(&node)
-            .map_or_else(|| node.syntax().text_range(), |name| name.syntax().text_range());
+        let range = ast::HasName::name(&node).map_or_else(
+            || node.syntax().text_range_without_outer_trivia(),
+            |name| name.syntax().text_range_without_outer_trivia(),
+        );
         span_map.span_for_range(range)
     }
     proc_macro_span(db, ast, ())
@@ -1238,17 +1241,24 @@ impl MacroCallKind {
                 node.path()
                     .unwrap()
                     .syntax()
-                    .text_range()
+                    .text_range_without_outer_trivia()
                     .cover(node.excl_token().unwrap().text_range())
             }
             MacroCallKind::Derive { ast_id, derive_attr_index, .. } => {
                 // FIXME: should be the range of the macro name, not the whole derive
-                derive_attr_index.find_attr_range(db, krate, *ast_id).1.syntax().text_range()
+                derive_attr_index
+                    .find_attr_range(db, krate, *ast_id)
+                    .1
+                    .syntax()
+                    .text_range_without_outer_trivia()
             }
             // FIXME: handle `cfg_attr`
-            MacroCallKind::Attr { ast_id, censored_attr_ids: attr_ids, .. } => {
-                attr_ids.invoc_attr().find_attr_range(db, krate, *ast_id).1.syntax().text_range()
-            }
+            MacroCallKind::Attr { ast_id, censored_attr_ids: attr_ids, .. } => attr_ids
+                .invoc_attr()
+                .find_attr_range(db, krate, *ast_id)
+                .1
+                .syntax()
+                .text_range_without_outer_trivia(),
         };
 
         let mut range = get_range(self);
@@ -1482,8 +1492,13 @@ pub fn span_for_offset(
 // Avoid adding any more outside uses.
 pub fn resolve_span(db: &dyn SourceDatabase, Span { range, anchor, ctx: _ }: Span) -> FileRange {
     let file_id = EditionedFileId::from_span_file_id(db, anchor.file_id);
-    let anchor_offset =
-        HirFileId::from(file_id).ast_id_map(db).get_erased(anchor.ast_id).text_range().start();
+    let root = HirFileId::from(file_id).parse_or_expand(db);
+    let anchor_offset = HirFileId::from(file_id)
+        .ast_id_map(db)
+        .get_erased(anchor.ast_id)
+        .to_node(&root)
+        .text_range_without_outer_trivia()
+        .start();
     FileRange { file_id, range: range + anchor_offset }
 }
 

@@ -1,7 +1,6 @@
 SOURCE_FILE
   MACRO_DEF
-    MACRO_KW "macro"
-    WHITESPACE " "
+    MACRO_KW "macro" [] [WHITESPACE(" ")]
     NAME
       IDENT "m"
     TOKEN_TREE
@@ -10,9 +9,8 @@ SOURCE_FILE
       IDENT "i"
       COLON ":"
       IDENT "ident"
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     TOKEN_TREE
       L_CURLY "{"
-      R_CURLY "}"
-  WHITESPACE "\n"
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

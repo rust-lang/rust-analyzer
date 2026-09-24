@@ -4,8 +4,7 @@ SOURCE_FILE
     BANG "!"
     L_BRACK "["
     PATH_META
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -14,12 +13,9 @@ SOURCE_FILE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "p"
-      WHITESPACE " "
-      EQ "="
-    WHITESPACE " "
-    R_BRACK "]"
-  WHITESPACE "\n"
+            IDENT "p" [] [WHITESPACE(" ")]
+      EQ "=" [] [WHITESPACE(" ")]
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -31,8 +27,7 @@ SOURCE_FILE
             NAME_REF
               IDENT "p"
         COLON2 "::"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -43,11 +38,9 @@ SOURCE_FILE
           PATH_SEGMENT
             NAME_REF
               IDENT "p"
-        COLON2 "::"
-      WHITESPACE " "
+        COLON2 "::" [] [WHITESPACE(" ")]
       EQ "="
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -55,19 +48,17 @@ SOURCE_FILE
     UNSAFE_META
       UNSAFE_KW "unsafe"
       PATH_META
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
     L_BRACK "["
     UNSAFE_META
-      UNSAFE_KW "unsafe"
-      WHITESPACE " "
+      UNSAFE_KW "unsafe" [] [WHITESPACE(" ")]
       KEY_VALUE_META
         EQ "="
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
+  EOF ""
 error 3: expected identifier, `self`, `super`, `crate`, or `Self`
 error 11: expected expression
 error 11: expected expression

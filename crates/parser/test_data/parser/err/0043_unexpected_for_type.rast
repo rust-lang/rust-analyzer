@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "ForRef"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "ForRef" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     FOR_TYPE
       FOR_BINDER
         FOR_KW "for"
@@ -15,28 +12,22 @@ SOURCE_FILE
           LIFETIME_PARAM
             LIFETIME
               LIFETIME_IDENT "'a"
-          R_ANGLE ">"
-      WHITESPACE " "
+          R_ANGLE ">" [] [WHITESPACE(" ")]
       REF_TYPE
         AMP "&"
         LIFETIME
-          LIFETIME_IDENT "'a"
-        WHITESPACE " "
+          LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
                 IDENT "u32"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "ForTup"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "ForTup" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     FOR_TYPE
       FOR_BINDER
         FOR_KW "for"
@@ -45,15 +36,13 @@ SOURCE_FILE
           LIFETIME_PARAM
             LIFETIME
               LIFETIME_IDENT "'a"
-          R_ANGLE ">"
-      WHITESPACE " "
+          R_ANGLE ">" [] [WHITESPACE(" ")]
       TUPLE_TYPE
         L_PAREN "("
         REF_TYPE
           AMP "&"
           LIFETIME
-            LIFETIME_IDENT "'a"
-          WHITESPACE " "
+            LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
@@ -61,16 +50,12 @@ SOURCE_FILE
                   IDENT "u32"
         COMMA ","
         R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "ForSlice"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "ForSlice" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     FOR_TYPE
       FOR_BINDER
         FOR_KW "for"
@@ -79,8 +64,7 @@ SOURCE_FILE
           LIFETIME_PARAM
             LIFETIME
               LIFETIME_IDENT "'a"
-          R_ANGLE ">"
-      WHITESPACE " "
+          R_ANGLE ">" [] [WHITESPACE(" ")]
       SLICE_TYPE
         L_BRACK "["
         PATH_TYPE
@@ -89,16 +73,12 @@ SOURCE_FILE
               NAME_REF
                 IDENT "u32"
         R_BRACK "]"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "ForForFn"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "ForForFn" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     FOR_TYPE
       FOR_BINDER
         FOR_KW "for"
@@ -107,8 +87,7 @@ SOURCE_FILE
           LIFETIME_PARAM
             LIFETIME
               LIFETIME_IDENT "'a"
-          R_ANGLE ">"
-      WHITESPACE " "
+          R_ANGLE ">" [] [WHITESPACE(" ")]
       FOR_TYPE
         FOR_BINDER
           FOR_KW "for"
@@ -117,8 +96,7 @@ SOURCE_FILE
             LIFETIME_PARAM
               LIFETIME
                 LIFETIME_IDENT "'b"
-            R_ANGLE ">"
-        WHITESPACE " "
+            R_ANGLE ">" [] [WHITESPACE(" ")]
         FN_PTR_TYPE
           FN_KW "fn"
           PARAM_LIST
@@ -127,32 +105,27 @@ SOURCE_FILE
               REF_TYPE
                 AMP "&"
                 LIFETIME
-                  LIFETIME_IDENT "'a"
-                WHITESPACE " "
+                  LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
                 PATH_TYPE
                   PATH
                     PATH_SEGMENT
                       NAME_REF
                         IDENT "i32"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             PARAM
               REF_TYPE
                 AMP "&"
                 LIFETIME
-                  LIFETIME_IDENT "'b"
-                WHITESPACE " "
+                  LIFETIME_IDENT "'b" [] [WHITESPACE(" ")]
                 PATH_TYPE
                   PATH
                     PATH_SEGMENT
                       NAME_REF
                         IDENT "i32"
             R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "for_for_for"
     GENERIC_PARAM_LIST
@@ -163,21 +136,18 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE "\n"
+      R_PAREN ")" [] [NEWLINE("\n")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE "\n    "
+      WHERE_KW "where" [] [NEWLINE("\n")]
       WHERE_PRED
         FOR_BINDER
-          FOR_KW "for"
+          FOR_KW "for" [WHITESPACE("    ")] []
           GENERIC_PARAM_LIST
             L_ANGLE "<"
             LIFETIME_PARAM
               LIFETIME
                 LIFETIME_IDENT "'a"
-            R_ANGLE ">"
-        WHITESPACE " "
+            R_ANGLE ">" [] [WHITESPACE(" ")]
         FOR_TYPE
           FOR_BINDER
             FOR_KW "for"
@@ -186,8 +156,7 @@ SOURCE_FILE
               LIFETIME_PARAM
                 LIFETIME
                   LIFETIME_IDENT "'b"
-              R_ANGLE ">"
-          WHITESPACE " "
+              R_ANGLE ">" [] [WHITESPACE(" ")]
           FOR_TYPE
             FOR_BINDER
               FOR_KW "for"
@@ -196,8 +165,7 @@ SOURCE_FILE
                 LIFETIME_PARAM
                   LIFETIME
                     LIFETIME_IDENT "'c"
-                R_ANGLE ">"
-            WHITESPACE " "
+                R_ANGLE ">" [] [WHITESPACE(" ")]
             FN_PTR_TYPE
               FN_KW "fn"
               PARAM_LIST
@@ -206,42 +174,36 @@ SOURCE_FILE
                   REF_TYPE
                     AMP "&"
                     LIFETIME
-                      LIFETIME_IDENT "'a"
-                    WHITESPACE " "
+                      LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
                     PATH_TYPE
                       PATH
                         PATH_SEGMENT
                           NAME_REF
                             IDENT "T"
-                COMMA ","
-                WHITESPACE " "
+                COMMA "," [] [WHITESPACE(" ")]
                 PARAM
                   REF_TYPE
                     AMP "&"
                     LIFETIME
-                      LIFETIME_IDENT "'b"
-                    WHITESPACE " "
+                      LIFETIME_IDENT "'b" [] [WHITESPACE(" ")]
                     PATH_TYPE
                       PATH
                         PATH_SEGMENT
                           NAME_REF
                             IDENT "T"
-                COMMA ","
-                WHITESPACE " "
+                COMMA "," [] [WHITESPACE(" ")]
                 PARAM
                   REF_TYPE
                     AMP "&"
                     LIFETIME
-                      LIFETIME_IDENT "'c"
-                    WHITESPACE " "
+                      LIFETIME_IDENT "'c" [] [WHITESPACE(" ")]
                     PATH_TYPE
                       PATH
                         PATH_SEGMENT
                           NAME_REF
                             IDENT "T"
                 R_PAREN ")"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -249,14 +211,12 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Copy"
-      COMMA ","
-    WHITESPACE "\n"
+      COMMA "," [] [NEWLINE("\n")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 21: expected a function pointer or path
 error 52: expected a function pointer or path
 error 88: expected a function pointer or path

@@ -69,7 +69,7 @@ pub(crate) fn generate_is_empty_from_len(
     }
 
     let node = len_fn.source(ctx.sema.db)?;
-    let range = node.syntax().value.text_range();
+    let range = node.syntax().value.text_range_without_outer_trivia();
 
     acc.add(
         AssistId::generate("generate_is_empty_from_len"),

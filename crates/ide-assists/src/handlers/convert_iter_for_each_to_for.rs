@@ -104,7 +104,7 @@ pub(crate) fn convert_for_loop_with_for_each(
     let iterable = for_loop.iterable()?;
     let pat = for_loop.pat()?;
     let body = for_loop.loop_body()?;
-    if body.syntax().text_range().start() < ctx.offset() {
+    if body.syntax().text_range_without_outer_trivia().start() < ctx.offset() {
         cov_mark::hit!(not_available_in_body);
         return None;
     }
@@ -112,7 +112,7 @@ pub(crate) fn convert_for_loop_with_for_each(
     acc.add(
         AssistId::refactor_rewrite("convert_for_loop_with_for_each"),
         "Replace this for loop with `Iterator::for_each`",
-        for_loop.syntax().text_range(),
+        for_loop.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(for_loop.syntax());
             let make = editor.make();
@@ -209,7 +209,8 @@ fn validate_method_call_expr(
     expr: ast::MethodCallExpr,
 ) -> Option<(ast::Expr, ast::Expr)> {
     let name_ref = expr.name_ref()?;
-    if !name_ref.syntax().text_range().contains_range(ctx.selection_trimmed()) {
+    if !name_ref.syntax().text_range_without_outer_trivia().contains_range(ctx.selection_trimmed())
+    {
         cov_mark::hit!(test_for_each_not_applicable_invalid_cursor_pos);
         return None;
     }

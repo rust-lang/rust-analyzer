@@ -1,8 +1,12 @@
+use std::iter::successors;
+
 use either::Either;
 use itertools::Itertools;
 use syntax::{
-    AstNode, AstToken, TextRange,
-    ast::{self, AttrKind, Whitespace, edit::IndentLevel},
+    AstNode, AstToken,
+    SyntaxKind::{NEWLINE, WHITESPACE},
+    TextRange,
+    ast::{self, AttrKind, edit::IndentLevel},
 };
 
 use crate::{
@@ -30,14 +34,23 @@ pub(crate) fn desugar_doc_comment(acc: &mut Assists, ctx: &AssistContext<'_, '_>
     let placement = comment.kind();
 
     // Only allow comments which are alone on their line
-    if let Some(prev) = comment.syntax().first_token().and_then(|it| it.prev_token()) {
-        Whitespace::cast(prev).filter(|w| w.text().contains('\n'))?;
+    if comment
+        .syntax()
+        .first_non_trivia_token()
+        .and_then(|it| {
+            successors(it.prev_token(), |it| it.prev_token()).find(|it| it.kind() != WHITESPACE)
+        })
+        .is_some_and(|it| it.kind() != NEWLINE)
+    {
+        return None;
     }
 
     let indentation = IndentLevel::from_node(comment.syntax()).to_string();
 
     let (target, comments) = match comment.shape() {
-        ast::CommentShape::Block => (comment.syntax().text_range(), Either::Left(comment)),
+        ast::CommentShape::Block => {
+            (comment.syntax().text_range_without_outer_trivia(), Either::Left(comment))
+        }
         ast::CommentShape::Line => {
             // Find all the comments we'll be desugaring
             let comments = relevant_line_comments(&comment.token());

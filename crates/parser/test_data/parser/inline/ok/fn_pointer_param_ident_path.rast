@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "Foo"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "Foo" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     FN_PTR_TYPE
       FN_KW "fn"
       PARAM_LIST
@@ -23,16 +20,12 @@ SOURCE_FILE
                 NAME_REF
                   IDENT "Baz"
         R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "Qux"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "Qux" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     FN_PTR_TYPE
       FN_KW "fn"
       PARAM_LIST
@@ -41,8 +34,7 @@ SOURCE_FILE
           IDENT_PAT
             NAME
               IDENT "baz"
-          COLON ":"
-          WHITESPACE " "
+          COLON ":" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH
@@ -54,5 +46,5 @@ SOURCE_FILE
                 NAME_REF
                   IDENT "Baz"
         R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

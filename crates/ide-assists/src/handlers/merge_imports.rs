@@ -32,7 +32,7 @@ pub(crate) fn merge_imports(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
         // Merge a neighbor
         cov_mark::hit!(merge_with_use_item_neighbors);
         let tree = ctx.find_node_at_offset::<ast::UseTree>()?.top_use_tree();
-        let target = tree.syntax().text_range();
+        let target = tree.syntax().text_range_without_outer_trivia();
 
         let use_item = tree.syntax().parent().and_then(ast::Use::cast)?;
         let neighbor = next_prev().find_map(|dir| neighbor(&use_item, dir))?;

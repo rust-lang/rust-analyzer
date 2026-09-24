@@ -388,15 +388,18 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
 
             // sort ranges for consistency
             types.sort_by_key(|(node, _)| {
-                let range = node.value.text_range();
+                let range = node.value.text_range_without_outer_trivia();
                 (range.start(), range.end())
             });
             for (node, ty) in &types {
                 let (range, text) =
                     if let Some(self_param) = ast::SelfParam::cast(node.value.clone()) {
-                        (self_param.name().unwrap().syntax().text_range(), "self".to_owned())
+                        let name = self_param.name().unwrap();
+                        (name.syntax().text_range_without_outer_trivia(), "self".to_owned())
                     } else {
-                        (node.value.text_range(), node.value.text().to_string().replace('\n', " "))
+                        let node = &node.value;
+                        let range = node.text_range_without_outer_trivia();
+                        (range, node.text_without_outer_trivia().to_string().replace('\n', " "))
                     };
                 let macro_prefix = if node.file_id != file_id { "!" } else { "" };
                 format_to!(
@@ -410,11 +413,11 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
             }
             if include_mismatches {
                 mismatches.sort_by_key(|(node, _)| {
-                    let range = node.value.text_range();
+                    let range = node.value.text_range_without_outer_trivia();
                     (range.start(), range.end())
                 });
                 for (src_ptr, (expected, actual)) in &mismatches {
-                    let range = src_ptr.value.text_range();
+                    let range = src_ptr.value.text_range_without_outer_trivia();
                     let macro_prefix = if src_ptr.file_id != file_id { "!" } else { "" };
                     format_to!(
                         buf,

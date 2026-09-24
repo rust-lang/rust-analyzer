@@ -21,7 +21,7 @@ pub(crate) fn explicit_drop_method_use(
     match d.expr_or_path {
         Either::Left(expr) => {
             let display_range = adjusted_display_range(ctx, expr, &|node| {
-                Some(node.name_ref()?.syntax().text_range())
+                Some(node.name_ref()?.syntax().text_range_without_outer_trivia())
             });
             Diagnostic::new(
                 DiagnosticCode::RustcHardError("E0040"),
@@ -58,7 +58,7 @@ fn fix_method_call(
 
     let file_id = mcall_ptr.file_id;
     let mcall = mcall_ptr.to_node(db);
-    let range = mcall.syntax().text_range();
+    let range = mcall.syntax().text_range_without_outer_trivia();
 
     // `mcall` is `foo.drop()` -- extract the receiver, and wrap it in `drop()`
     // NOTE: it could theoretically be `(&mut foo).drop()` instead, in which case the fix
@@ -102,7 +102,7 @@ fn fix_path(
         };
         let recv = ref_recv.expr()?;
 
-        let range = call.syntax().text_range();
+        let range = call.syntax().text_range_without_outer_trivia();
 
         let mut builder = SourceChangeBuilder::new(file_id.original_file(db).file_id(db));
         let editor = builder.make_editor(call.syntax());
@@ -116,7 +116,7 @@ fn fix_path(
         // `path` could be the `Foo::drop` in `let d = Foo::drop;`
         // -- replace the path with `drop`
 
-        let range = InFile::new(file_id, path.syntax().text_range())
+        let range = InFile::new(file_id, path.syntax().text_range_without_outer_trivia())
             .original_node_file_range_rooted_opt(db)?;
 
         let edit = TextEdit::replace(range.range, "drop".to_owned());

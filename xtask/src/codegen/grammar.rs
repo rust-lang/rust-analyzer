@@ -398,7 +398,7 @@ fn generate_nodes(kinds: KindsSrc, grammar: &AstSrc) -> String {
             quote! {
                 impl std::fmt::Display for #name {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        std::fmt::Display::fmt(self.syntax(), f)
+                        std::fmt::Display::fmt(&self.syntax().text_without_outer_trivia(), f)
                     }
                 }
             }
@@ -851,11 +851,10 @@ fn clean_token_name(name: &str) -> String {
 
 fn lower(grammar: &Grammar) -> AstSrc {
     let mut res = AstSrc {
-        tokens:
-            "Whitespace Comment String ByteString CString IntNumber FloatNumber Char Byte Ident"
-                .split_ascii_whitespace()
-                .map(|it| it.to_owned())
-                .collect::<Vec<_>>(),
+        tokens: "Comment String ByteString CString IntNumber FloatNumber Char Byte Ident"
+            .split_ascii_whitespace()
+            .map(|it| it.to_owned())
+            .collect::<Vec<_>>(),
         ..Default::default()
     };
 

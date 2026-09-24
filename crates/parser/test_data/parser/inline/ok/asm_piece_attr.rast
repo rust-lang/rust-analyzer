@@ -1,15 +1,12 @@
 SOURCE_FILE
   ASM_EXPR
-    BUILTIN_KW "builtin"
-    WHITESPACE " "
-    POUND "#"
-    WHITESPACE " "
+    BUILTIN_KW "builtin" [] [WHITESPACE(" ")]
+    POUND "#" [] [WHITESPACE(" ")]
     GLOBAL_ASM_KW "global_asm"
     L_PAREN "("
     LITERAL
       STRING "\"\""
-    COMMA ","
-    WHITESPACE " "
+    COMMA "," [] [WHITESPACE(" ")]
     ASM_OPTIONS
       ATTR
         POUND "#"
@@ -20,10 +17,9 @@ SOURCE_FILE
           CFG_ATOM
             FALSE_KW "false"
           R_PAREN ")"
-        R_BRACK "]"
-      WHITESPACE " "
+        R_BRACK "]" [] [WHITESPACE(" ")]
       OPTIONS_KW "options"
       L_PAREN "("
       R_PAREN ")"
-    R_PAREN ")"
-  WHITESPACE "\n"
+    R_PAREN ")" [] [NEWLINE("\n")]
+  EOF ""

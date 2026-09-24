@@ -1,19 +1,14 @@
 SOURCE_FILE
   FN
-    COMMENT "// 2015"
-    WHITESPACE "\n"
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [COMMENT("// 2015"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         EXPR_STMT
           MACRO_EXPR
             MACRO_CALL
@@ -32,7 +27,6 @@ SOURCE_FILE
                     R_PAREN ")"
                   R_PAREN ")"
                 R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

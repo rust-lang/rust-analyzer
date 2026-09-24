@@ -54,7 +54,7 @@ pub(crate) fn add_explicit_enum_discriminant(
     acc.add(
         AssistId::refactor_rewrite("add_explicit_enum_discriminant"),
         "Add explicit enum discriminants",
-        enum_node.syntax().text_range(),
+        enum_node.syntax().text_range_without_outer_trivia(),
         |builder| {
             let mut radix = Radix::Decimal;
             for variant_node in variant_list.variants() {
@@ -86,7 +86,7 @@ fn add_variant_discriminant(
         return;
     };
 
-    let variant_range = variant_node.syntax().text_range();
+    let variant_range = variant_node.syntax().text_range_without_outer_trivia();
 
     let (group_size, prefix, text) = match radix {
         Radix::Binary => (4, "0b", format!("{discriminant:b}")),

@@ -1,7 +1,6 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "A"
     GENERIC_PARAM_LIST
@@ -10,11 +9,9 @@ SOURCE_FILE
         NAME
           IDENT "T"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "B"
     GENERIC_PARAM_LIST
@@ -25,11 +22,9 @@ SOURCE_FILE
         COLON ":"
         TYPE_BOUND_LIST
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "C"
     GENERIC_PARAM_LIST
@@ -37,18 +32,15 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
               LIFETIME_IDENT "'a"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "D"
     GENERIC_PARAM_LIST
@@ -56,21 +48,16 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'a"
-          WHITESPACE " "
-          PLUS "+"
-      WHITESPACE " "
+              LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "E"
     GENERIC_PARAM_LIST
@@ -78,25 +65,19 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'a"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+              LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'d"
-      WHITESPACE " "
+              LIFETIME_IDENT "'d" [] [WHITESPACE(" ")]
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "F"
     GENERIC_PARAM_LIST
@@ -104,21 +85,16 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'a"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+              LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'d"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+              LIFETIME_IDENT "'d" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             PATH_TYPE
               PATH
@@ -126,11 +102,9 @@ SOURCE_FILE
                   NAME_REF
                     IDENT "Clone"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "G"
     GENERIC_PARAM_LIST
@@ -138,18 +112,15 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "Clone"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+                    IDENT "Clone" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             PATH_TYPE
               PATH
@@ -157,11 +128,9 @@ SOURCE_FILE
                   NAME_REF
                     IDENT "Copy"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "H"
     GENERIC_PARAM_LIST
@@ -169,8 +138,7 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -178,10 +146,8 @@ SOURCE_FILE
                 PATH_SEGMENT
                   COLON2 "::"
                   NAME_REF
-                    IDENT "Foo"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+                    IDENT "Foo" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             PATH_TYPE
               PATH
@@ -192,19 +158,15 @@ SOURCE_FILE
                 COLON2 "::"
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "Bar"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+                    IDENT "Bar" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             LIFETIME
               LIFETIME_IDENT "'a"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "I"
     GENERIC_PARAM_LIST
@@ -214,8 +176,7 @@ SOURCE_FILE
           IDENT "T"
         COLON ":"
         TYPE_BOUND_LIST
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
           IDENT "U"
@@ -223,11 +184,9 @@ SOURCE_FILE
         TYPE_BOUND_LIST
       COMMA ","
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "K"
     GENERIC_PARAM_LIST
@@ -235,49 +194,38 @@ SOURCE_FILE
       LIFETIME_PARAM
         LIFETIME
           LIFETIME_IDENT "'a"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
               LIFETIME_IDENT "'d"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       LIFETIME_PARAM
         LIFETIME
           LIFETIME_IDENT "'d"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'a"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+              LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             LIFETIME
               LIFETIME_IDENT "'b"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'a"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+              LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'d"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+              LIFETIME_IDENT "'d" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             PATH_TYPE
               PATH
@@ -286,3 +234,4 @@ SOURCE_FILE
                     IDENT "Clone"
       R_ANGLE ">"
     SEMICOLON ";"
+  EOF ""

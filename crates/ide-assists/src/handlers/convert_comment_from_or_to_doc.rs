@@ -1,7 +1,9 @@
+use std::iter::successors;
+
 use itertools::Itertools;
 use syntax::{
     AstToken, TextRange,
-    ast::{self, AttrKind, Whitespace, edit::IndentLevel},
+    ast::{self, AttrKind, edit::IndentLevel},
 };
 
 use crate::{
@@ -182,11 +184,12 @@ fn can_be_doc_comment(comment: &ast::AnyComment) -> Option<AttrKind> {
     use syntax::SyntaxKind::*;
 
     // if the comment is not on its own line, then we do not propose anything.
-    match comment.syntax().prev_token() {
-        Some(prev) => {
-            // There was a previous token, now check if it was a newline
-            Whitespace::cast(prev).filter(|w| w.text().contains('\n'))?;
-        }
+    match successors(comment.syntax().prev_token(), |it| it.prev_token())
+        .find(|it| it.kind() != WHITESPACE)
+    {
+        // There was a previous token, now check if it was a newline
+        Some(prev) if prev.kind() != NEWLINE => return None,
+        Some(_) => (),
         // There is no previous token, this is the start of the file.
         None => return Some(AttrKind::Inner),
     }

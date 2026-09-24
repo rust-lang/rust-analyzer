@@ -192,7 +192,11 @@ impl NameGenerator {
             .type_bound_list()
             .and_then(|bounds| {
                 let ty = bounds.bounds().next()?.ty()?;
-                ty.syntax().text().to_smolstr().chars().find(|ch| ch.is_uppercase())
+                ty.syntax()
+                    .text_without_outer_trivia()
+                    .to_smolstr()
+                    .chars()
+                    .find(|ch| ch.is_uppercase())
             })
             .unwrap_or('T');
 
@@ -509,7 +513,7 @@ mod tests {
         let expr =
             element.ancestors().find_map(ast::Expr::cast).expect("selection is not an expression");
         assert_eq!(
-            expr.syntax().text_range(),
+            expr.syntax().text_range_without_outer_trivia(),
             frange.range,
             "selection is not an expression(yet contained in one)"
         );
