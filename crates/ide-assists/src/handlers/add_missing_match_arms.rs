@@ -115,11 +115,12 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, 
             .iter()
             .any(|variant| variant.should_be_hidden(ctx.db(), module.krate(ctx.db())));
 
+        let name_generator = &mut suggest_name::NameGenerator::default();
         let missing_pats = variants
             .into_iter()
             .filter_map(|variant| {
                 Some((
-                    build_pat(ctx, &make, module, variant, cfg)?,
+                    build_pat(ctx, &make, module, variant, cfg, name_generator)?,
                     variant.should_be_hidden(ctx.db(), module.krate(ctx.db())),
                 ))
             })
@@ -169,12 +170,13 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, 
             .multi_cartesian_product()
             .inspect(|_| cov_mark::hit!(add_missing_match_arms_lazy_computation))
             .map(|variants| {
+                let name_generator = &mut suggest_name::NameGenerator::default();
                 let is_hidden = variants
                     .iter()
                     .any(|variant| variant.should_be_hidden(ctx.db(), module.krate(ctx.db())));
-                let patterns = variants
-                    .into_iter()
-                    .filter_map(|variant| build_pat(ctx, &make, module, variant, cfg));
+                let patterns = variants.into_iter().filter_map(|variant| {
+                    build_pat(ctx, &make, module, variant, cfg, name_generator)
+                });
 
                 (ast::Pat::from(make.tuple_pat(patterns)), is_hidden)
             })
@@ -202,12 +204,13 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, 
             .multi_cartesian_product()
             .inspect(|_| cov_mark::hit!(add_missing_match_arms_lazy_computation))
             .map(|variants| {
+                let name_generator = &mut suggest_name::NameGenerator::default();
                 let is_hidden = variants
                     .iter()
                     .any(|variant| variant.should_be_hidden(ctx.db(), module.krate(ctx.db())));
-                let patterns = variants
-                    .into_iter()
-                    .filter_map(|variant| build_pat(ctx, &make, module, variant, cfg));
+                let patterns = variants.into_iter().filter_map(|variant| {
+                    build_pat(ctx, &make, module, variant, cfg, name_generator)
+                });
 
                 (ast::Pat::from(make.slice_pat(patterns)), is_hidden)
             })
@@ -595,6 +598,7 @@ fn build_pat(
     module: hir::Module,
     var: ExtendedVariant,
     cfg: FindPathConfig,
+    name_generator: &mut suggest_name::NameGenerator,
 ) -> Option<ast::Pat> {
     let db = ctx.db();
     match var {
@@ -620,7 +624,6 @@ fn build_pat(
             let fields = var.fields(db);
             let pat: ast::Pat = match var.kind(db) {
                 hir::StructKind::Tuple => {
-                    let mut name_generator = suggest_name::NameGenerator::default();
                     let pats = fields.into_iter().map(|f| {
                         let name = name_generator.for_type(&f.ty(db), db, edition);
                         match name {
@@ -631,10 +634,16 @@ fn build_pat(
                     make.tuple_struct_pat(path, pats).into()
                 }
                 hir::StructKind::Record => {
-                    let fields = fields
-                        .into_iter()
-                        .map(|f| make.ident_pat(false, false, make.name(f.name(db).as_str())))
-                        .map(|ident| make.record_pat_field_shorthand(ident.into()));
+                    let fields = fields.into_iter().map(|f| {
+                        let field = f.name(db);
+                        let local = name_generator.suggest_name(field.as_str());
+                        let pat = make.ident_pat(false, false, make.name(&local)).into();
+                        if local == field.as_str() {
+                            make.record_pat_field_shorthand(pat)
+                        } else {
+                            make.record_pat_field(make.name_ref(field.as_str()), pat)
+                        }
+                    });
                     let fields = make.record_pat_field_list(fields, None);
                     make.record_pat_with_fields(path, fields).into()
                 }
@@ -2474,6 +2483,55 @@ fn f() {
     match value {
         E::A => ${1:todo!()},
         E::B(s1, s2) => ${2:todo!()},$0
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn same_names_inside_combinations_patterns() {
+        check_assist(
+            add_missing_match_arms,
+            r#"
+enum E { L { v: i32 }, R { v: i32 } }
+fn f(value: (E, E)) {
+    match value {
+        $0
+    }
+}
+"#,
+            r#"
+enum E { L { v: i32 }, R { v: i32 } }
+fn f(value: (E, E)) {
+    match value {
+        (E::L { v }, E::L { v: v1 }) => ${1:todo!()},
+        (E::L { v }, E::R { v: v1 }) => ${2:todo!()},
+        (E::R { v }, E::L { v: v1 }) => ${3:todo!()},
+        (E::R { v }, E::R { v: v1 }) => ${4:todo!()},$0
+    }
+}
+"#,
+        );
+
+        check_assist(
+            add_missing_match_arms,
+            r#"
+enum E { L { v: i32 }, R { v: i32 } }
+fn f(value: [E; 2]) {
+    match value {
+        $0
+    }
+}
+"#,
+            r#"
+enum E { L { v: i32 }, R { v: i32 } }
+fn f(value: [E; 2]) {
+    match value {
+        [E::L { v }, E::L { v: v1 }] => ${1:todo!()},
+        [E::L { v }, E::R { v: v1 }] => ${2:todo!()},
+        [E::R { v }, E::L { v: v1 }] => ${3:todo!()},
+        [E::R { v }, E::R { v: v1 }] => ${4:todo!()},$0
     }
 }
 "#,
