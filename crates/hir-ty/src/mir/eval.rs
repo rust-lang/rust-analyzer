@@ -1915,6 +1915,15 @@ impl<'a, 'db> Evaluator<'a, 'db> {
             }
         }
         for (i, op) in values.enumerate() {
+            if i >= variant_layout.fields.count() {
+                return Err(MirEvalError::InternalError(
+                    format!(
+                        "field index ({i}) is out of bounds 0..{}",
+                        variant_layout.fields.count()
+                    )
+                    .into(),
+                ));
+            }
             let offset = variant_layout.fields.offset(i).bytes_usize();
             let op = op.get(self)?;
             match result.get_mut(offset..offset + op.len()) {
