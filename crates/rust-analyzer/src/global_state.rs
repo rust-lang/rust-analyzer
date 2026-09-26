@@ -282,6 +282,7 @@ impl GlobalState {
             last_reported_status: lsp_ext::ServerStatusParams {
                 health: lsp_ext::Health::Ok,
                 quiescent: true,
+                ready: false,
                 message: None,
             },
             source_root_config: SourceRootConfig::default(),
