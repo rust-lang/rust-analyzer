@@ -323,7 +323,12 @@ impl<'db> RegionConstraintCollector<'db, '_> {
     ///
     /// Not legal during a snapshot.
     pub fn take_and_reset_data(&mut self) -> RegionConstraintData<'db> {
-        assert!(!UndoLogs::<UndoLog<'db>>::in_snapshot(&self.undo_log));
+        // The *inherent* method, not the always-`true` trait impl; see `InferCtxtUndoLogs`.
+        // The explicit deref is needed because `ena` blanket-implements `UndoLogs` for
+        // `&mut U`, so on the reference itself only the trait method exists. Removing the
+        // deref is a compile error (E0283, ambiguous `T` in `UndoLogs<T>`), not a silent
+        // switch to the trait impl.
+        assert!(!(*self.undo_log).in_snapshot());
 
         // If you add a new field to `RegionConstraintCollector`, you
         // should think carefully about whether it needs to be cleared
