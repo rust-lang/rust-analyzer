@@ -3672,7 +3672,7 @@ fn let_in_previous_line_of_ambiguous_expr() {
         }"#,
         r#"
         fn f() {
-            let $1 = $0;
+            let $1 = $2;$0
             (1, 2).foo();
         }"#,
     );
@@ -3686,7 +3686,7 @@ fn let_in_previous_line_of_ambiguous_expr() {
         }"#,
         r#"
         fn f() {
-            let $1 = $0;
+            let $1 = $2;$0
             (1, 2)
         }"#,
     );
@@ -3700,7 +3700,7 @@ fn let_in_previous_line_of_ambiguous_expr() {
         }"#,
         r#"
         fn f() -> i32 {
-            let $1 = $0;
+            let $1 = $2;$0
             -2
         }"#,
     );
@@ -3714,7 +3714,7 @@ fn let_in_previous_line_of_ambiguous_expr() {
         }"#,
         r#"
         fn f() -> [i32; 2] {
-            let $1 = $0;
+            let $1 = $2;$0
             [1, 2]
         }"#,
     );
@@ -3728,7 +3728,7 @@ fn let_in_previous_line_of_ambiguous_expr() {
         }"#,
         r#"
         fn f() -> [u8; 2] {
-            let $1 = $0;
+            let $1 = $2;$0
             *b"01"
         }"#,
     );
