@@ -1241,7 +1241,14 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn recursion_limit(self) -> usize {
-        50
+        // Defaults to 128 in rustc:
+        // https://github.com/rust-lang/rust/blob/28e8a8c81bf3b37909edac6c2a76e56f30cd492f/compiler/rustc_interface/src/limits.rs#L33
+        //
+        // TODO: Respect overrides of the form like #![recursion_limit="1234"].
+        //
+        // Note that rustc actually allows a larger recursion limit in some cases:
+        // https://github.com/rust-lang/rust/blob/28e8a8c81bf3b37909edac6c2a76e56f30cd492f/compiler/rustc_next_trait_solver/src/solve/eval_ctxt/mod.rs#L335
+        128
     }
 
     fn is_type_const(self, _def_id: Self::DefId) -> bool {
