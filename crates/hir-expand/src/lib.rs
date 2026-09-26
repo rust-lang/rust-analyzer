@@ -610,10 +610,10 @@ impl MacroCallId {
                     tt.syntax(),
                     map,
                     span,
-                    if loc.def.is_proc_macro() {
-                        DocCommentDesugarMode::ProcMacro
+                    if loc.def.is_declarative() {
+                        DocCommentDesugarMode::DesugarMbeInput
                     } else {
-                        DocCommentDesugarMode::Mbe
+                        DocCommentDesugarMode::Keep
                     },
                 );
                 if loc.def.is_proc_macro() {
@@ -647,6 +647,7 @@ impl MacroCallId {
             map,
             span,
             is_derive,
+            loc.def.is_declarative(),
             censor_item_tree_attr_ids,
             loc.krate,
         );
@@ -804,10 +805,10 @@ impl MacroCallId {
                     speculative_args,
                     span_map,
                     span,
-                    if loc.def.is_proc_macro() {
-                        DocCommentDesugarMode::ProcMacro
+                    if loc.def.is_declarative() {
+                        DocCommentDesugarMode::DesugarMbeInput
                     } else {
-                        DocCommentDesugarMode::Mbe
+                        DocCommentDesugarMode::Keep
                     },
                 ),
                 SyntaxFixupUndoInfo::NONE,
@@ -817,7 +818,11 @@ impl MacroCallId {
                     speculative_args,
                     span_map,
                     span,
-                    DocCommentDesugarMode::ProcMacro,
+                    if loc.def.is_declarative() {
+                        DocCommentDesugarMode::DesugarMbeInput
+                    } else {
+                        DocCommentDesugarMode::Keep
+                    },
                 ),
                 SyntaxFixupUndoInfo::NONE,
             ),
@@ -833,6 +838,7 @@ impl MacroCallId {
                     span_map,
                     span,
                     true,
+                    loc.def.is_declarative(),
                     attr_ids,
                     loc.krate,
                 )
@@ -844,6 +850,7 @@ impl MacroCallId {
                     span_map,
                     span,
                     false,
+                    loc.def.is_declarative(),
                     attr_ids,
                     loc.krate,
                 )
@@ -867,7 +874,11 @@ impl MacroCallId {
                                 token_tree.syntax(),
                                 span_map,
                                 span,
-                                DocCommentDesugarMode::ProcMacro,
+                                if loc.def.is_declarative() {
+                                    DocCommentDesugarMode::DesugarMbeInput
+                                } else {
+                                    DocCommentDesugarMode::Keep
+                                },
                             );
                             tree.set_top_subtree_delimiter_kind(tt::DelimiterKind::Invisible);
                             tree.set_top_subtree_delimiter_span(tt::DelimSpan::from_single(span));
@@ -887,7 +898,11 @@ impl MacroCallId {
                             tt.syntax(),
                             span_map,
                             span,
-                            DocCommentDesugarMode::ProcMacro,
+                            if loc.def.is_declarative() {
+                                DocCommentDesugarMode::DesugarMbeInput
+                            } else {
+                                DocCommentDesugarMode::Keep
+                            },
                         );
                         attr_arg.set_top_subtree_delimiter_kind(tt::DelimiterKind::Invisible);
                         Some(attr_arg)
@@ -1060,6 +1075,10 @@ impl MacroDefId {
 
     pub fn is_proc_macro(&self) -> bool {
         matches!(self.kind, MacroDefKind::ProcMacro(..))
+    }
+
+    pub fn is_declarative(&self) -> bool {
+        matches!(self.kind, MacroDefKind::Declarative(..))
     }
 
     pub fn is_attribute(&self) -> bool {

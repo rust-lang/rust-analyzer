@@ -325,7 +325,7 @@ fn pretty_print_macro_expansion(
             (T!['{'], T!['}']) => "",
             (T![=], _) | (_, T![=]) => " ",
             (_, T!['{']) => " ",
-            (T![;] | T!['{'] | T!['}'], _) => "\n",
+            (T![;] | T!['{'] | T!['}'] | T![inner_doc_comment] | T![outer_doc_comment], _) => "\n",
             (_, T!['}']) => "\n",
             _ if (prev_kind.is_any_identifier()
                 || prev_kind == LIFETIME_IDENT

@@ -1,4 +1,7 @@
 //! Bidirectional protocol messages
+
+#![expect(clippy::large_enum_variant, reason = "this is just for serialization")]
+
 use std::{
     io::{self, BufRead, Write},
     ops::Range,
@@ -10,7 +13,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ProcMacroKind,
-    legacy_protocol::msg::{FlatTree, Message, PanicMessage, ServerConfig},
+    flat::FlatTree,
+    legacy_protocol::msg::{Message, PanicMessage, ServerConfig},
     transport::postcard,
 };
 

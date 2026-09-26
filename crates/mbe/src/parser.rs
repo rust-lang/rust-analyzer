@@ -100,9 +100,8 @@ pub(crate) enum Op {
     Concat { elements: Box<[ConcatMetaVarExprElem]>, span: Span },
     Repeat { tokens: MetaTemplate, kind: RepeatKind, separator: Option<Arc<Separator>> },
     Subtree { tokens: MetaTemplate, delimiter: tt::Delimiter },
-    Literal(tt::Literal),
+    Leaf(tt::Leaf),
     Punct(Box<ArrayVec<tt::Punct, MAX_GLUED_PUNCT_LEN>>),
-    Ident(tt::Ident),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -152,31 +151,18 @@ pub(crate) enum MetaVarKind {
     Literal,
 }
 
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Separator {
-    Literal(tt::Literal),
-    Ident(tt::Ident),
+    /// Putting a doc comment as the separator is not an error, but there is no way to match it -
+    /// doc comments in the input are desugared early, while in the macro they're kept as one token,
+    /// and those aren't the same. This seems like an oversight in rustc (especially given that
+    /// the fact that doc comments in the macro are ignored during matching is itself an oversight
+    /// that cannot be fixed because it'll be breaking).
+    ///
+    /// It's still possible to have them in the transcriber.
+    Leaf(tt::Leaf),
     Puncts(ArrayVec<tt::Punct, MAX_GLUED_PUNCT_LEN>),
     Lifetime(tt::Punct, tt::Ident),
-}
-
-// Note that when we compare a Separator, we just care about its textual value.
-impl PartialEq for Separator {
-    fn eq(&self, other: &Separator) -> bool {
-        use Separator::*;
-
-        match (self, other) {
-            (Ident(a), Ident(b)) => a.sym == b.sym,
-            (Literal(a), Literal(b)) => a.text_and_suffix == b.text_and_suffix,
-            (Puncts(a), Puncts(b)) if a.len() == b.len() => {
-                let a_iter = a.iter().map(|a| a.char);
-                let b_iter = b.iter().map(|b| b.char);
-                a_iter.eq(b_iter)
-            }
-            (Lifetime(_, a), Lifetime(_, b)) => a.sym == b.sym,
-            _ => false,
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -231,11 +217,11 @@ fn next_op(
                 TtElement::Leaf(leaf) => match leaf {
                     tt::Leaf::Ident(ident) if ident.sym == sym::crate_ => {
                         // We simply produce identifier `$crate` here. And it will be resolved when lowering ast to Path.
-                        Op::Ident(tt::Ident {
+                        Op::Leaf(tt::Leaf::Ident(tt::Ident {
                             sym: sym::dollar_crate,
                             span: ident.span,
                             is_raw: tt::IdentIsRaw::No,
-                        })
+                        }))
                     }
                     tt::Leaf::Ident(ident) => {
                         let kind = eat_fragment_kind(edition, src, mode)?;
@@ -261,7 +247,7 @@ fn next_op(
                             Box::new(res)
                         }),
                     },
-                    tt::Leaf::Punct(_) | tt::Leaf::Literal(_) => {
+                    tt::Leaf::Punct(_) | tt::Leaf::Literal(_) | tt::Leaf::DocComment(_) => {
                         return Err(ParseError::expected("expected ident"));
                     }
                 },
@@ -270,12 +256,17 @@ fn next_op(
 
         TtElement::Leaf(tt::Leaf::Literal(it)) => {
             src.next().expect("first token already peeked");
-            Op::Literal(it.clone())
+            Op::Leaf(tt::Leaf::Literal(it))
         }
 
         TtElement::Leaf(tt::Leaf::Ident(it)) => {
             src.next().expect("first token already peeked");
-            Op::Ident(it.clone())
+            Op::Leaf(tt::Leaf::Ident(it))
+        }
+
+        TtElement::Leaf(tt::Leaf::DocComment(it)) => {
+            src.next().expect("first token already peeked");
+            Op::Leaf(tt::Leaf::DocComment(it))
         }
 
         TtElement::Leaf(tt::Leaf::Punct(_)) => {
@@ -356,18 +347,22 @@ fn parse_repeat(src: &mut TtIter<'_>) -> Result<(Option<Separator>, RepeatKind),
         match tt {
             tt::Leaf::Ident(ident) => match separator {
                 Separator::Puncts(puncts) if puncts.is_empty() => {
-                    separator = Separator::Ident(ident.clone());
+                    separator = Separator::Leaf(tt::Leaf::Ident(ident));
                 }
                 Separator::Puncts(puncts) => match puncts.as_slice() {
                     [tt::Punct { char: '\'', .. }] => {
-                        separator = Separator::Lifetime(puncts[0], ident.clone());
+                        separator = Separator::Lifetime(puncts[0], ident);
                     }
                     _ => return Err(ParseError::InvalidRepeat),
                 },
                 _ => return Err(ParseError::InvalidRepeat),
             },
-            tt::Leaf::Literal(_) if has_sep => return Err(ParseError::InvalidRepeat),
-            tt::Leaf::Literal(lit) => separator = Separator::Literal(lit.clone()),
+            tt::Leaf::Literal(_) | tt::Leaf::DocComment(_) if has_sep => {
+                return Err(ParseError::InvalidRepeat);
+            }
+            leaf @ (tt::Leaf::Literal(_) | tt::Leaf::DocComment(_)) => {
+                separator = Separator::Leaf(leaf)
+            }
             tt::Leaf::Punct(punct) => {
                 let repeat_kind = match punct.char {
                     '*' => RepeatKind::ZeroOrMore,
