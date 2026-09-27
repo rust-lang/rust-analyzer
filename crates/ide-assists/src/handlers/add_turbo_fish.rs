@@ -108,7 +108,6 @@ pub(crate) fn add_turbo_fish(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
                     if let Some(pat) = let_stmt.pat() {
                         let elements = vec![
                             make.token(syntax::SyntaxKind::COLON).into(),
-                            make.whitespace(" ").into(),
                             placeholder_ty.syntax().clone().into(),
                         ];
                         editor.insert_all(Position::after(pat.syntax()), elements);
