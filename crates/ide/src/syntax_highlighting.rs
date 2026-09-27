@@ -11,7 +11,7 @@ mod html;
 #[cfg(test)]
 mod tests;
 
-use std::ops::ControlFlow;
+use std::{iter, ops::ControlFlow};
 
 use either::Either;
 use hir::{
@@ -261,6 +261,17 @@ fn traverse(
     let mut body_stack: Vec<Option<ExpressionStoreOwner>> = vec![];
     let mut per_body_cache: FxHashMap<ExpressionStoreOwner, FxHashSet<_>> = FxHashMap::default();
 
+    let first = root.token_at_offset(range_to_highlight.start()).right_biased();
+    for token in iter::successors(first, |it| it.next_token())
+        .take_while(|it| it.text_range().start() < range_to_highlight.end())
+        .filter(|it| it.kind() == COMMENT)
+    {
+        let mut highlight = HlTag::Comment.into();
+        if filter_by_config(&mut highlight, config) {
+            hl.add(HlRange { range: token.text_range(), highlight, binding_hash: None });
+        }
+    }
+
     // Walk all nodes, keeping track of whether we are inside a macro or not.
     // If in macro, expand it first and highlight the expanded code.
     let mut preorder = root.preorder_with_tokens();
@@ -268,7 +279,7 @@ fn traverse(
         use WalkEvent::{Enter, Leave};
 
         let range = match &event {
-            Enter(it) | Leave(it) => it.text_range(),
+            Enter(it) | Leave(it) => it.text_range_without_outer_trivia(),
         };
 
         // Element outside of the viewport, no need to highlight
