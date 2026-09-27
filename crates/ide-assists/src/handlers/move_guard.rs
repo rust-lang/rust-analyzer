@@ -1,12 +1,12 @@
-use itertools::{Itertools, chain};
+use itertools::chain;
 use syntax::{
-    SyntaxKind::WHITESPACE,
     TextRange,
+    ast::make::tokens::ELASTIC_MARKER,
     ast::{
         AstNode, BlockExpr, ElseBranch, Expr, IfExpr, MatchArm, Pat, edit::AstNodeEdit,
         prec::ExprPrecedence, syntax_factory::SyntaxFactory,
     },
-    syntax_editor::Element,
+    syntax_editor::RemoveOptions,
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -41,16 +41,11 @@ use crate::{AssistContext, AssistId, Assists};
 pub(crate) fn move_guard_to_arm_body(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let match_arm = ctx.find_node_at_offset::<MatchArm>()?;
     let guard = match_arm.guard()?;
-    if ctx.offset() > guard.syntax().text_range().end() {
+    if ctx.offset() > guard.syntax().text_range_without_outer_trivia().end() {
         cov_mark::hit!(move_guard_inapplicable_in_arm_body);
         return None;
     }
     let rest_arms = rest_arms(&match_arm, ctx.selection_trimmed())?;
-    let space_before_delete = chain(
-        guard.syntax().prev_sibling_or_token(),
-        rest_arms.iter().filter_map(|it| it.syntax().prev_sibling_or_token()),
-    );
-    let space_after_arrow = match_arm.fat_arrow_token()?.next_sibling_or_token();
 
     let arm_expr = match_arm.expr()?;
     let make = SyntaxFactory::without_mappings();
@@ -67,25 +62,26 @@ pub(crate) fn move_guard_to_arm_body(acc: &mut Assists, ctx: &AssistContext<'_, 
         .indent(arm_expr.indent_level());
     let ElseBranch::IfExpr(if_expr) = if_branch else { return None };
 
-    let target = guard.syntax().text_range();
+    let target = guard.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("move_guard_to_arm_body"),
         "Move guard to arm body",
         target,
         |builder| {
             let editor = builder.make_editor(match_arm.syntax());
-            for element in space_before_delete {
-                if element.kind() == WHITESPACE {
-                    editor.delete(element);
-                }
-            }
             for rest_arm in &rest_arms {
-                editor.delete(rest_arm.syntax());
+                editor.delete_with(
+                    rest_arm.syntax(),
+                    RemoveOptions { add_elastic_marker: true, ..RemoveOptions::KEEP_LEADING },
+                );
             }
-            if let Some(element) = space_after_arrow
-                && element.kind() == WHITESPACE
+            if let Some(prev) =
+                guard.syntax().first_non_trivia_token().and_then(|it| it.prev_non_trivia_token())
             {
-                editor.replace(element, make.whitespace(" "));
+                editor.splice_trailing_trivia(&prev, .., [ELASTIC_MARKER]);
+            }
+            if let Some(arrow) = match_arm.fat_arrow_token() {
+                editor.splice_trailing_trivia(&arrow, .., [ELASTIC_MARKER]);
             }
 
             editor.delete(guard.syntax());
@@ -143,7 +139,7 @@ pub(crate) fn move_arm_cond_to_match_guard(
             None
         }
     })?;
-    if ctx.offset() > if_expr.then_branch()?.syntax().text_range().start() {
+    if ctx.offset() > if_expr.then_branch()?.syntax().text_range_without_outer_trivia().start() {
         return None;
     }
 
@@ -168,7 +164,6 @@ pub(crate) fn move_arm_cond_to_match_guard(
                 cov_mark::hit!(move_guard_ifelse_else_block);
                 0
             };
-            let indent_level = match_arm.indent_level();
             let make_guard = |cond: Option<Expr>| {
                 let condition = match (arm_guard.clone(), cond) {
                     (None, None) => return None,
@@ -228,10 +223,8 @@ pub(crate) fn move_arm_cond_to_match_guard(
                 }
             }
 
-            let newline = make.whitespace(&format!("\n{indent_level}"));
-            let replace_arms = replace_arms.iter().map(|it| it.syntax().syntax_element());
-            let replace_arms = Itertools::intersperse(replace_arms, newline.syntax_element());
-            editor.replace_with_many(match_arm.syntax(), replace_arms.collect());
+            let replace_arms = replace_arms.iter().map(|it| it.syntax().clone().into()).collect();
+            editor.replace_with_many(match_arm.syntax(), replace_arms);
 
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
@@ -249,9 +242,9 @@ fn rest_arms(match_arm: &MatchArm, selection: TextRange) -> Option<Vec<MatchArm>
             selection.is_empty() || crate::utils::is_selected(it, selection, false)
         })
         .take_while(move |it| {
-            it.pat()
-                .zip(match_arm.pat())
-                .is_some_and(|(a, b)| a.syntax().text() == b.syntax().text())
+            it.pat().zip(match_arm.pat()).is_some_and(|(a, b)| {
+                a.syntax().text_without_outer_trivia() == b.syntax().text_without_outer_trivia()
+            })
         })
         .collect::<Vec<_>>()
         .into()
