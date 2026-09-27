@@ -1,7 +1,6 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     GENERIC_PARAM_LIST
@@ -9,8 +8,7 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "F"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -31,35 +29,27 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
   CONST
-    CONST_KW "const"
-    WHITESPACE " "
+    CONST_KW "const" [] [WHITESPACE(" ")]
     NAME
       IDENT "TEST"
-    COLON ":"
-    WHITESPACE " "
+    COLON ":" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "usize"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+            IDENT "usize" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     LITERAL
       INT_NUMBER "3"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "bar"
     GENERIC_PARAM_LIST
@@ -67,8 +57,7 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "F"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -96,10 +85,9 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

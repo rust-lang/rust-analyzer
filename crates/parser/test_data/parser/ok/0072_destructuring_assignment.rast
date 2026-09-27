@@ -1,73 +1,58 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           TUPLE_PAT
             L_PAREN "("
             IDENT_PAT
-              MUT_KW "mut"
-              WHITESPACE " "
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               NAME
                 IDENT "a"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             IDENT_PAT
-              MUT_KW "mut"
-              WHITESPACE " "
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               NAME
                 IDENT "b"
-            R_PAREN ")"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
             L_PAREN "("
             LITERAL
               INT_NUMBER "0"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             LITERAL
               INT_NUMBER "1"
             R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             TUPLE_EXPR
-              L_PAREN "("
+              L_PAREN "(" [WHITESPACE("    ")] []
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "b"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "a"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               RANGE_EXPR
                 DOT2 ".."
-              R_PAREN ")"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+              R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             TUPLE_EXPR
               L_PAREN "("
               PATH_EXPR
@@ -75,78 +60,60 @@ SOURCE_FILE
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "a"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "b"
               R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PAREN_EXPR
-              L_PAREN "("
+              L_PAREN "(" [WHITESPACE("    ")] []
               UNDERSCORE_EXPR
                 UNDERSCORE "_"
-              R_PAREN ")"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+              R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             RANGE_EXPR
               DOT2 ".."
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         STRUCT
-          STRUCT_KW "struct"
-          WHITESPACE " "
+          STRUCT_KW "struct" [WHITESPACE("    ")] [WHITESPACE(" ")]
           NAME
-            IDENT "S"
-          WHITESPACE " "
+            IDENT "S" [] [WHITESPACE(" ")]
           RECORD_FIELD_LIST
-            L_CURLY "{"
-            WHITESPACE " "
+            L_CURLY "{" [] [WHITESPACE(" ")]
             RECORD_FIELD
               NAME
                 IDENT "a"
-              COLON ":"
-              WHITESPACE " "
+              COLON ":" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "i32"
-            WHITESPACE " "
-            R_CURLY "}"
-        WHITESPACE "\n    "
+                      IDENT "i32" [] [WHITESPACE(" ")]
+            R_CURLY "}" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             RECORD_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "S"
-              WHITESPACE " "
+                    IDENT "S" [WHITESPACE("    ")] [WHITESPACE(" ")]
               RECORD_EXPR_FIELD_LIST
-                L_CURLY "{"
-                WHITESPACE " "
-                DOT2 ".."
-                WHITESPACE " "
-                R_CURLY "}"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                L_CURLY "{" [] [WHITESPACE(" ")]
+                DOT2 ".." [] [WHITESPACE(" ")]
+                R_CURLY "}" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             RECORD_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "S"
-              WHITESPACE " "
+                    IDENT "S" [] [WHITESPACE(" ")]
               RECORD_EXPR_FIELD_LIST
-                L_CURLY "{"
-                WHITESPACE " "
+                L_CURLY "{" [] [WHITESPACE(" ")]
                 DOT2 ".."
                 CALL_EXPR
                   PATH_EXPR
@@ -161,11 +128,9 @@ SOURCE_FILE
                           IDENT "default"
                   ARG_LIST
                     L_PAREN "("
-                    R_PAREN ")"
-                WHITESPACE " "
+                    R_PAREN ")" [] [WHITESPACE(" ")]
                 R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             CALL_EXPR
@@ -173,15 +138,13 @@ SOURCE_FILE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "Some"
+                      IDENT "Some" [WHITESPACE("    ")] []
               ARG_LIST
                 L_PAREN "("
                 RANGE_EXPR
                   DOT2 ".."
-                R_PAREN ")"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             CALL_EXPR
               PATH_EXPR
                 PATH
@@ -193,8 +156,7 @@ SOURCE_FILE
                 LITERAL
                   INT_NUMBER "0"
                 R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             CALL_EXPR
@@ -202,88 +164,72 @@ SOURCE_FILE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "Ok"
+                      IDENT "Ok" [WHITESPACE("    ")] []
               ARG_LIST
                 L_PAREN "("
                 UNDERSCORE_EXPR
                   UNDERSCORE "_"
-                R_PAREN ")"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             LITERAL
               INT_NUMBER "0"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           TUPLE_PAT
             L_PAREN "("
             IDENT_PAT
               NAME
                 IDENT "a"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             IDENT_PAT
               NAME
                 IDENT "b"
             R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             ARRAY_EXPR
-              L_BRACK "["
+              L_BRACK "[" [WHITESPACE("    ")] []
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "a"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               RANGE_EXPR
                 DOT2 ".."
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "b"
-              R_BRACK "]"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+              R_BRACK "]" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             ARRAY_EXPR
               L_BRACK "["
               LITERAL
                 INT_NUMBER "1"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               RANGE_EXPR
                 DOT2 ".."
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               LITERAL
                 INT_NUMBER "2"
               R_BRACK "]"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             TUPLE_EXPR
-              L_PAREN "("
+              L_PAREN "(" [WHITESPACE("    ")] []
               UNDERSCORE_EXPR
                 UNDERSCORE "_"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               UNDERSCORE_EXPR
                 UNDERSCORE "_"
-              R_PAREN ")"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+              R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             TUPLE_EXPR
               L_PAREN "("
               PATH_EXPR
@@ -291,26 +237,22 @@ SOURCE_FILE
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "a"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "b"
               R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PAREN_EXPR
-              L_PAREN "("
+              L_PAREN "(" [WHITESPACE("    ")] []
               UNDERSCORE_EXPR
                 UNDERSCORE "_"
-              R_PAREN ")"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+              R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             TUPLE_EXPR
               L_PAREN "("
               PATH_EXPR
@@ -318,23 +260,19 @@ SOURCE_FILE
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "a"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "b"
               R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             UNDERSCORE_EXPR
-              UNDERSCORE "_"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+              UNDERSCORE "_" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             TUPLE_EXPR
               L_PAREN "("
               PATH_EXPR
@@ -342,15 +280,13 @@ SOURCE_FILE
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "a"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
                       IDENT "b"
               R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

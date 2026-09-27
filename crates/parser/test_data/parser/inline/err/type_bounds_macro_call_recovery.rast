@@ -1,7 +1,6 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     GENERIC_PARAM_LIST
@@ -9,8 +8,7 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -23,13 +21,11 @@ SOURCE_FILE
               TOKEN_TREE
                 L_BRACK "["
                 R_BRACK "]"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -39,13 +35,11 @@ SOURCE_FILE
                     IDENT "T"
             ERROR
               BANG "!"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -61,11 +55,9 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       PATH_TYPE
         PATH
           PATH_SEGMENT
@@ -80,11 +72,9 @@ SOURCE_FILE
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "T"
-                    BANG "!"
-  WHITESPACE " "
+                    BANG "!" [] [WHITESPACE(" ")]
   ERROR
-    PLUS "+"
-  WHITESPACE " "
+    PLUS "+" [] [WHITESPACE(" ")]
   MACRO_CALL
     PATH
       PATH_SEGMENT
@@ -95,12 +85,11 @@ SOURCE_FILE
       L_CURLY "{"
       R_CURLY "}"
   ERROR
-    R_ANGLE ">"
-  WHITESPACE " "
+    R_ANGLE ">" [] [WHITESPACE(" ")]
   ERROR
     L_CURLY "{"
-    R_CURLY "}"
-  WHITESPACE "\n"
+    R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 12: unexpected `!` in type path, macro calls are not allowed here
 error 21: unexpected `!` in type path, macro calls are not allowed here
 error 28: unexpected `!` in type path, macro calls are not allowed here

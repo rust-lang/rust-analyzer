@@ -1,38 +1,30 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           TUPLE_STRUCT_PAT
             PATH
               PATH_SEGMENT
                 NAME_REF
                   IDENT "S"
             L_PAREN "("
-            R_PAREN ")"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
             L_PAREN "("
             R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           TUPLE_STRUCT_PAT
             PATH
               PATH_SEGMENT
@@ -41,18 +33,14 @@ SOURCE_FILE
             L_PAREN "("
             WILDCARD_PAT
               UNDERSCORE "_"
-            R_PAREN ")"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
             L_PAREN "("
             R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           TUPLE_STRUCT_PAT
             PATH
               PATH_SEGMENT
@@ -62,18 +50,14 @@ SOURCE_FILE
             WILDCARD_PAT
               UNDERSCORE "_"
             COMMA ","
-            R_PAREN ")"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
             L_PAREN "("
             R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           TUPLE_STRUCT_PAT
             PATH
               PATH_SEGMENT
@@ -82,28 +66,21 @@ SOURCE_FILE
             L_PAREN "("
             WILDCARD_PAT
               UNDERSCORE "_"
-            COMMA ","
-            WHITESPACE " "
+            COMMA "," [] [WHITESPACE(" ")]
             REST_PAT
-              DOT2 ".."
-            WHITESPACE " "
-            COMMA ","
-            WHITESPACE " "
+              DOT2 ".." [] [WHITESPACE(" ")]
+            COMMA "," [] [WHITESPACE(" ")]
             IDENT_PAT
               NAME
                 IDENT "x"
-            R_PAREN ")"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
             L_PAREN "("
             R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           TUPLE_STRUCT_PAT
             PATH
               PATH_SEGMENT
@@ -111,19 +88,15 @@ SOURCE_FILE
                   IDENT "S"
             L_PAREN "("
             OR_PAT
-              PIPE "|"
-              WHITESPACE " "
+              PIPE "|" [] [WHITESPACE(" ")]
               IDENT_PAT
                 NAME
                   IDENT "a"
-            R_PAREN ")"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           TUPLE_EXPR
             L_PAREN "("
             R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "T" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -23,8 +20,7 @@ SOURCE_FILE
                   LIFETIME
                     LIFETIME_IDENT "'a"
                 R_ANGLE ">"
-              COLON ":"
-              WHITESPACE " "
+              COLON ":" [] [WHITESPACE(" ")]
               TYPE_BOUND_LIST
                 TYPE_BOUND
                   PATH_TYPE
@@ -33,16 +29,12 @@ SOURCE_FILE
                         NAME_REF
                           IDENT "Clone"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "T" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -62,8 +54,7 @@ SOURCE_FILE
                         NAME_REF
                           IDENT "T"
                 R_PAREN ")"
-              COLON ":"
-              WHITESPACE " "
+              COLON ":" [] [WHITESPACE(" ")]
               TYPE_BOUND_LIST
                 TYPE_BOUND
                   PATH_TYPE
@@ -72,5 +63,5 @@ SOURCE_FILE
                         NAME_REF
                           IDENT "Clone"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

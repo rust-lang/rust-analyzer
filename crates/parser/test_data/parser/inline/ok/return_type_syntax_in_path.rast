@@ -1,7 +1,6 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     GENERIC_PARAM_LIST
@@ -12,18 +11,16 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE "\n"
+      R_PAREN ")" [] [NEWLINE("\n")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE "\n    "
+      WHERE_KW "where" [] [NEWLINE("\n")]
       WHERE_PRED
         PATH_TYPE
           PATH
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "T"
+                  IDENT "T" [WHITESPACE("    ")] []
             COLON2 "::"
             PATH_SEGMENT
               NAME_REF
@@ -32,8 +29,7 @@ SOURCE_FILE
                 L_PAREN "("
                 DOT2 ".."
                 R_PAREN ")"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -41,20 +37,18 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Send"
-      COMMA ","
-      WHITESPACE "\n    "
+      COMMA "," [] [NEWLINE("\n")]
       WHERE_PRED
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "method"
+                IDENT "method" [WHITESPACE("    ")] []
               RETURN_TYPE_SYNTAX
                 L_PAREN "("
                 DOT2 ".."
                 R_PAREN ")"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -62,21 +56,19 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Send"
-      COMMA ","
-      WHITESPACE "\n    "
+      COMMA "," [] [NEWLINE("\n")]
       WHERE_PRED
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "method"
+                IDENT "method" [WHITESPACE("    ")] []
               RETURN_TYPE_SYNTAX
                 COLON2 "::"
                 L_PAREN "("
                 DOT2 ".."
                 R_PAREN ")"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -84,10 +76,9 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Send"
-      COMMA ","
-    WHITESPACE "\n"
+      COMMA "," [] [NEWLINE("\n")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

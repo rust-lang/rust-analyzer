@@ -1,7 +1,6 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
@@ -12,5 +11,5 @@ SOURCE_FILE
         PATH_SEGMENT
           NAME_REF
             IDENT "collections"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""
