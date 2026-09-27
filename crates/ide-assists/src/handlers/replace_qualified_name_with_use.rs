@@ -7,7 +7,7 @@ use syntax::{
     AstNode, Edition, SyntaxNode,
     ast::{self, HasGenericArgs},
     match_ast,
-    syntax_editor::SyntaxEditor,
+    syntax_editor::{RemoveOptions, SyntaxEditor},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -70,7 +70,7 @@ pub(crate) fn replace_qualified_name_with_use(
         .flatten();
 
     let scope = ImportScope::find_insert_use_container(original_path.syntax(), &ctx.sema)?;
-    let target = original_path.syntax().text_range();
+    let target = original_path.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("replace_qualified_name_with_use"),
         "Replace qualified path with use",
@@ -154,11 +154,11 @@ fn maybe_replace_path(editor: &SyntaxEditor, path: ast::Path, target: ast::Path)
     }
 
     // Shorten `path`, leaving only its last segment.
-    if let Some(parent) = path.qualifier() {
-        editor.delete(parent.syntax());
-    }
     if let Some(double_colon) = path.coloncolon_token() {
         editor.delete(double_colon);
+    }
+    if let Some(parent) = path.qualifier() {
+        editor.delete_with(parent.syntax(), RemoveOptions::KEEP_LEADING);
     }
 
     Some(())

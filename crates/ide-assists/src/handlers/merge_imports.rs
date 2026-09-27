@@ -32,7 +32,7 @@ pub(crate) fn merge_imports(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
         // Merge a neighbor
         cov_mark::hit!(merge_with_use_item_neighbors);
         let tree = ctx.find_node_at_offset::<ast::UseTree>()?.top_use_tree();
-        let target = tree.syntax().text_range();
+        let target = tree.syntax().text_range_without_outer_trivia();
 
         let use_item = tree.syntax().parent().and_then(ast::Use::cast)?;
         let neighbor = next_prev().find_map(|dir| neighbor(&use_item, dir))?;
@@ -100,10 +100,15 @@ fn merge_uses(
     for item in &rest {
         merged = try_merge_imports(editor.make(), &merged, item, mb)?;
     }
-    for item in rest {
+    let mut items = rest;
+    items.push(first);
+    items.sort_by_key(|it| it.syntax().text_range().start());
+    let anchor = items.remove(0);
+    for item in items {
         item.remove(editor);
     }
-    editor.replace(first.syntax(), merged.syntax());
+    editor
+        .replace(anchor.syntax(), editor.make().with_trivia_from(merged.syntax(), anchor.syntax()));
     Some(())
 }
 
@@ -123,7 +128,7 @@ fn merge_use_trees(
     for item in rest {
         item.remove(editor);
     }
-    editor.replace(first.syntax(), merged.syntax());
+    editor.replace(first.syntax(), editor.make().with_trivia_from(merged.syntax(), first.syntax()));
     Some(())
 }
 
