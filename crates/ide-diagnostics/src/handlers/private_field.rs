@@ -58,7 +58,9 @@ pub(crate) fn field_is_private_fixes(
                         hir::FieldSource::Named(it) => {
                             it.unsafe_token().or(it.name()?.ident_token())?.text_range()
                         }
-                        hir::FieldSource::Pos(it) => it.ty()?.syntax().text_range(),
+                        hir::FieldSource::Pos(it) => {
+                            it.ty()?.syntax().text_range_without_outer_trivia()
+                        }
                     })
                 })
                 .transpose()?

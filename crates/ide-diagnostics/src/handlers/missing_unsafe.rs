@@ -52,18 +52,25 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::MissingUnsafe) -> Option<Vec
 
     let node_to_add_unsafe_block = pick_best_node_to_add_unsafe_block(&expr)?;
 
-    let mut replacement = format!("unsafe {{ {} }}", node_to_add_unsafe_block.text());
+    let mut replacement =
+        format!("unsafe {{ {} }}", node_to_add_unsafe_block.text_without_outer_trivia());
     if let Some(expr) = ast::Expr::cast(node_to_add_unsafe_block.clone())
         && needs_parentheses(&expr)
     {
         replacement = format!("({replacement})");
     }
-    let edit = TextEdit::replace(node_to_add_unsafe_block.text_range(), replacement);
+    let edit =
+        TextEdit::replace(node_to_add_unsafe_block.text_range_without_outer_trivia(), replacement);
     let source_change = SourceChange::from_text_edit(
         d.node.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
         edit,
     );
-    Some(vec![fix("add_unsafe", "Add unsafe block", source_change, expr.syntax().text_range())])
+    Some(vec![fix(
+        "add_unsafe",
+        "Add unsafe block",
+        source_change,
+        expr.syntax().text_range_without_outer_trivia(),
+    )])
 }
 
 // Pick the first ancestor expression of the unsafe `expr` that is not a
@@ -102,7 +109,13 @@ fn pick_best_node_to_add_unsafe_block(unsafe_expr: &ast::Expr) -> Option<SyntaxN
                     // block, e.g. `unsafe_expr += 1`
                     let is_left_hand_side_of_assignment = {
                         if let Some(ast::BinaryOp::Assignment { .. }) = it.op_kind() {
-                            it.lhs().map(|lhs| lhs.syntax().text_range().contains_range(node.text_range())).unwrap_or(false)
+                            it.lhs()
+                                .map(|lhs| {
+                                    lhs.syntax()
+                                        .text_range_without_outer_trivia()
+                                        .contains_range(node.text_range_without_outer_trivia())
+                                })
+                                .unwrap_or(false)
                         } else {
                             false
                         }
@@ -123,7 +136,10 @@ fn needs_parentheses(expr: &ast::Expr) -> bool {
     let node = expr.syntax();
     node.ancestors()
         .skip(1)
-        .take_while(|it| it.text_range().start() == node.text_range().start())
+        .take_while(|it| {
+            it.text_range_without_outer_trivia().start()
+                == node.text_range_without_outer_trivia().start()
+        })
         .map_while(ast::Expr::cast)
         .last()
         .and_then(|it| Some(it.syntax().parent()?.kind()))
