@@ -2,8 +2,8 @@ use either::Either;
 use hir::HirDisplay;
 use ide_db::syntax_helpers::{node_ext::walk_ty, suggest_name::NameGenerator};
 use syntax::{
-    ast::{self, AstNode, HasGenericArgs, HasGenericParams, HasName, edit::IndentLevel},
-    syntax_editor,
+    ast::{self, AstNode, HasGenericArgs, HasGenericParams, HasName},
+    syntax_editor::Position,
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -38,7 +38,7 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         || item.syntax(),
         |impl_| impl_.as_ref().either(AstNode::syntax, AstNode::syntax),
     );
-    let target = ty.syntax().text_range();
+    let target = ty.syntax().text_range_without_outer_trivia();
 
     let scope = ctx.sema.scope(ty.syntax())?;
     let resolved_ty = ctx.sema.resolve_type(&ty)?;
@@ -93,14 +93,11 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
                 editor.add_annotation(name.syntax(), builder.make_tabstop_before(cap));
             }
 
-            let indent = IndentLevel::from_node(node);
-            editor.insert_all(
-                syntax_editor::Position::before(node),
-                vec![
-                    ty_alias.syntax().clone().into(),
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                ],
+            editor.insert(
+                Position::before(node),
+                editor.make().prepend_leading_trivia(ty_alias.syntax(), "\n"),
             );
+            editor.prepend_leading_trivia(node, "\n");
 
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
@@ -274,6 +271,7 @@ struct S {
             ",
             r#"
 struct Vec<T> {}
+
 type $0Type = Vec<u8>;
 
 struct S {
@@ -369,6 +367,7 @@ impl<'outer, Outer, const OUTER: usize> () {
 "#,
             r#"
 struct Struct<const C: usize>;
+
 type $0Type<'inner, 'outer, Outer, Inner, const INNER: usize, const OUTER: usize> = &(Struct<INNER>, Struct<OUTER>, Outer, &(), Inner, &'outer ());
 
 impl<'outer, Outer, const OUTER: usize> () {
@@ -461,6 +460,7 @@ struct S {
             ",
             r#"
 struct Type;
+
 type $0Type1 = u8;
 
 struct S {

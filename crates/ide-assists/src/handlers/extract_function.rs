@@ -19,16 +19,14 @@ use ide_db::{
 };
 use itertools::Itertools;
 use syntax::{
-    Edition, SyntaxElement,
-    SyntaxKind::{self, COMMENT},
-    SyntaxNode, T, TextRange, WalkEvent,
+    Edition, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T, TextRange, WalkEvent,
     ast::{
         self, AstNode, AstToken, HasAttrs, HasGenericParams, HasName,
         edit::{AstNodeEdit, IndentLevel},
         syntax_factory::SyntaxFactory,
     },
     match_ast,
-    syntax_editor::{Position, SyntaxEditor},
+    syntax_editor::{Element, Position, SyntaxEditor},
 };
 
 use crate::{
@@ -170,16 +168,10 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             };
             if let Some(cap) = ctx.config.snippet_cap {
                 let extracted_fn = fn_def.descendants().find_map(ast::Fn::cast);
-                if let Some(fn_) = extracted_fn {
-                    if let Some(ws) = fn_
-                        .fn_token()
-                        .and_then(|tok| tok.next_token())
-                        .filter(|tok| tok.kind() == SyntaxKind::WHITESPACE)
-                    {
-                        editor.add_annotation(ws, builder.make_tabstop_after(cap));
-                    } else if let Some(name) = fn_.name() {
-                        editor.add_annotation(name.syntax(), builder.make_tabstop_before(cap));
-                    }
+                if let Some(fn_) = extracted_fn
+                    && let Some(name) = fn_.name()
+                {
+                    editor.add_annotation(name.syntax(), builder.make_tabstop_before(cap));
                 }
             }
 
@@ -219,21 +211,41 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
                 .parent()
                 .and_then(ast::MatchArm::cast)
                 .is_some_and(|arm| arm.comma_token().is_none());
-            match &fun.body {
-                FunctionBody::Expr(expr) => {
-                    let mut replacement = vec![call_expr.clone().into()];
-                    if needs_match_arm_comma {
-                        replacement.push(make.token(T![,]).into());
-                    }
-                    editor.replace_with_many(expr.syntax(), replacement);
-                }
-                FunctionBody::Span { .. } => editor.replace_all(elements, vec![call_expr.into()]),
+            let selection = ctx.selection_trimmed();
+            let outside = |it: &SyntaxToken| {
+                it.text_range().intersect(selection).is_none_or(|it| it.is_empty())
+            };
+            let (leading, _) = outer_trivia_text(elements.start(), elements.end(), outside);
+            let (_, trailing) = outer_trivia_text(elements.start(), elements.end(), |it| {
+                outside(it) || it.kind() == SyntaxKind::NEWLINE
+            });
+            let mut replacement = vec![make.with_leading_trivia(&call_expr, &leading)];
+            if needs_match_arm_comma {
+                replacement.push(make.token(T![,]).into());
             }
+            let last = replacement.len() - 1;
+            replacement[last] = make.with_trailing_trivia(&replacement[last], &trailing);
+            if let Some(next) =
+                elements.end().last_non_trivia_token().and_then(|it| it.next_non_trivia_token())
+            {
+                let trivia: Vec<_> = next.leading_trivia().collect();
+                let mut end = trivia
+                    .iter()
+                    .take_while(|it| it.text_range().start() < selection.end())
+                    .count();
+                if trivia[..end].iter().any(|it| it.kind() == SyntaxKind::COMMENT) {
+                    end += usize::from(
+                        trivia.get(end).is_some_and(|it| it.kind() == SyntaxKind::NEWLINE),
+                    );
+                    editor.splice_leading_trivia(&next, ..end, []);
+                }
+            }
+            editor.replace_all(elements, replacement);
 
             // Insert the newly extracted function (or impl)
-            editor.insert_all(
+            editor.insert(
                 Position::after(insert_after),
-                vec![make.whitespace(&format!("\n\n{new_indent}")).into(), fn_def.into()],
+                editor.make().prepend_leading_trivia(fn_def, "\n"),
             );
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
@@ -298,7 +310,7 @@ fn extraction_target(node: &SyntaxNode, selection_range: TextRange) -> Option<Fu
     // Covering element returned the parent block of one or multiple statements that have been selected
     if let Some(stmt_list) = ast::StmtList::cast(node.clone()) {
         if let Some(block_expr) = stmt_list.syntax().parent().and_then(ast::BlockExpr::cast)
-            && block_expr.syntax().text_range() == selection_range
+            && block_expr.syntax().text_range_without_outer_trivia() == selection_range
         {
             return FunctionBody::from_expr(block_expr.into());
         }
@@ -655,16 +667,16 @@ impl FunctionBody {
 
         // Get all of the elements intersecting with the selection
         let mut stmts_in_selection = full_body
-            .filter(|it| ast::Stmt::can_cast(it.kind()) || it.kind() == COMMENT)
+            .filter(|it| ast::Stmt::can_cast(it.kind()))
             .filter(|it| selected.intersect(it.text_range()).filter(|it| !it.is_empty()).is_some());
 
         let first_element = stmts_in_selection.next();
 
         // If the tail expr is part of the selection too, make that the last element
         // Otherwise use the last stmt
-        let last_element = if let Some(tail_expr) =
-            parent.tail_expr().filter(|it| selected.intersect(it.syntax().text_range()).is_some())
-        {
+        let last_element = if let Some(tail_expr) = parent.tail_expr().filter(|it| {
+            selected.intersect(it.syntax().text_range_without_outer_trivia()).is_some()
+        }) {
             Some(tail_expr.syntax().clone().into())
         } else {
             stmts_in_selection.last()
@@ -696,7 +708,9 @@ impl FunctionBody {
             FunctionBody::Expr(expr) => Some(expr.clone()),
             FunctionBody::Span { parent, text_range, .. } => {
                 let tail_expr = parent.tail_expr()?;
-                text_range.contains_range(tail_expr.syntax().text_range()).then_some(tail_expr)
+                text_range
+                    .contains_range(tail_expr.syntax().text_range_without_outer_trivia())
+                    .then_some(tail_expr)
             }
         }
     }
@@ -707,7 +721,9 @@ impl FunctionBody {
             FunctionBody::Span { parent, text_range, .. } => {
                 parent
                     .statements()
-                    .filter(|stmt| text_range.contains_range(stmt.syntax().text_range()))
+                    .filter(|stmt| {
+                        text_range.contains_range(stmt.syntax().text_range_without_outer_trivia())
+                    })
                     .filter_map(|stmt| match stmt {
                         ast::Stmt::ExprStmt(expr_stmt) => expr_stmt.expr().map(|e| vec![e]),
                         ast::Stmt::Item(_) => None,
@@ -728,10 +744,9 @@ impl FunctionBody {
                     })
                     .flatten()
                     .for_each(|expr| preorder_expr(&expr, cb));
-                if let Some(expr) = parent
-                    .tail_expr()
-                    .filter(|it| text_range.contains_range(it.syntax().text_range()))
-                {
+                if let Some(expr) = parent.tail_expr().filter(|it| {
+                    text_range.contains_range(it.syntax().text_range_without_outer_trivia())
+                }) {
                     preorder_expr(&expr, cb);
                 }
             }
@@ -744,7 +759,9 @@ impl FunctionBody {
             FunctionBody::Span { parent, text_range, .. } => {
                 parent
                     .statements()
-                    .filter(|stmt| text_range.contains_range(stmt.syntax().text_range()))
+                    .filter(|stmt| {
+                        text_range.contains_range(stmt.syntax().text_range_without_outer_trivia())
+                    })
                     .for_each(|stmt| match stmt {
                         ast::Stmt::ExprStmt(expr_stmt) => {
                             if let Some(expr) = expr_stmt.expr() {
@@ -764,10 +781,9 @@ impl FunctionBody {
                             }
                         }
                     });
-                if let Some(expr) = parent
-                    .tail_expr()
-                    .filter(|it| text_range.contains_range(it.syntax().text_range()))
-                {
+                if let Some(expr) = parent.tail_expr().filter(|it| {
+                    text_range.contains_range(it.syntax().text_range_without_outer_trivia())
+                }) {
                     walk_patterns_in_expr(&expr, cb);
                 }
             }
@@ -776,7 +792,7 @@ impl FunctionBody {
 
     fn text_range(&self) -> TextRange {
         match self {
-            FunctionBody::Expr(expr) => expr.syntax().text_range(),
+            FunctionBody::Expr(expr) => expr.syntax().text_range_without_outer_trivia(),
             &FunctionBody::Span { text_range, .. } => text_range,
         }
     }
@@ -815,7 +831,9 @@ impl FunctionBody {
         let mut res = FxIndexSet::default();
 
         let (text_range, element) = match self {
-            FunctionBody::Expr(expr) => (expr.syntax().text_range(), Either::Left(expr)),
+            FunctionBody::Expr(expr) => {
+                (expr.syntax().text_range_without_outer_trivia(), Either::Left(expr))
+            }
             FunctionBody::Span { parent, text_range, .. } => (*text_range, Either::Right(parent)),
         };
 
@@ -852,10 +870,9 @@ impl FunctionBody {
         let infer_expr_opt = |expr| sema.type_of_expr(&expr?).map(TypeInfo::adjusted);
         let mut parent_loop = None;
         let mut set_parent_loop = |loop_: &dyn ast::HasLoopBody| {
-            if loop_
-                .loop_body()
-                .is_some_and(|it| it.syntax().text_range().contains_range(self.text_range()))
-            {
+            if loop_.loop_body().is_some_and(|it| {
+                it.syntax().text_range_without_outer_trivia().contains_range(self.text_range())
+            }) {
                 parent_loop.get_or_insert(loop_.syntax().clone());
             }
         };
@@ -922,9 +939,9 @@ impl FunctionBody {
         let expr = expr?;
         let contains_tail_expr = if let Some(body_tail) = self.tail_expr() {
             let mut contains_tail_expr = false;
-            let tail_expr_range = body_tail.syntax().text_range();
+            let tail_expr_range = body_tail.syntax().text_range_without_outer_trivia();
             for_each_tail_expr(&expr, &mut |e| {
-                if tail_expr_range.contains_range(e.syntax().text_range()) {
+                if tail_expr_range.contains_range(e.syntax().text_range_without_outer_trivia()) {
                     contains_tail_expr = true;
                 }
             });
@@ -1088,10 +1105,11 @@ impl FunctionBody {
                 let usages = LocalUsages::find_local_usages(ctx, var);
                 let ty = var.ty(ctx.db());
 
-                let defined_outside_parent_loop = container_info
-                    .parent_loop
-                    .as_ref()
-                    .is_none_or(|it| it.text_range().contains_range(src.syntax().text_range()));
+                let defined_outside_parent_loop =
+                    container_info.parent_loop.as_ref().is_none_or(|it| {
+                        it.text_range_without_outer_trivia()
+                            .contains_range(src.syntax().text_range_without_outer_trivia())
+                    });
 
                 let is_copy = ty.is_copy(ctx.db());
                 let has_usages = self.has_usages_after_body(&usages);
@@ -1809,6 +1827,10 @@ fn make_body<'db>(
 
     let block = match &fun.body {
         FunctionBody::Expr(expr) => {
+            let selection = ctx.selection_trimmed();
+            let (leading, trailing) = outer_trivia_text(expr.syntax(), expr.syntax(), |it| {
+                it.text_range().intersect(selection).is_some_and(|it| !it.is_empty())
+            });
             let expr =
                 rewrite_body_segment(ctx, to_this_param, &fun.params, &handler, expr.syntax());
             let expr = ast::Expr::cast(expr).expect("Body segment should be an expr");
@@ -1819,22 +1841,23 @@ fn make_body<'db>(
                     let elements = block.stmt_list().map_or_else(
                         || Either::Left(iter::empty()),
                         |stmt_list| {
-                            let elements = stmt_list.syntax().children_with_tokens().filter_map(
-                                |node_or_token| match &node_or_token {
-                                    syntax::NodeOrToken::Node(node) => {
-                                        ast::Stmt::cast(node.clone()).map(|_| node_or_token)
-                                    }
-                                    syntax::NodeOrToken::Token(token) => {
-                                        ast::Comment::cast(token.clone()).map(|_| node_or_token)
-                                    }
-                                },
-                            );
+                            let elements = stmt_list
+                                .syntax()
+                                .children()
+                                .filter(|node| ast::Stmt::can_cast(node.kind()))
+                                .map(SyntaxElement::from);
                             Either::Right(elements)
                         },
                     );
                     make.hacky_block_expr(elements, block.tail_expr())
                 }
                 _ => {
+                    let expr = make.with_leading_trivia(expr.syntax(), &leading);
+                    let expr = make.with_trailing_trivia(&expr, &trailing);
+                    let expr = expr
+                        .into_node()
+                        .and_then(ast::Expr::cast)
+                        .expect("Body segment should be an expr");
                     let expr = expr.dedent(old_indent).indent(1.into());
 
                     make.block_expr(Vec::new(), Some(expr))
@@ -1842,10 +1865,36 @@ fn make_body<'db>(
             }
         }
         FunctionBody::Span { parent, text_range, .. } => {
-            let mut elements: Vec<_> = parent
+            let selected: Vec<_> = parent
                 .syntax()
                 .children_with_tokens()
-                .filter(|it| text_range.contains_range(it.text_range()))
+                .filter(|it| text_range.contains_range(it.text_range_without_outer_trivia()))
+                .collect();
+
+            let selection = text_range.cover(ctx.selection_trimmed());
+            let touched = |trivia_token: &SyntaxToken| {
+                trivia_token.text_range().intersect(selection).is_some()
+            };
+            let (leading, trailing) = selected
+                .first()
+                .zip(selected.last())
+                .map(|(first, last)| outer_trivia_text(first, last, touched))
+                .unwrap_or_default();
+            let after: Vec<SyntaxElement> = selected
+                .last()
+                .and_then(|it| it.last_non_trivia_token())
+                .and_then(|token| token.next_non_trivia_token())
+                .map(|next| {
+                    next.leading_trivia()
+                        .filter(touched)
+                        .filter(|it| it.kind() == SyntaxKind::COMMENT)
+                        .map(SyntaxElement::from)
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let mut elements: Vec<_> = selected
+                .into_iter()
                 .map(|it| match &it {
                     syntax::NodeOrToken::Node(n) => syntax::NodeOrToken::Node(
                         rewrite_body_segment(ctx, to_this_param.clone(), &fun.params, &handler, n),
@@ -1853,6 +1902,14 @@ fn make_body<'db>(
                     _ => it,
                 })
                 .collect();
+
+            if let Some(first) = elements.first() {
+                elements[0] = make.with_leading_trivia(first, &leading);
+            }
+            if let Some(last) = elements.last() {
+                let index = elements.len() - 1;
+                elements[index] = make.with_trailing_trivia(last, &trailing);
+            }
 
             let mut tail_expr = match &elements.last() {
                 Some(syntax::NodeOrToken::Node(node)) if ast::Expr::can_cast(node.kind()) => {
@@ -1894,6 +1951,7 @@ fn make_body<'db>(
                     },
                     _ => node_or_token,
                 })
+                .chain(after)
                 .collect::<Vec<SyntaxElement>>();
             tail_expr = tail_expr.map(|expr| expr.dedent(old_indent).indent(body_indent));
 
@@ -2071,8 +2129,12 @@ fn fix_param_usages<'db>(
             .original_range_opt(old)
             .map(|orig| crate::utils::cover_edit_range(syntax, orig.range - syntax_offset))
     };
-    let replace = |range, new: &SyntaxNode| {
-        editor.replace_all(range, vec![new.clone().into()]);
+    let replace = |range: RangeInclusive<SyntaxElement>, new: &SyntaxNode| {
+        let new = match range.start() == range.end() {
+            true => make.with_trivia_from(new, range.start()),
+            false => new.clone().into(),
+        };
+        editor.replace_all(range, vec![new]);
     };
 
     for self_usage in usages_for_self_param {
@@ -2222,6 +2284,25 @@ fn make_rewritten_flow(
         }
     };
     Some(make.expr_return(Some(value)).into())
+}
+
+fn outer_trivia_text(
+    first: impl Element,
+    last: impl Element,
+    keep: impl Fn(&SyntaxToken) -> bool,
+) -> (String, String) {
+    let text = |it: SyntaxToken| it.text().to_owned();
+    let leading = first
+        .syntax_element()
+        .first_non_trivia_token()
+        .map(|it| it.leading_trivia().filter(&keep).map(text).collect())
+        .unwrap_or_default();
+    let trailing = last
+        .syntax_element()
+        .last_non_trivia_token()
+        .map(|it| it.trailing_trivia().filter(&keep).map(text).collect())
+        .unwrap_or_default();
+    (leading, trailing)
 }
 
 #[cfg(test)]
@@ -6466,7 +6547,8 @@ fn main() {
 
 fn $0fun_name(s: &Foo) {
     print!("{}{}", *s, *s);
-}"#,
+}
+"#,
         );
 
         check_assist(
@@ -6501,7 +6583,8 @@ fn main() {
 
 fn $0fun_name(s: &Foo) {
     print!("{s}{s}");
-}"#,
+}
+"#,
         );
     }
 
@@ -6523,7 +6606,8 @@ fn foo() {
 
 fn $0fun_name(v: i32) {
     print!("{v:?}{}", v == 123);
-}"#,
+}
+"#,
         );
     }
 
@@ -6558,7 +6642,8 @@ fn $0fun_name(x: u32) -> Result<_, u32> {
         return Err(x * 2);
     };
     Ok(y)
-}"#,
+}
+"#,
         );
     }
 
@@ -6607,7 +6692,8 @@ fn foo() -> u32 {
 fn $0fun_name(v1: u32, v2: u32) -> u32 {
     let v3 = 3;
     o!(v1, v2, v3)
-}"#,
+}
+"#,
         );
     }
 
