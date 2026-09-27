@@ -1,92 +1,92 @@
 CHAR "'hello'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "''" error: empty character literal
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\n'" error: character constant must be escaped
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'spam'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\x0ff'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\\"a'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\na'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\ra'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\ta'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\\\a'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\'a'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\0a'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{0}x'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{1F63b}}'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\v'" error: unknown character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\💩'" error: unknown character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\●'" error: unknown character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\\\\\r'" error: character literal may only contain one codepoint
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\x'" error: numeric character escape is too short
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\x0'" error: numeric character escape is too short
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\xf'" error: numeric character escape is too short
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\xa'" error: numeric character escape is too short
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\xx'" error: invalid character in numeric character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\xы'" error: invalid character in numeric character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\x🦀'" error: invalid character in numeric character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\xtt'" error: invalid character in numeric character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\xff'" error: out of range hex escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\xFF'" error: out of range hex escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\x80'" error: out of range hex escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u'" error: incorrect unicode escape sequence
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u[0123]'" error: incorrect unicode escape sequence
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{0x}'" error: invalid character in unicode escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{'" error: unterminated unicode escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{0000'" error: unterminated unicode escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{}'" error: empty unicode escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{_0000}'" error: invalid start of unicode escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{0000000}'" error: overlong unicode escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{FFFFFF}'" error: invalid unicode character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{ffffff}'" error: invalid unicode character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{ffffff}'" error: invalid unicode character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{DC00}'" error: invalid unicode character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{DDDD}'" error: invalid unicode character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{DFFF}'" error: invalid unicode character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{D800}'" error: invalid unicode character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{DAAA}'" error: invalid unicode character escape
-WHITESPACE "\n"
+NEWLINE "\n"
 CHAR "'\\u{DBFF}'" error: invalid unicode character escape
-WHITESPACE "\n"
+NEWLINE "\n"
