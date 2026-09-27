@@ -8,21 +8,23 @@ use std::{
     cell::RefCell,
     fmt, iter,
     num::NonZeroU32,
-    ops::RangeInclusive,
+    ops::{RangeBounds, RangeInclusive},
     sync::atomic::{AtomicU32, Ordering},
 };
 
-use rowan::TextRange;
+use rowan::{GreenToken, SyntaxKind as RSyntaxKind, TextRange};
 use rustc_hash::FxHashMap;
 
 use crate::{
     AstNode, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
-    ast::{self, edit::IndentLevel, syntax_factory::SyntaxFactory},
+    ast::{make::tokens, syntax_factory::SyntaxFactory},
+    syntax_node::token_payload,
 };
 
 mod edit_algo;
 mod edits;
 mod mapping;
+mod normalize;
 
 pub use edits::{GetOrCreateWhereClause, Removable};
 pub use mapping::{SyntaxMapping, SyntaxMappingBuilder};
@@ -73,13 +75,15 @@ impl SyntaxEditor {
     }
 
     pub fn add_annotation(&self, element: impl Element, annotation: SyntaxAnnotation) {
-        self.annotations.borrow_mut().push((element.syntax_element(), annotation))
+        let element = element.syntax_element();
+        debug_assert!(!element.is_trivia(), "trivia cannot carry an annotation");
+        self.annotations.borrow_mut().push((element, annotation))
     }
 
     pub fn add_annotation_all(&self, elements: Vec<impl Element>, annotation: SyntaxAnnotation) {
-        self.annotations
-            .borrow_mut()
-            .extend(elements.into_iter().map(|e| e.syntax_element()).zip(iter::repeat(annotation)));
+        for element in elements {
+            self.add_annotation(element, annotation);
+        }
     }
 
     pub fn merge(&self, other: SyntaxEditor) {
@@ -107,47 +111,72 @@ impl SyntaxEditor {
         self.changes.borrow_mut().push(Change::InsertAll(position, elements))
     }
 
-    pub fn insert_with_whitespace(&self, position: Position, element: impl Element) {
-        self.insert_all_with_whitespace(position, vec![element.syntax_element()])
-    }
-
-    pub fn insert_all_with_whitespace(&self, position: Position, mut elements: Vec<SyntaxElement>) {
-        if let Some(first) = elements.first()
-            && let Some(ws) = ws_before(&position, first, &self.make)
-        {
-            elements.insert(0, ws.into());
+    fn next_surviving_token(&self, token: &SyntaxToken) -> Option<SyntaxToken> {
+        let changes = self.changes.borrow();
+        let covering = |it: &SyntaxToken| {
+            changes.iter().find(|change| {
+                !matches!(
+                    change,
+                    Change::Insert(..)
+                        | Change::InsertAll(..)
+                        | Change::Replace(SyntaxElement::Token(_), Some(_))
+                ) && change.target_range().contains_range(it.text_range())
+            })
+        };
+        for it in iter::successors(token.next_non_trivia_token(), |it| it.next_non_trivia_token()) {
+            match covering(&it) {
+                None => return Some(it),
+                Some(Change::Replace(_, None)) => (),
+                Some(Change::ReplaceWithMany(_, new) | Change::ReplaceAll(_, new))
+                    if new.is_empty() => {}
+                Some(_) => return None,
+            }
         }
-        if let Some(last) = elements.last()
-            && let Some(ws) = ws_after(&position, last, &self.make)
-        {
-            elements.push(ws.into());
-        }
-        self.insert_all(position, elements)
+        None
     }
 
     pub fn delete(&self, element: impl Element) {
         let element = element.syntax_element();
+        debug_assert!(!element.is_trivia(), "trivia is not a structural delete target");
         debug_assert!(is_ancestor_or_self_of_element(&element, &self.root));
         debug_assert!(
             !matches!(&element, SyntaxElement::Node(node) if node == &self.root),
             "should not delete root node"
         );
-        let mut changes = self.changes.borrow_mut();
-        for change in changes.iter_mut() {
-            if let Change::Replace(existing, replacement) = change
-                && *existing == element
-            {
-                if replacement.is_none() {
-                    return;
-                }
-                *replacement = None;
-                return;
-            }
+        if let SyntaxElement::Node(node) = &element
+            && !self.deleted(node)
+            && let Some(separator) = self.separator_of(node)
+        {
+            self.delete(separator);
         }
-        changes.push(Change::Replace(element, None));
+        self.queue_replace(element, None);
+    }
+
+    fn separator_of(&self, node: &SyntaxNode) -> Option<SyntaxToken> {
+        let separator = |it: Option<SyntaxElement>| {
+            it.and_then(|it| it.into_token()).filter(|it| it.kind() == T![,] && !self.deleted(it))
+        };
+        let ends_line =
+            |it: &SyntaxToken| it.trailing_trivia().any(|it| it.kind() == SyntaxKind::NEWLINE);
+        let prev = separator(node.prev_sibling_or_token());
+        let next = separator(node.next_sibling_or_token());
+        match next {
+            Some(next)
+                if next.leading_trivia().len() == 0
+                    && !node.last_non_trivia_token().is_some_and(|it| ends_line(&it))
+                    && ends_line(&next) =>
+            {
+                Some(next)
+            }
+            next => prev.or(next),
+        }
     }
 
     pub fn delete_all(&self, range: RangeInclusive<SyntaxElement>) {
+        debug_assert!(
+            !range.start().is_trivia() && !range.end().is_trivia(),
+            "trivia is not a structural delete target"
+        );
         if range.start() == range.end() {
             self.delete(range.start());
             return;
@@ -158,43 +187,133 @@ impl SyntaxEditor {
     }
 
     pub fn replace(&self, old: impl Element, new: impl Element) {
-        let old = old.syntax_element();
+        self.queue_replace(old.syntax_element(), Some(new.syntax_element()));
+    }
+
+    fn queue_replace(&self, old: SyntaxElement, new: Option<SyntaxElement>) {
+        debug_assert!(!old.is_trivia(), "trivia is not a structural replace target");
         debug_assert!(is_ancestor_or_self_of_element(&old, &self.root));
-        let new = new.syntax_element();
         let mut changes = self.changes.borrow_mut();
-        for change in changes.iter_mut() {
-            if let Change::Replace(existing, replacement) = change
-                && *existing == old
-            {
-                match replacement {
-                    None => return,
-                    Some(existing_new) if *existing_new == new => return,
-                    Some(existing_new) => {
-                        *existing_new = new;
-                        return;
-                    }
-                }
+        let queued = changes.iter_mut().find_map(|change| match change {
+            Change::Replace(existing, replacement) if *existing == old => Some(replacement),
+            _ => None,
+        });
+        match queued {
+            Some(queued) if queued.is_some() => *queued = new,
+            Some(_) => (),
+            None => changes.push(Change::Replace(old, new)),
+        }
+    }
+
+    pub fn splice_leading_trivia<'a>(
+        &self,
+        token: &SyntaxToken,
+        range: impl RangeBounds<usize>,
+        replacement: impl IntoIterator<Item = (SyntaxKind, &'a str)>,
+    ) {
+        self.splice_trivia(token, true, range, replacement);
+    }
+
+    pub fn delete_with(&self, element: impl Element, options: RemoveOptions) {
+        let element = element.syntax_element();
+        if let (Some(first), Some(last)) =
+            (element.first_non_trivia_token(), element.last_non_trivia_token())
+            && let Some(next) = self.next_surviving_token(&last)
+            && next.parent_ancestors().any(|it| it == self.root)
+        {
+            let residual: Vec<SyntaxToken> = (first.leading_trivia())
+                .filter(|_| options.keep_leading)
+                .chain(last.trailing_trivia().filter(|_| options.keep_trailing))
+                .collect();
+            let marker = options.add_elastic_marker.then_some(tokens::ELASTIC_MARKER);
+            let pieces: Vec<_> =
+                residual.iter().map(|it| (it.kind(), it.text())).chain(marker).collect();
+            if !pieces.is_empty() {
+                self.splice_leading_trivia(&next, ..0, pieces);
             }
         }
-        changes.push(Change::Replace(old, Some(new)));
+        self.delete(element);
+    }
+
+    pub fn prepend_leading_trivia(&self, element: impl Element, text: &str) {
+        let Some(token) = element.syntax_element().first_non_trivia_token() else { return };
+        self.splice_leading_trivia(&token, ..0, tokens::trivia(text));
+    }
+
+    pub fn splice_trailing_trivia<'a>(
+        &self,
+        token: &SyntaxToken,
+        range: impl RangeBounds<usize>,
+        replacement: impl IntoIterator<Item = (SyntaxKind, &'a str)>,
+    ) {
+        self.splice_trivia(token, false, range, replacement);
+    }
+
+    fn splice_trivia<'a>(
+        &self,
+        token: &SyntaxToken,
+        leading_side: bool,
+        range: impl RangeBounds<usize>,
+        replacement: impl IntoIterator<Item = (SyntaxKind, &'a str)>,
+    ) {
+        let Some(current) = self.pending_token(token) else { return };
+        let green = current.green();
+        let mut leading = green.leading_trivia().to_vec();
+        let mut trailing = green.trailing_trivia().to_vec();
+        let target = if leading_side { &mut leading } else { &mut trailing };
+
+        let replacement = replacement.into_iter().map(|(kind, text)| {
+            debug_assert!(kind.is_trivia(), "a trivia token must have a trivia kind");
+            GreenToken::new(RSyntaxKind(kind.into()), text)
+        });
+        target.splice(range, replacement).for_each(drop);
+
+        debug_assert!(
+            !trailing
+                .iter()
+                .rev()
+                .skip(1)
+                .any(|it| SyntaxKind::from(it.kind().0) == SyntaxKind::NEWLINE),
+            "trailing trivia must end at the newline delimiter"
+        );
+
+        let payload = token_payload(current.kind(), current.text(), leading, trailing);
+        self.queue_replace(token.clone().into(), Some(payload.into()));
+    }
+
+    fn pending_token(&self, token: &SyntaxToken) -> Option<SyntaxToken> {
+        let element = SyntaxElement::Token(token.clone());
+        let changes = self.changes.borrow();
+        let queued = changes.iter().find_map(|change| match change {
+            Change::Replace(existing, replacement) if *existing == element => Some(replacement),
+            _ => None,
+        });
+        match queued {
+            Some(replacement) => replacement.as_ref()?.as_token().cloned(),
+            None => Some(token.clone()),
+        }
     }
 
     pub fn replace_with_many(&self, old: impl Element, new: Vec<SyntaxElement>) {
         let old = old.syntax_element();
+        debug_assert!(!old.is_trivia(), "trivia is not a structural replace target");
         debug_assert!(is_ancestor_or_self_of_element(&old, &self.root));
         debug_assert!(
             !(matches!(&old, SyntaxElement::Node(node) if node == &self.root) && new.len() > 1),
             "cannot replace root node with many elements"
         );
-        self.changes.borrow_mut().push(Change::ReplaceWithMany(old.syntax_element(), new));
+        self.changes.borrow_mut().push(Change::ReplaceWithMany(old, new));
     }
 
     pub fn replace_all(&self, range: RangeInclusive<SyntaxElement>, new: Vec<SyntaxElement>) {
+        debug_assert!(
+            !range.start().is_trivia() && !range.end().is_trivia(),
+            "trivia is not a structural replace target"
+        );
         if range.start() == range.end() {
             self.replace_with_many(range.start(), new);
             return;
         }
-
         debug_assert!(is_ancestor_or_self_of_element(range.start(), &self.root));
         self.changes.borrow_mut().push(Change::ReplaceAll(range, new))
     }
@@ -203,7 +322,7 @@ impl SyntaxEditor {
         edit_algo::apply_edits(self)
     }
 
-    pub fn deleted(&self, element: impl Element) -> bool {
+    pub(crate) fn deleted(&self, element: impl Element) -> bool {
         let element = element.syntax_element();
         self.changes
             .borrow()
@@ -262,6 +381,20 @@ impl SyntaxEdit {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RemoveOptions {
+    pub keep_leading: bool,
+    pub keep_trailing: bool,
+    pub add_elastic_marker: bool,
+}
+
+impl RemoveOptions {
+    pub const KEEP_NO_TRIVIA: Self =
+        Self { keep_leading: false, keep_trailing: false, add_elastic_marker: false };
+    pub const KEEP_LEADING: Self = Self { keep_leading: true, ..Self::KEEP_NO_TRIVIA };
+    pub const KEEP_EXTERIOR: Self = Self { keep_trailing: true, ..Self::KEEP_LEADING };
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct SyntaxAnnotation(NonZeroU32);
@@ -291,7 +424,9 @@ impl Position {
     pub(crate) fn place(&self) -> (SyntaxNode, usize) {
         match &self.repr {
             PositionRepr::FirstChild(parent) => (parent.clone(), 0),
-            PositionRepr::After(child) => (child.parent().unwrap(), child.index() + 1),
+            PositionRepr::After(child) => {
+                (child.parent().unwrap(), child.index().expect("checked at insertion") + 1)
+            }
         }
     }
 }
@@ -304,12 +439,14 @@ enum PositionRepr {
 
 impl Position {
     pub fn after(elem: impl Element) -> Position {
-        let repr = PositionRepr::After(elem.syntax_element());
-        Position { repr }
+        let elem = elem.syntax_element();
+        debug_assert!(!elem.is_trivia(), "trivia is not a structural insertion anchor");
+        Position { repr: PositionRepr::After(elem) }
     }
 
     pub fn before(elem: impl Element) -> Position {
         let elem = elem.syntax_element();
+        debug_assert!(!elem.is_trivia(), "trivia is not a structural insertion anchor");
         let repr = match elem.prev_sibling_or_token() {
             Some(it) => PositionRepr::After(it),
             None => PositionRepr::FirstChild(elem.parent().unwrap()),
@@ -318,8 +455,7 @@ impl Position {
     }
 
     pub fn first_child_of(node: &(impl Into<SyntaxNode> + Clone)) -> Position {
-        let repr = PositionRepr::FirstChild(node.clone().into());
-        Position { repr }
+        Position { repr: PositionRepr::FirstChild(node.clone().into()) }
     }
 
     pub fn last_child_of(node: &(impl Into<SyntaxNode> + Clone)) -> Position {
@@ -351,16 +487,20 @@ impl Change {
     fn target_range(&self) -> TextRange {
         match self {
             Change::Insert(target, _) | Change::InsertAll(target, _) => match &target.repr {
-                PositionRepr::FirstChild(parent) => TextRange::at(
-                    parent.first_child_or_token().unwrap().text_range().start(),
-                    0.into(),
-                ),
-                PositionRepr::After(child) => TextRange::at(child.text_range().end(), 0.into()),
+                PositionRepr::FirstChild(parent) => {
+                    TextRange::at(parent.text_range().start(), 0.into())
+                }
+                PositionRepr::After(child) => {
+                    TextRange::at(child.text_range_including_trivia().end(), 0.into())
+                }
             },
-            Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => target.text_range(),
-            Change::ReplaceAll(range, _) => {
-                range.start().text_range().cover(range.end().text_range())
+            Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => {
+                target.text_range_including_trivia()
             }
+            Change::ReplaceAll(range, _) => range
+                .start()
+                .text_range_including_trivia()
+                .cover(range.end().text_range_including_trivia()),
         }
     }
 
@@ -429,14 +569,18 @@ impl fmt::Display for Change {
             Change::ReplaceAll(range, vec) => {
                 let parent = range.start().parent().unwrap();
                 let parent_str = parent.to_string();
-                let pre_range =
-                    TextRange::new(parent.text_range().start(), range.start().text_range().start());
-                let old_range = TextRange::new(
-                    range.start().text_range().start(),
-                    range.end().text_range().end(),
+                let pre_range = TextRange::new(
+                    parent.text_range().start(),
+                    range.start().text_range_including_trivia().start(),
                 );
-                let post_range =
-                    TextRange::new(range.end().text_range().end(), parent.text_range().end());
+                let old_range = TextRange::new(
+                    range.start().text_range_including_trivia().start(),
+                    range.end().text_range_including_trivia().end(),
+                );
+                let post_range = TextRange::new(
+                    range.end().text_range_including_trivia().end(),
+                    parent.text_range().end(),
+                );
 
                 let pre_str = &parent_str[pre_range - parent.text_range().start()];
                 let old_str = &parent_str[old_range - parent.text_range().start()];
@@ -477,86 +621,6 @@ impl Element for SyntaxToken {
     fn syntax_element(self) -> SyntaxElement {
         self.into()
     }
-}
-
-fn ws_before(
-    position: &Position,
-    new: &SyntaxElement,
-    factory: &SyntaxFactory,
-) -> Option<SyntaxToken> {
-    let prev = match &position.repr {
-        PositionRepr::FirstChild(_) => return None,
-        PositionRepr::After(it) => it,
-    };
-
-    if prev.kind() == T!['{']
-        && new.kind() == SyntaxKind::USE
-        && let Some(item_list) = prev.parent().and_then(ast::ItemList::cast)
-    {
-        let mut indent = IndentLevel::from_element(&item_list.syntax().clone().into());
-        indent.0 += 1;
-        return Some(factory.whitespace(&format!("\n{indent}")));
-    }
-
-    if prev.kind() == T!['{']
-        && ast::Stmt::can_cast(new.kind())
-        && let Some(stmt_list) = prev.parent().and_then(ast::StmtList::cast)
-    {
-        let mut indent = IndentLevel::from_element(&stmt_list.syntax().clone().into());
-        indent.0 += 1;
-        return Some(factory.whitespace(&format!("\n{indent}")));
-    }
-
-    ws_between(prev, new, factory)
-}
-
-fn ws_after(
-    position: &Position,
-    new: &SyntaxElement,
-    factory: &SyntaxFactory,
-) -> Option<SyntaxToken> {
-    let next = match &position.repr {
-        PositionRepr::FirstChild(parent) => parent.first_child_or_token()?,
-        PositionRepr::After(sibling) => sibling.next_sibling_or_token()?,
-    };
-    ws_between(new, &next, factory)
-}
-
-fn ws_between(
-    left: &SyntaxElement,
-    right: &SyntaxElement,
-    factory: &SyntaxFactory,
-) -> Option<SyntaxToken> {
-    if left.kind() == SyntaxKind::WHITESPACE || right.kind() == SyntaxKind::WHITESPACE {
-        return None;
-    }
-    if right.kind() == T![;] || right.kind() == T![,] {
-        return None;
-    }
-    if left.kind() == T![<] || right.kind() == T![>] {
-        return None;
-    }
-    if left.kind() == T![&] && right.kind() == SyntaxKind::LIFETIME {
-        return None;
-    }
-    if right.kind() == SyntaxKind::GENERIC_ARG_LIST {
-        return None;
-    }
-    if right.kind() == SyntaxKind::USE {
-        let mut indent = IndentLevel::from_element(left);
-        if left.kind() == SyntaxKind::USE {
-            indent.0 = IndentLevel::from_element(right).0.max(indent.0);
-        }
-        return Some(factory.whitespace(&format!("\n{indent}")));
-    }
-    if left.kind() == SyntaxKind::ATTR {
-        let mut indent = IndentLevel::from_element(right);
-        if right.kind() == SyntaxKind::ATTR {
-            indent.0 = IndentLevel::from_element(left).0.max(indent.0);
-        }
-        return Some(factory.whitespace(&format!("\n{indent}")));
-    }
-    Some(factory.whitespace(" "))
 }
 
 fn is_ancestor_or_self(node: &SyntaxNode, ancestor: &SyntaxNode) -> bool {
@@ -680,8 +744,10 @@ mod tests {
         let edit = editor.finish();
 
         let expect = expect![[r#"
-            let first = 1;{
-                let second = 2;let third = 3;
+            let first = 1;
+            {
+                let second = 2;
+                let third = 3;
             }"#]];
         expect.assert_eq(&edit.new_root.to_string());
     }
@@ -737,9 +803,11 @@ mod tests {
         let expect = expect![[r#"
             {
                 {
-                let first = 1;{
-                let second = 2;let third = 3;
-            }
+                    let first = 1;
+                {
+                let second = 2;
+                    let third = 3;
+                }
             }
             }"#]];
         expect.assert_eq(&edit.new_root.to_string());
@@ -791,12 +859,13 @@ mod tests {
         let expect = expect![[r#"
             {
                 {
+                    {
+                        let first = 1;
                 {
-                let first = 1;{
                 let second = 2;
             }
             }
-            }
+                }
             }"#]];
         expect.assert_eq(&edit.new_root.to_string());
     }
@@ -836,7 +905,8 @@ mod tests {
 
         let expect = expect![[r#"
             {
-                let first = 1;{
+                let first = 1;
+                {
                 let second = 2;
             }
             }"#]];
@@ -864,12 +934,6 @@ mod tests {
 
         if let Some(ret_ty) = parent_fn.ret_type() {
             editor.delete(ret_ty.syntax().clone());
-
-            if let Some(SyntaxElement::Token(token)) = ret_ty.syntax().next_sibling_or_token()
-                && token.kind().is_trivia()
-            {
-                editor.delete(token);
-            }
         }
 
         if let Some(tail) = parent_fn.body().unwrap().tail_expr() {
@@ -878,7 +942,9 @@ mod tests {
 
         let edit = editor.finish();
 
-        let expect = expect![["fn it() {\n    \n}"]];
+        let expect = expect![[r#"
+            fn it() {
+            }"#]];
         expect.assert_eq(&edit.new_root.to_string());
     }
 
@@ -935,7 +1001,7 @@ mod tests {
 
         let edit = editor.finish();
 
-        let expect = expect![["(()1, ()2)"]];
+        let expect = expect!["(() 1, () 2)"];
         expect.assert_eq(&edit.new_root.to_string());
     }
 }
