@@ -80,7 +80,10 @@ pub(crate) fn unwrap_tuple(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
             }
 
             let s = decls.trim();
-            edit.replace(parent.text_range(), s.strip_prefix(prefix).unwrap_or(s));
+            edit.replace(
+                parent.text_range_without_outer_trivia(),
+                s.strip_prefix(prefix).unwrap_or(s),
+            );
         },
     )
 }
