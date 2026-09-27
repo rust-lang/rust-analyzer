@@ -3,7 +3,7 @@ use syntax::{
     AstNode, SmolStr, T, TextRange, ToSmolStr,
     ast::{self, HasGenericParams, HasName},
     format_smolstr,
-    syntax_editor::{Element, Position, SyntaxEditor},
+    syntax_editor::{Position, SyntaxEditor},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -62,7 +62,7 @@ fn generate_unique_lifetime_param_name(
     let used_lifetime_param: FxHashSet<SmolStr> = existing_params
         .iter()
         .flat_map(|params| params.lifetime_params())
-        .map(|p| p.syntax().text().to_smolstr())
+        .map(|p| p.syntax().text_without_outer_trivia().to_smolstr())
         .collect();
     ('a'..='z').map(|c| format_smolstr!("'{c}")).find(|lt| !used_lifetime_param.contains(lt))
 }
@@ -112,13 +112,7 @@ fn generate_fn_def_assist(
         editor.replace(lifetime.syntax(), make.lifetime(&new_lifetime_name).syntax());
 
         if let Some(pos) = loc_needing_lifetime.and_then(|l| l.to_position()) {
-            editor.insert_all(
-                pos,
-                vec![
-                    make.lifetime(&new_lifetime_name).syntax().clone().into(),
-                    make.whitespace(" ").into(),
-                ],
-            );
+            editor.insert(pos, make.lifetime(&new_lifetime_name).syntax());
         }
 
         edit.add_file_edits(file_id, editor);
@@ -133,14 +127,8 @@ fn insert_new_generic_param_list_fn(
     let make = editor.make();
     let name = fn_def.name()?;
 
-    editor.insert_all(
-        Position::after(name.syntax()),
-        vec![
-            make.token(T![<]).syntax_element(),
-            make.lifetime(lifetime_name).syntax().syntax_element(),
-            make.token(T![>]).syntax_element(),
-        ],
-    );
+    let param = make.lifetime_param(make.lifetime(lifetime_name));
+    editor.insert(Position::after(name.syntax()), make.generic_param_list([param.into()]).syntax());
 
     Some(())
 }
@@ -192,14 +180,8 @@ fn insert_new_generic_param_list_imp(
     let make = editor.make();
     let impl_kw = impl_.impl_token()?;
 
-    editor.insert_all(
-        Position::after(impl_kw),
-        vec![
-            make.token(T![<]).syntax_element(),
-            make.lifetime(lifetime_name).syntax().syntax_element(),
-            make.token(T![>]).syntax_element(),
-        ],
-    );
+    let param = make.lifetime_param(make.lifetime(lifetime_name));
+    editor.insert(Position::after(impl_kw), make.generic_param_list([param.into()]).syntax());
 
     Some(())
 }
@@ -216,8 +198,7 @@ fn insert_lifetime_param(
     let mut elements = Vec::new();
 
     if needs_comma {
-        elements.push(make.token(T![,]).syntax_element());
-        elements.push(make.whitespace(" ").syntax_element());
+        elements.push(make.token(T![,]).into());
     }
 
     let lifetime = make.lifetime(lifetime_name);
