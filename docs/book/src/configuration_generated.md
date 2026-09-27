@@ -1469,7 +1469,7 @@ tests or binaries. For example, it may be `--release`.
 Default:
 ```json
 [
-  "--nocapture"
+  "--no-capture"
 ]
 ```
 
