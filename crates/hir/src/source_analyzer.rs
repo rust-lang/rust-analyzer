@@ -138,10 +138,10 @@ impl<'db> SourceAnalyzer<'db> {
             None => scope_for(db, scopes, source_map, node),
             Some(offset) => {
                 debug_assert!(
-                    node.text_range().contains_inclusive(offset),
+                    node.value.text_range().contains_inclusive(offset),
                     "{:?} not in {:?}",
                     offset,
-                    node.text_range()
+                    node.value.text_range()
                 );
                 scope_for_offset(db, scopes, source_map, node.file_id, offset)
             }
@@ -191,10 +191,10 @@ impl<'db> SourceAnalyzer<'db> {
             None => scope_for(db, scopes, source_map, node),
             Some(offset) => {
                 debug_assert!(
-                    node.text_range().contains_inclusive(offset),
+                    node.value.text_range().contains_inclusive(offset),
                     "{:?} not in {:?}",
                     offset,
-                    node.text_range()
+                    node.value.text_range()
                 );
                 scope_for_offset(db, scopes, source_map, node.file_id, offset)
             }
@@ -236,10 +236,10 @@ impl<'db> SourceAnalyzer<'db> {
             None => scope_for(db, scopes, source_map, node),
             Some(offset) => {
                 debug_assert!(
-                    node.text_range().contains_inclusive(offset),
+                    node.value.text_range().contains_inclusive(offset),
                     "{:?} not in {:?}",
                     offset,
-                    node.text_range()
+                    node.value.text_range()
                 );
                 scope_for_offset(db, scopes, source_map, node.file_id, offset)
             }

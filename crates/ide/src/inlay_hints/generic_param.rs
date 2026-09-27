@@ -28,7 +28,7 @@ pub(crate) fn hints(
     let generic_arg_list = node.generic_arg_list()?;
 
     let (generic_def, _, _, _) =
-        generic_def_for_node(sema, &generic_arg_list, &node.syntax().first_token()?)?;
+        generic_def_for_node(sema, &generic_arg_list, &node.syntax().first_non_trivia_token()?)?;
 
     let mut args = generic_arg_list.generic_args().peekable();
     let start_with_lifetime = matches!(args.peek()?, ast::GenericArg::LifetimeArg(_));
@@ -117,7 +117,7 @@ pub(crate) fn hints(
             kind: InlayKind::GenericParameter,
             label,
             text_edit: None,
-            resolve_parent: Some(node.syntax().text_range()),
+            resolve_parent: Some(node.syntax().text_range_without_outer_trivia()),
         })
     });
 

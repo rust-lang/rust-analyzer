@@ -42,14 +42,14 @@ pub(super) fn hints(
                 return None;
             }
             sema.resolve_trait(&path.path()?)?;
-            path.syntax().text_range()
+            path.syntax().text_range_without_outer_trivia()
         }
         Either::Right(dyn_) => {
             if dyn_.dyn_token().is_some() {
                 return None;
             }
 
-            dyn_.syntax().text_range()
+            dyn_.syntax().text_range_without_outer_trivia()
         }
     };
 

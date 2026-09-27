@@ -62,7 +62,7 @@ pub(crate) fn replace_with_lazy_method(
     acc.add(
         AssistId::refactor_rewrite("replace_with_lazy_method"),
         format!("Replace {method_name} with {method_name_lazy}"),
-        call.syntax().text_range(),
+        call.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(call.syntax());
             let add_param = match &*method_name_lazy {
@@ -173,7 +173,7 @@ pub(crate) fn replace_with_eager_method(
     acc.add(
         AssistId::refactor_rewrite("replace_with_eager_method"),
         format!("Replace {method_name} with {method_name_eager}"),
-        call.syntax().text_range(),
+        call.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(call.syntax());
             let called = into_call(&last_arg, &ctx.sema, editor.make());

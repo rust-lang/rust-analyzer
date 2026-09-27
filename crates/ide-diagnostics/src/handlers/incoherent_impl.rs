@@ -12,8 +12,8 @@ pub(crate) fn incoherent_impl(
 ) -> Diagnostic {
     let display_range = adjusted_display_range(ctx, InFile::new(d.file_id, d.impl_), &|node| {
         Some(TextRange::new(
-            node.syntax().text_range().start(),
-            node.self_ty()?.syntax().text_range().end(),
+            node.syntax().text_range_without_outer_trivia().start(),
+            node.self_ty()?.syntax().text_range_without_outer_trivia().end(),
         ))
     });
 

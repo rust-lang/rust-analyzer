@@ -77,13 +77,13 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &RemoveUnnecessaryElse) -> Option<
         let then_replacement =
             format!("\n{then_indent}if {condition} {{{then_stmts}\n{then_indent}}}",);
         let replacement = format!("{{{then_replacement}{else_replacement}\n{base_indent}}}");
-        (replacement, if_expr.syntax().text_range())
+        (replacement, if_expr.syntax().text_range_without_outer_trivia())
     } else {
         (
             else_replacement,
             TextRange::new(
-                if_expr.then_branch()?.syntax().text_range().end(),
-                if_expr.syntax().text_range().end(),
+                if_expr.then_branch()?.syntax().text_range_without_outer_trivia().end(),
+                if_expr.syntax().text_range_without_outer_trivia().end(),
             ),
         )
     };
