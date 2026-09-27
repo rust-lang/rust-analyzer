@@ -71,14 +71,12 @@ pub(crate) fn goto_definition(
         | T![super]
         | T![crate]
         | T![Self]
-        | COMMENT
         | INNER_DOC_COMMENT
         | OUTER_DOC_COMMENT => 4,
         // index and prefix ops
         T!['['] | T![']'] | T![?] | T![*] | T![-] | T![!] => 3,
         kind if kind.is_keyword(edition) => 2,
         T!['('] | T![')'] => 2,
-        kind if kind.is_trivia() => 0,
         _ => 1,
     })?;
     if let Some(doc_comment) = token_as_doc_comment(&original_token) {
@@ -643,7 +641,9 @@ fn nav_for_break_points(
                 ast::Expr::WhileExpr(while_) => while_.while_token()?.text_range(),
                 ast::Expr::ForExpr(for_) => for_.for_token()?.text_range(),
                 // We guarantee that the label exists
-                ast::Expr::BlockExpr(blk) => blk.label().unwrap().syntax().text_range(),
+                ast::Expr::BlockExpr(blk) => {
+                    blk.label().unwrap().syntax().text_range_without_outer_trivia()
+                }
                 _ => return None,
             };
             let nav = expr_to_nav(db, expr_in_file, Some(focus_range));
@@ -666,7 +666,7 @@ fn expr_to_nav(
 ) -> UpmappingResult<NavigationTarget> {
     let kind = SymbolKind::Label;
 
-    let value_range = value.syntax().text_range();
+    let value_range = value.syntax().text_range_without_outer_trivia();
     let navs = navigation_target::orig_range_with_focus_r(db, file_id, value_range, focus_range);
     navs.map(|(hir::FileRangeWrapper { file_id, range }, focus_range)| {
         NavigationTarget::from_syntax(
