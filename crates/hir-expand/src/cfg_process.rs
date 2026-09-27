@@ -193,12 +193,10 @@ fn macro_input_callback(
                                     WalkEvent::Enter(SyntaxElement::Node(_))
                                     | WalkEvent::Leave(_) => {}
                                     WalkEvent::Enter(SyntaxElement::Token(token)) => {
-                                        let kind = token.kind();
-                                        if kind == T![,] {
+                                        if token.kind() == T![,] {
                                             break;
-                                        } else if !kind.is_trivia() {
-                                            break 'eat_comma;
                                         }
+                                        break 'eat_comma;
                                     }
                                 }
                                 events_until_comma += 1;

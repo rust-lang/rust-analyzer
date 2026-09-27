@@ -33,7 +33,7 @@ use span::{
 use stdx::{format_to, format_to_acc};
 use syntax::{
     AstNode, AstPtr,
-    SyntaxKind::{COMMENT, EOF, IDENT, LIFETIME_IDENT},
+    SyntaxKind::{COMMENT, EOF, IDENT, LIFETIME_IDENT, TOKEN_TREE},
     SyntaxNode, T,
     ast::{self, edit::IndentLevel},
 };
@@ -76,7 +76,7 @@ fn check_errors(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect)
             let ast = editioned_file_id.parse(&db).syntax_node();
             let ast_id_map = ast_id.file_id.ast_id_map(&db);
             let node = ast_id_map.get_erased(ast_id.value).to_node(&ast);
-            Some((node.text_range(), errors))
+            Some((node.text_range_without_outer_trivia(), errors))
         })
         .sorted_unstable_by_key(|(range, _)| range.start())
         .format_with("\n", |(range, err), format| format(&format_args!("{range:?}: {err}")))
@@ -133,7 +133,14 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
         let mut expect_errors = false;
         let mut show_spans = false;
         let mut show_ctxt = false;
-        for comment in call.syntax().children_with_tokens().filter(|it| it.kind() == COMMENT) {
+        for comment in call
+            .syntax()
+            .descendants_with_tokens()
+            .filter_map(|it| it.into_token())
+            .filter(|it| it.parent_ancestors().all(|it| it.kind() != TOKEN_TREE))
+            .flat_map(|it| it.leading_trivia().chain(it.trailing_trivia()))
+            .filter(|it| it.kind() == COMMENT)
+        {
             tree |= comment.to_string().contains("+tree");
             expect_errors |= comment.to_string().contains("+errors");
             show_spans |= comment.to_string().contains("+spans");
@@ -174,14 +181,14 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
                 .fold(String::new(), |mut acc, line| format_to_acc!(acc, "// {line}"));
             format_to!(expn_text, "\n{}", tree)
         }
-        let range = call.syntax().text_range();
+        let range = call.syntax().text_range_without_outer_trivia();
         let range: Range<usize> = range.into();
         text_edits.push((range, expn_text));
     }
 
     text_edits.sort_by_key(|(range, _)| range.start);
     text_edits.reverse();
-    let mut expanded_text = source_file.to_string();
+    let mut expanded_text = source_file.syntax().to_string();
     for (range, text) in text_edits {
         expanded_text.replace_range(range, &text);
     }
@@ -208,7 +215,14 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
             let call = file_id.call_node(&db);
             let mut show_spans = false;
             let mut show_ctxt = false;
-            for comment in call.value.children_with_tokens().filter(|it| it.kind() == COMMENT) {
+            for comment in call
+                .value
+                .descendants_with_tokens()
+                .filter_map(|it| it.into_token())
+                .filter(|it| it.parent_ancestors().all(|it| it.kind() != TOKEN_TREE))
+                .flat_map(|it| it.leading_trivia().chain(it.trailing_trivia()))
+                .filter(|it| it.kind() == COMMENT)
+            {
                 show_spans |= comment.to_string().contains("+spans");
                 show_ctxt |= comment.to_string().contains("+syntaxctxt");
             }
@@ -315,7 +329,7 @@ fn pretty_print_macro_expansion(
     let mut res = String::new();
     let mut prev_kind = EOF;
     let mut indent_level = 0;
-    for token in iter::successors(expn.first_token(), |t| t.next_token())
+    for token in iter::successors(expn.first_non_trivia_token(), |t| t.next_token())
         .take_while(|token| token.text_range().start() < expn.text_range().end())
     {
         let curr_kind = token.kind();
@@ -363,7 +377,7 @@ fn pretty_print_macro_expansion(
             res.push_str(&"    ".repeat(level));
         }
         prev_kind = curr_kind;
-        format_to!(res, "{}", token);
+        res.push_str(token.text());
         if show_spans || show_ctxt {
             let span = map.span_for_range(token.text_range());
             format_to!(res, "#");
