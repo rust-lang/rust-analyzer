@@ -2107,12 +2107,16 @@ impl SyntaxFactory {
         }
     }
 
-    pub fn token(&self, kind: SyntaxKind) -> SyntaxToken {
-        make::token(kind)
+    pub fn labeled_block_expr(
+        &self,
+        label: ast::Lifetime,
+        stmt_list: ast::StmtList,
+    ) -> ast::BlockExpr {
+        make::labeled_block_expr(label, stmt_list)
     }
 
-    pub fn whitespace(&self, text: &str) -> SyntaxToken {
-        make::tokens::whitespace(text)
+    pub fn token(&self, kind: SyntaxKind) -> SyntaxToken {
+        make::token(kind)
     }
 
     pub fn ident(&self, text: &str) -> SyntaxToken {
