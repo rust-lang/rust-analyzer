@@ -1,8 +1,8 @@
 use ide_db::{famous_defs::FamousDefs, traits::resolve_target_trait};
 use syntax::{
-    AstNode, SyntaxElement, SyntaxNode, T,
+    AstNode, T,
     ast::{self, edit::AstNodeEdit, syntax_factory::SyntaxFactory},
-    syntax_editor::{Element, Position, SyntaxEditor},
+    syntax_editor::{Position, RemoveOptions, SyntaxEditor},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -63,7 +63,7 @@ pub(crate) fn generate_mut_trait_impl(
     let trait_ = resolve_target_trait(&ctx.sema, &impl_def)?;
     let trait_new = get_trait_mut(&trait_, famous)?;
 
-    let target = impl_def.syntax().text_range();
+    let target = impl_def.syntax().text_range_without_outer_trivia();
 
     acc.add(
         AssistId::generate("generate_mut_trait_impl"),
@@ -79,39 +79,22 @@ pub(crate) fn generate_mut_trait_impl(
 
             let new_impl = ast::Impl::cast(new_root.clone()).unwrap();
 
-            let new_impl = new_impl.indent(indent);
-
             let editor = edit.make_editor(impl_def.syntax());
-            let make = editor.make();
-            editor.insert_all(
+            let new_impl = editor.make().clear_trivia(new_impl.indent(indent).syntax());
+            editor.insert(
                 Position::before(impl_def.syntax()),
-                vec![
-                    new_impl.syntax().syntax_element(),
-                    make.whitespace(&format!("\n\n{indent}")).syntax_element(),
-                ],
+                editor.make().prepend_leading_trivia(new_impl.clone(), "\n"),
             );
+            editor.prepend_leading_trivia(impl_def.syntax(), "\n");
 
             if let Some(cap) = ctx.config.snippet_cap {
                 let tabstop_before = edit.make_tabstop_before(cap);
-                editor.add_annotation(new_impl.syntax(), tabstop_before);
+                editor.add_annotation(new_impl, tabstop_before);
             }
 
             edit.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
-}
-
-fn delete_with_trivia(editor: &SyntaxEditor, node: &SyntaxNode) {
-    let mut end: SyntaxElement = node.clone().into();
-
-    if let Some(next) = node.next_sibling_or_token()
-        && let SyntaxElement::Token(tok) = &next
-        && tok.kind().is_trivia()
-    {
-        end = next.clone();
-    }
-
-    editor.delete_all(node.clone().into()..=end);
 }
 
 fn apply_generate_mut_impl(
@@ -136,7 +119,8 @@ fn apply_generate_mut_impl(
     }
 
     if let Some(type_alias) = impl_def.syntax().descendants().find_map(ast::TypeAlias::cast) {
-        delete_with_trivia(editor, type_alias.syntax());
+        let options = RemoveOptions { add_elastic_marker: true, ..RemoveOptions::KEEP_NO_TRIVIA };
+        editor.delete_with(type_alias.syntax(), options);
     }
 
     if let Some(self_param) = impl_def.syntax().descendants().find_map(ast::SelfParam::cast) {
@@ -175,11 +159,7 @@ fn process_ref_mut(editor: &SyntaxEditor, fn_: &ast::Fn) {
 
     let Some(amp) = ref_expr.amp_token() else { return };
 
-    let mut_kw = make.token(T![mut]);
-    let space = make.whitespace(" ");
-
-    editor.insert(Position::after(amp.clone()), space.syntax_element());
-    editor.insert(Position::after(amp), mut_kw.syntax_element());
+    editor.insert(Position::after(amp), make.token(T![mut]));
 }
 
 fn process_ret_type(factory: &SyntaxFactory, ref_ty: &ast::RetType) -> Option<ast::Type> {

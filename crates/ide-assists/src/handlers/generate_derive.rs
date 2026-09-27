@@ -1,8 +1,8 @@
 use syntax::{
-    SyntaxKind::{ATTR, COMMENT, DOC_COMMENT, WHITESPACE},
+    SyntaxKind::{ATTR, DOC_COMMENT},
     T,
-    ast::{self, AstNode, HasAttrs, edit::IndentLevel},
-    syntax_editor::{Element, Position},
+    ast::{self, AstNode, HasAttrs},
+    syntax_editor::Position,
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -28,7 +28,7 @@ use crate::{AssistContext, AssistId, Assists};
 pub(crate) fn generate_derive(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let cap = ctx.config.snippet_cap?;
     let nominal = ctx.find_node_at_offset::<ast::Adt>()?;
-    let target = nominal.syntax().text_range();
+    let target = nominal.syntax().text_range_without_outer_trivia();
     let derive_attr = nominal
         .attrs()
         .filter_map(|x| x.as_simple_call())
@@ -51,20 +51,13 @@ pub(crate) fn generate_derive(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
                         make.ident_path("derive"),
                         make.token_tree(T!['('], vec![]),
                     ));
-                let indent = IndentLevel::from_node(nominal.syntax());
-                let after_attrs_and_comments = nominal
+                let anchor = nominal
                     .syntax()
                     .children_with_tokens()
-                    .find(|it| !matches!(it.kind(), WHITESPACE | COMMENT | DOC_COMMENT | ATTR))
-                    .map_or(Position::first_child_of(nominal.syntax()), Position::before);
-
-                editor.insert_all(
-                    after_attrs_and_comments,
-                    vec![
-                        derive.syntax().syntax_element(),
-                        make.whitespace(&format!("\n{indent}")).syntax_element(),
-                    ],
-                );
+                    .find(|it| !matches!(it.kind(), DOC_COMMENT | ATTR));
+                let position = anchor
+                    .map_or_else(|| Position::first_child_of(nominal.syntax()), Position::before);
+                editor.insert(position, derive.syntax());
 
                 let meta = derive.meta().expect("make::attr_outer was expected to have Meta");
                 let ast::Meta::TokenTreeMeta(meta) = meta else {
