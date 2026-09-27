@@ -8,6 +8,7 @@ extern crate rustc_driver as _;
 use std::{collections::VecDeque, fmt, hash::Hash};
 
 use intern::Symbol;
+use parser::Trivia;
 use rustc_hash::{FxHashMap, FxHashSet};
 use span::{Edition, Span, SpanAnchor, SpanMap, SyntaxContext};
 use stdx::{format_to, never};
@@ -813,7 +814,7 @@ where
             }
         }
 
-        let curr = self.current.clone()?;
+        let curr = self.current.clone().filter(|it| it.trivia_before().next().is_none())?;
         if !self.range.contains_range(curr.text_range()) {
             return None;
         }
@@ -1009,21 +1010,30 @@ impl TtTreeSink<'_> {
         }
 
         self.token_map.push(self.text_pos, combined_span.expect("expected at least one token"));
-        self.inner.token(kind, self.buf.as_str());
-        self.buf.clear();
-        // FIXME: Emitting whitespace for this is really just a hack, we should get rid of it.
-        // Add whitespace between adjoint puncts
-        if let Some([tt::Leaf::Punct(curr), tt::Leaf::Punct(next)]) = last_two {
-            // Note: We always assume the semi-colon would be the last token in
-            // other parts of RA such that we don't add whitespace here.
-            //
-            // When `next` is a `Punct` of `'`, that's a part of a lifetime identifier so we don't
-            // need to add whitespace either.
-            if curr.spacing == tt::Spacing::Alone && curr.char != ';' && next.char != '\'' {
-                self.inner.token(WHITESPACE, " ");
-                self.text_pos += TextSize::of(' ');
-                self.token_map.push(self.text_pos, curr.span);
+        // Note: We always assume the semi-colon would be the last token in
+        // other parts of RA such that we don't add whitespace here.
+        //
+        // When `next` is a `Punct` of `'`, that's a part of a lifetime identifier so we don't
+        // need to add whitespace either.
+        let separator = match last_two {
+            Some([tt::Leaf::Punct(curr), tt::Leaf::Punct(next)])
+                if curr.spacing == tt::Spacing::Alone && curr.char != ';' && next.char != '\'' =>
+            {
+                Some(curr.span)
             }
+            _ => None,
+        };
+        let trailing = [Trivia { kind: WHITESPACE, text: " " }];
+        self.inner.token_with_trivia(
+            kind,
+            self.buf.as_str(),
+            &[],
+            if separator.is_some() { &trailing } else { &[] },
+        );
+        self.buf.clear();
+        if let Some(span) = separator {
+            self.text_pos += TextSize::of(' ');
+            self.token_map.push(self.text_pos, span);
         }
     }
 
