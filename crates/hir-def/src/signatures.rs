@@ -27,7 +27,8 @@ use crate::{
     expr_store::{
         Body, ExpressionStore, ExpressionStoreBuilder, ExpressionStoreSourceMap,
         lower::{
-            ExprCollector, lower_function, lower_generic_params, lower_trait, lower_type_alias,
+            ExprCollector, lower_const, lower_function, lower_generic_params, lower_trait,
+            lower_type_alias,
         },
     },
     hir::{ExprId, PatId, generics::GenericParams},
@@ -315,7 +316,7 @@ bitflags::bitflags! {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ConstSignature {
     pub name: Option<Name>,
-    // generic_params: GenericParams,
+    pub generic_params: GenericParams,
     pub store: ExpressionStore,
     pub type_ref: TypeRefId,
     pub flags: ConstFlags,
@@ -345,19 +346,11 @@ impl ConstSignature {
         if source.value.body().is_some() {
             flags.insert(ConstFlags::HAS_BODY);
         }
+        let name = source.value.name().map(|it| it.as_name());
 
-        let (store, source_map, type_ref) =
-            crate::expr_store::lower::lower_type_ref(db, module, source.as_ref().map(|it| it.ty()));
+        let (store, source_map, generic_params, type_ref) = lower_const(db, module, source, id);
 
-        (
-            Arc::new(ConstSignature {
-                store,
-                type_ref,
-                flags,
-                name: source.value.name().map(|it| it.as_name()),
-            }),
-            source_map,
-        )
+        (Arc::new(ConstSignature { generic_params, store, type_ref, flags, name }), source_map)
     }
 }
 

@@ -323,6 +323,26 @@ pub(crate) fn lower_trait(
     (store, source_map, params)
 }
 
+pub(crate) fn lower_const(
+    db: &dyn SourceDatabase,
+    module: ModuleId,
+    const_: InFile<ast::Const>,
+    const_id: ConstId,
+) -> (ExpressionStore, ExpressionStoreSourceMap, GenericParams, TypeRefId) {
+    let mut expr_collector = ExprCollector::new(db, module, const_.file_id, LoweringMode::Analysis);
+    let mut collector = generics::GenericParamsCollector::new(const_id.into());
+    collector.lower(
+        &mut expr_collector,
+        const_.value.generic_param_list(),
+        const_.value.where_clause(),
+    );
+    let generic_params = collector.finish();
+    let type_ref = expr_collector
+        .lower_type_ref_opt(const_.value.ty(), &mut ExprCollector::impl_trait_allocator);
+    let (store, source_map) = expr_collector.store.finish();
+    (store, source_map, generic_params, type_ref)
+}
+
 pub(crate) fn lower_type_alias(
     db: &dyn SourceDatabase,
     container: ItemContainerId,

@@ -229,7 +229,7 @@ impl GenericParams {
             }
             GenericDefId::ConstId(id) => {
                 let sig = ConstSignature::of(db, id);
-                (&EMPTY, &sig.store)
+                (&sig.generic_params, &sig.store)
             }
             GenericDefId::FunctionId(id) => {
                 let sig = FunctionSignature::of(db, id);
@@ -273,7 +273,7 @@ impl GenericParams {
             }
             GenericDefId::ConstId(id) => {
                 let (sig, sm) = ConstSignature::with_source_map(db, id);
-                (&EMPTY, &sig.store, sm)
+                (&sig.generic_params, &sig.store, sm)
             }
             GenericDefId::FunctionId(id) => {
                 let (sig, sm) = FunctionSignature::with_source_map(db, id);

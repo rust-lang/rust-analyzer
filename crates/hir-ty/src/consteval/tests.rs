@@ -146,6 +146,87 @@ fn eval_goal(db: &TestDB, file_id: EditionedFileId) -> Result<Allocation<'_>, Co
 }
 
 #[test]
+fn const_param_default_mentions_earlier_type_param() {
+    // The default lives on the signature store. `check_types` only walks bodies,
+    // so a `//^` marker on `size_of::<T>` is reported unchecked. Resolve that
+    // type argument instead: this goes red if `T` is not in scope.
+    let (db, file_id) = TestDB::with_single_file(
+        r#"
+//- minicore: size_of
+const WITH_DEFAULT<T, const N: usize = { size_of::<T>() }>: usize = N;
+        "#,
+    );
+    crate::attach_db(&db, || {
+        let module_id = db.module_for_file(file_id.file_id(&db));
+        let def_map = module_id.def_map(&db);
+        let const_id = def_map[module_id]
+            .scope
+            .declarations()
+            .find_map(|def| match def {
+                hir_def::ModuleDefId::ConstId(id) => Some(id),
+                _ => None,
+            })
+            .expect("WITH_DEFAULT");
+        let sig = hir_def::signatures::ConstSignature::of(&db, const_id);
+        let default_expr = sig
+            .generic_params
+            .iter_type_or_consts()
+            .find_map(|(_, data)| match data {
+                hir_def::hir::generics::TypeOrConstParamData::ConstParamData(data) => {
+                    data.default.map(|konst| konst.expr)
+                }
+                _ => None,
+            })
+            .expect("const param default");
+        let type_arg = const_param_default_type_arg(&sig.store, default_expr);
+        let param = match &sig.store.types[type_arg] {
+            hir_def::hir::type_ref::TypeRef::Path(path) => {
+                let resolver = hir_def::resolver::HasResolver::resolver(const_id, &db);
+                match resolver.resolve_path_in_type_ns_fully(&db, path) {
+                    Some(hir_def::resolver::TypeNs::GenericParam(param)) => param,
+                    other => {
+                        panic!("T in the default did not resolve to a type parameter: {other:?}")
+                    }
+                }
+            }
+            hir_def::hir::type_ref::TypeRef::TypeParam(param) => *param,
+            other => panic!("T in the default did not resolve: {other:?}"),
+        };
+        assert_eq!(param.parent(), const_id.into());
+        let name = sig.generic_params.iter_type_or_consts().find_map(|(local_id, data)| {
+            (local_id == param.local_id()).then(|| data.name().expect("type param name").as_str())
+        });
+        assert_eq!(name, Some("T"));
+    });
+}
+
+fn const_param_default_type_arg(
+    store: &hir_def::expr_store::ExpressionStore,
+    expr_id: hir_def::hir::ExprId,
+) -> hir_def::type_ref::TypeRefId {
+    use hir_def::expr_store::path::GenericArg;
+    use hir_def::hir::Expr;
+    match &store[expr_id] {
+        Expr::Block { tail: Some(tail), .. } => const_param_default_type_arg(store, *tail),
+        Expr::Call { callee, .. } => {
+            let Expr::Path(path) = &store[*callee] else {
+                panic!("default callee should be a path");
+            };
+            let args = path
+                .segments()
+                .last()
+                .and_then(|segment| segment.args_and_bindings)
+                .expect("size_of::<T>");
+            match args.args.as_ref() {
+                [GenericArg::Type(ty)] => *ty,
+                other => panic!("expected one type argument, got {other:?}"),
+            }
+        }
+        other => panic!("unexpected default expression: {other:?}"),
+    }
+}
+
+#[test]
 fn add() {
     check_number(r#"const GOAL: usize = 2 + 2;"#, 4);
     check_number(r#"const GOAL: i32 = -2 + --5;"#, 3);

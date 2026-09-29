@@ -3216,3 +3216,31 @@ fn main() {
     "#,
     );
 }
+
+#[test]
+fn generic_params_on_const_item() {
+    check_types(
+        r#"
+//- minicore: size_of
+const fn id<T>() -> usize {
+    size_of::<T>()
+}
+
+const SIZE<T>: usize = id::<T>();
+                     //^^^^^^^ fn id<T>() -> usize
+        "#,
+    );
+}
+
+#[test]
+fn const_item_param_bound() {
+    check_types(
+        r#"
+trait Trait {
+    const ASSOC: usize;
+}
+const REVEAL<Rem: Trait>: usize = Rem::ASSOC;
+                                //^^^^^^^^^^ usize
+        "#,
+    );
+}
