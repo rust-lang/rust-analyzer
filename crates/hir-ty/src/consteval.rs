@@ -322,6 +322,7 @@ pub(crate) fn path_to_const<'a, 'db>(
     generics: &dyn Fn() -> &'a Generics<'db>,
     forbid_params_after: Option<u32>,
     path: &Path,
+    generic_args: Option<GenericArgs<'db>>,
 ) -> Result<Const<'db>, CreateConstError<'db>> {
     let interner = DbInterner::new_no_crate(db);
     let resolution = resolver
@@ -330,8 +331,16 @@ pub(crate) fn path_to_const<'a, 'db>(
     let no_generics = |def| crate::generics::generics(db, def).has_no_params();
     let konst = match resolution {
         ValueNs::ConstId(id) if no_generics(id.into()) => GeneralConstId::ConstId(id),
+        ValueNs::ConstId(id) => {
+            let Some(args) = generic_args else {
+                return Err(CreateConstError::ConstHasGenerics);
+            };
+            return Ok(Const::new_unevaluated(
+                interner,
+                UnevaluatedConst { def: GeneralConstId::ConstId(id).into(), args },
+            ));
+        }
         ValueNs::StaticId(id) => GeneralConstId::StaticId(id),
-        ValueNs::ConstId(_) => return Err(CreateConstError::ConstHasGenerics),
         ValueNs::GenericParam(param) => {
             let index = generics().type_or_const_param_idx(param.into());
             if forbid_params_after.is_some_and(|forbid_after| index >= forbid_after) {
@@ -362,6 +371,7 @@ pub(crate) fn create_anon_const<'a, 'db>(
     create_var: Option<&mut dyn FnMut(Span) -> Const<'db>>,
     lowering_mode: LoweringMode,
     forbid_params_after: Option<u32>,
+    generic_args: Option<GenericArgs<'db>>,
 ) -> Result<Const<'db>, CreateConstError<'db>> {
     let mut expr = &store[expr_id];
     if let Expr::Block { statements, tail: Some(tail), .. } = expr
@@ -383,12 +393,17 @@ pub(crate) fn create_anon_const<'a, 'db>(
             None => Err(CreateConstError::UnderscoreExpr),
         },
         Expr::Path(path)
-            if let konst =
-                path_to_const(interner.db, resolver, generics, forbid_params_after, path)
-                && !matches!(
-                    konst,
-                    Err(CreateConstError::DoesNotResolve | CreateConstError::ConstHasGenerics)
-                ) =>
+            if let konst = path_to_const(
+                interner.db,
+                resolver,
+                generics,
+                forbid_params_after,
+                path,
+                generic_args,
+            ) && !matches!(
+                konst,
+                Err(CreateConstError::DoesNotResolve | CreateConstError::ConstHasGenerics)
+            ) =>
         {
             konst
         }

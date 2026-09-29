@@ -3244,3 +3244,131 @@ const REVEAL<Rem: Trait>: usize = Rem::ASSOC;
         "#,
     );
 }
+
+#[test]
+fn generic_const_path_selects_false_impl() {
+    check_types(
+        r#"
+//- minicore: size_of
+trait IsFalse {}
+struct If<const B: bool>;
+impl IsFalse for If<false> {}
+
+trait Pick<I> {}
+struct Here;
+impl<E> Pick<Here> for E where If<{ IS_U8::<u16> }>: IsFalse {}
+
+const IS_U8<T>: bool = size_of::<T>() == size_of::<u8>();
+
+fn assert_sel<E, I>() -> I where E: Pick<I> { loop {} }
+
+fn different() {
+    let x = assert_sel::<u16, _>();
+      //^ Here
+}
+        "#,
+    );
+}
+
+#[test]
+fn generic_const_path_true_does_not_select_impl() {
+    check_types(
+        r#"
+//- minicore: size_of
+trait IsFalse {}
+struct If<const B: bool>;
+impl IsFalse for If<false> {}
+
+trait Pick<I> {}
+struct Here;
+impl<E> Pick<Here> for E where If<{ IS_U8::<u8> }>: IsFalse {}
+
+const IS_U8<T>: bool = size_of::<T>() == size_of::<u8>();
+
+fn assert_sel<E, I>() -> I where E: Pick<I> { loop {} }
+
+fn same() {
+    let x = assert_sel::<u8, _>();
+      //^ {unknown}
+}
+        "#,
+    );
+}
+
+#[test]
+fn assoc_const_with_own_params_in_generic_impl_keeps_fallthrough() {
+    check_types(
+        r#"
+//- minicore: size_of
+struct If<const B: bool>;
+
+trait Host {
+    fn probe();
+}
+impl<T> Host for T {
+    const IS_U8<U>: bool = size_of::<U>() == size_of::<u8>();
+    fn probe() {
+        let x: If<{ IS_U8::<u16> }>;
+          //^ If<_>
+    }
+}
+        "#,
+    );
+}
+
+/// Expands a `macro_rules` passthrough. This is not the `gca` builtin.
+#[test]
+fn generic_const_path_through_macro_rules() {
+    check_types(
+        r#"
+//- minicore: size_of
+macro_rules! pass { ($e:expr) => { $e }; }
+
+trait IsFalse {}
+struct If<const B: bool>;
+impl IsFalse for If<false> {}
+
+trait Pick<I> {}
+struct Here;
+impl<E> Pick<Here> for E where If<{ pass!(IS_U8::<u16>) }>: IsFalse {}
+
+const IS_U8<T>: bool = size_of::<T>() == size_of::<u8>();
+
+fn assert_sel<E, I>() -> I where E: Pick<I> { loop {} }
+
+fn different() {
+    let x = assert_sel::<u16, _>();
+      //^ Here
+}
+        "#,
+    );
+}
+
+/// Expands the `gca` builtin. Invisible delimiters let the path lower as a path.
+#[test]
+fn generic_const_path_through_gca() {
+    check_types(
+        r#"
+//- minicore: size_of
+#[rustc_builtin_macro]
+macro_rules! gca { ($($t:tt)*) => {}; }
+
+trait IsFalse {}
+struct If<const B: bool>;
+impl IsFalse for If<false> {}
+
+trait Pick<I> {}
+struct Here;
+impl<E> Pick<Here> for E where If<{ gca!(IS_U8::<u16>) }>: IsFalse {}
+
+const IS_U8<T>: bool = size_of::<T>() == size_of::<u8>();
+
+fn assert_sel<E, I>() -> I where E: Pick<I> { loop {} }
+
+fn different() {
+    let x = assert_sel::<u16, _>();
+      //^ Here
+}
+        "#,
+    );
+}

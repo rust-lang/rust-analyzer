@@ -1971,6 +1971,7 @@ impl<'db> InferenceContext<'db> {
         allow_using_generic_params: bool,
     ) -> Const<'db> {
         never!(expected_ty.has_infer(), "cannot have infer vars in an anon const's ty");
+        let generic_args = self.with_ty_lowering(|ctx| ctx.generic_args_for_const_expr(expr));
         let konst = create_anon_const(
             self.interner(),
             self.store_owner,
@@ -1982,6 +1983,7 @@ impl<'db> InferenceContext<'db> {
             Some(&mut |span| self.table.next_const_var(span)),
             self.lowering_mode,
             (!(allow_using_generic_params && self.allow_using_generic_params)).then_some(0),
+            generic_args,
         );
 
         if let Ok(konst) = konst
@@ -1999,9 +2001,17 @@ impl<'db> InferenceContext<'db> {
 
     pub(crate) fn make_path_as_const(&mut self, path: &Path) -> Const<'db> {
         let forbid_params_after = if self.allow_using_generic_params { None } else { Some(0) };
+        let generic_args = self.with_ty_lowering(|ctx| ctx.explicit_args_for_generic_const(path));
         // FIXME: Report errors.
-        path_to_const(self.db, &self.resolver, &|| self.generics(), forbid_params_after, path)
-            .unwrap_or_else(|_| self.table.next_const_var(Span::Dummy))
+        path_to_const(
+            self.db,
+            &self.resolver,
+            &|| self.generics(),
+            forbid_params_after,
+            path,
+            generic_args,
+        )
+        .unwrap_or_else(|_| self.table.next_const_var(Span::Dummy))
     }
 
     fn err_ty(&self) -> Ty<'db> {

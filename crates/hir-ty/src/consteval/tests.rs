@@ -235,6 +235,26 @@ fn add() {
 }
 
 #[test]
+fn generic_const_item_evaluates_with_its_args() {
+    check_number(
+        r#"
+//- minicore: size_of
+const IS_U8<T>: bool = size_of::<T>() == size_of::<u8>();
+const GOAL: bool = IS_U8::<u8>;
+        "#,
+        1,
+    );
+    check_number(
+        r#"
+//- minicore: size_of
+const IS_U8<T>: bool = size_of::<T>() == size_of::<u8>();
+const GOAL: bool = IS_U8::<u16>;
+        "#,
+        0,
+    );
+}
+
+#[test]
 fn bit_op() {
     check_number(r#"const GOAL: u8 = !0 & !(!0 >> 1)"#, 128);
     check_number(r#"const GOAL: i8 = !0 & !(!0 >> 1)"#, 0);

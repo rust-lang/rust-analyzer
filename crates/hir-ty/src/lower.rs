@@ -454,11 +454,75 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         self.lower_expr_as_const(const_ref.expr, const_type)
     }
 
+    /// Generic arguments of `path` when it resolves to a const item that declares
+    /// parameters and whose parent has none.
+    ///
+    /// `None` for every other path. A const whose parent has parameters (an
+    /// associated const in a generic impl) would be filled with error arguments
+    /// here, so those paths keep the `ConstHasGenerics` fallthrough.
+    pub(crate) fn explicit_args_for_generic_const(
+        &mut self,
+        path: &Path,
+    ) -> Option<GenericArgs<'db>> {
+        let const_id = match self.resolver.resolve_path_in_value_ns_fully(
+            self.db,
+            path,
+            hir_def::expr_store::HygieneId::ROOT,
+        ) {
+            Some(hir_def::resolver::ValueNs::ConstId(id)) => id,
+            _ => return None,
+        };
+        // Own parameters only. Parent parameters are not substituted here.
+        if GenericParams::of(self.db, const_id.into()).is_empty() {
+            return None;
+        }
+        if generics(self.db, const_id.into()).parent().is_some_and(|parent| !parent.has_no_params())
+        {
+            return None;
+        }
+        let on_diagnostic = PathDiagnosticCallback {
+            data: Either::Left(PathDiagnosticCallbackData(TypeRefId::from_raw(
+                la_arena::RawIdx::from_u32(0),
+            ))),
+            // The dummy id and empty callback match `at_path_forget_diagnostics`.
+            // Argument mismatches are still stored on the returned args as error types.
+            callback: |_, _, _| {},
+        };
+        let mut path_ctx = PathLoweringContext::new(self, on_diagnostic, path);
+        if let Some(last) = path.segments().len().checked_sub(1) {
+            path_ctx.set_current_segment(last);
+        }
+        Some(path_ctx.substs_from_path(const_id.into(), true, false, Span::Dummy))
+    }
+
+    /// Args for a const-argument expression that is a path to a generic const item.
+    ///
+    /// One empty block is unwrapped, matching `create_anon_const`.
+    pub(crate) fn generic_args_for_const_expr(
+        &mut self,
+        expr_id: ExprId,
+    ) -> Option<GenericArgs<'db>> {
+        let tail = match &self.store[expr_id] {
+            hir_def::hir::Expr::Block { statements, tail: Some(tail), .. }
+                if statements.is_empty() =>
+            {
+                *tail
+            }
+            _ => expr_id,
+        };
+        let path = match &self.store[tail] {
+            hir_def::hir::Expr::Path(path) => path.clone(),
+            _ => return None,
+        };
+        self.explicit_args_for_generic_const(&path)
+    }
+
     pub(crate) fn lower_expr_as_const(
         &mut self,
         expr_id: ExprId,
         const_type: Ty<'db>,
     ) -> Const<'db> {
+        let generic_args = self.generic_args_for_const_expr(expr_id);
         #[expect(clippy::manual_map, reason = "a `map()` here generates a borrowck error")]
         let create_var = match &mut self.infer_vars {
             Some(infer_vars) => Some(
@@ -477,6 +541,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             create_var,
             self.interning_mode,
             self.forbid_params_after,
+            generic_args,
         );
 
         if let Ok(konst) = konst
@@ -493,11 +558,19 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
     }
 
     pub(crate) fn lower_path_as_const(&mut self, path: &Path, _const_type: Ty<'db>) -> Const<'db> {
-        path_to_const(self.db, self.resolver, &|| self.generics(), self.forbid_params_after, path)
-            .unwrap_or({
-                // FIXME: Report an error.
-                self.types.consts.error
-            })
+        let generic_args = self.explicit_args_for_generic_const(path);
+        path_to_const(
+            self.db,
+            self.resolver,
+            &|| self.generics(),
+            self.forbid_params_after,
+            path,
+            generic_args,
+        )
+        .unwrap_or({
+            // FIXME: Report an error.
+            self.types.consts.error
+        })
     }
 
     fn generics(&self) -> &Generics<'db> {

@@ -447,6 +447,28 @@ impl<'db> Resolver<'db> {
                                 Visibility::Public,
                             ));
                         }
+                        // A bare associated const name inside an impl resolves to that
+                        // const. `Self::CONST` stays partial, so this is the path that
+                        // reaches a `ConstId` whose parent has parameters.
+                        if let &GenericDefId::ImplId(impl_) = def
+                            && let Some(konst) =
+                                impl_.impl_items(db).items.iter().find_map(|(item_name, item)| {
+                                    match item {
+                                        crate::AssocItemId::ConstId(id)
+                                            if item_name == first_name =>
+                                        {
+                                            Some(*id)
+                                        }
+                                        _ => None,
+                                    }
+                                })
+                        {
+                            return Some((
+                                ResolveValueResult::ValueNs(ValueNs::ConstId(konst)),
+                                ResolvePathResultPrefixInfo::default(),
+                                Visibility::Public,
+                            ));
+                        }
                     }
                     Scope::BlockScope(m) => {
                         if let Some(def) = m.resolve_path_in_value_ns(db, path) {
