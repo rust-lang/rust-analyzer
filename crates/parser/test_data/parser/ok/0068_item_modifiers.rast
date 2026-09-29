@@ -208,9 +208,9 @@ SOURCE_FILE
       R_CURLY "}"
   WHITESPACE "\n"
   IMPL
-    UNSAFE_KW "unsafe"
-    WHITESPACE " "
     DEFAULT_KW "default"
+    WHITESPACE " "
+    UNSAFE_KW "unsafe"
     WHITESPACE " "
     IMPL_KW "impl"
     WHITESPACE " "

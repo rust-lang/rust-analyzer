@@ -1,0 +1,43 @@
+SOURCE_FILE
+  STATIC
+    UNSAFE_KW "unsafe"
+    WHITESPACE " "
+    STATIC_KW "static"
+    WHITESPACE " "
+    NAME
+      IDENT "X"
+    COLON ":"
+    WHITESPACE " "
+    PATH_TYPE
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "u8"
+    WHITESPACE " "
+    EQ "="
+    WHITESPACE " "
+    LITERAL
+      INT_NUMBER "0"
+    SEMICOLON ";"
+  WHITESPACE "\n"
+  STATIC
+    SAFE_KW "safe"
+    WHITESPACE " "
+    STATIC_KW "static"
+    WHITESPACE " "
+    NAME
+      IDENT "Y"
+    COLON ":"
+    WHITESPACE " "
+    PATH_TYPE
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "u8"
+    WHITESPACE " "
+    EQ "="
+    WHITESPACE " "
+    LITERAL
+      INT_NUMBER "0"
+    SEMICOLON ";"
+  WHITESPACE "\n"

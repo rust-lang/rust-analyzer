@@ -746,7 +746,7 @@ trait ConstTrait {
     const fn assoc_const_fn() {}
     const fn assoc_const_method(self) {}
 }
-impl const ConstTrait for () {
+const impl ConstTrait for () {
     const ASSOC_CONST: () = ();
     const fn assoc_const_fn() {}
 }

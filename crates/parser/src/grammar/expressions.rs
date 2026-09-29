@@ -63,9 +63,13 @@ pub(super) fn stmt(p: &mut Parser<'_>, semicolon: Semicolon) {
 
     // test block_items
     // fn a() { fn b() {} }
-    let m = match items::opt_item(p, m, false) {
-        Ok(()) => return,
-        Err(m) => m,
+    let m = if items::is_stmt_path_start(p) {
+        m
+    } else {
+        match items::opt_item(p, m) {
+            Ok(()) => return,
+            Err(m) => m,
+        }
     };
 
     if !p.at_ts(EXPR_FIRST) {

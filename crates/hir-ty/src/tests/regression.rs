@@ -2421,7 +2421,7 @@ fn test(o: &Option<i32>) {
 pub trait MyClone: Sized {
     fn my_clone(&self) -> Self;
 }
-impl<T> const MyClone for Option<T>
+const impl<T> MyClone for Option<T>
 where
     T: ~const MyClone + ~const Destruct,
 {
@@ -2432,7 +2432,7 @@ where
         }
     }
 }
-impl const MyClone for i32 {
+const impl MyClone for i32 {
     fn my_clone(&self) -> Self {
         *self
     }

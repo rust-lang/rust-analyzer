@@ -1,4 +1,16 @@
 SOURCE_FILE
+  TRAIT
+    CONST_KW "const"
+    WHITESPACE " "
+    TRAIT_KW "trait"
+    WHITESPACE " "
+    NAME
+      IDENT "Trait"
+    WHITESPACE " "
+    ASSOC_ITEM_LIST
+      L_CURLY "{"
+      R_CURLY "}"
+  WHITESPACE "\n"
   IMPL
     CONST_KW "const"
     WHITESPACE " "
@@ -8,7 +20,7 @@ SOURCE_FILE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "Send"
+            IDENT "Trait"
     WHITESPACE " "
     FOR_KW "for"
     WHITESPACE " "
@@ -16,7 +28,7 @@ SOURCE_FILE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "S"
+            IDENT "Type"
     WHITESPACE " "
     ASSOC_ITEM_LIST
       L_CURLY "{"

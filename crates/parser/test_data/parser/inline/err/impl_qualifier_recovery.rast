@@ -1,0 +1,79 @@
+SOURCE_FILE
+  IMPL
+    UNSAFE_KW "unsafe"
+    WHITESPACE " "
+    CONST_KW "const"
+    WHITESPACE " "
+    IMPL_KW "impl"
+    WHITESPACE " "
+    PATH_TYPE
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "T"
+    WHITESPACE " "
+    FOR_KW "for"
+    WHITESPACE " "
+    PATH_TYPE
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "S"
+    WHITESPACE " "
+    ASSOC_ITEM_LIST
+      L_CURLY "{"
+      R_CURLY "}"
+  WHITESPACE "\n"
+  IMPL
+    CONST_KW "const"
+    WHITESPACE " "
+    CONST_KW "const"
+    WHITESPACE " "
+    IMPL_KW "impl"
+    WHITESPACE " "
+    PATH_TYPE
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "T"
+    WHITESPACE " "
+    FOR_KW "for"
+    WHITESPACE " "
+    PATH_TYPE
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "S"
+    WHITESPACE " "
+    ASSOC_ITEM_LIST
+      L_CURLY "{"
+      R_CURLY "}"
+  WHITESPACE "\n"
+  IMPL
+    UNSAFE_KW "unsafe"
+    WHITESPACE " "
+    UNSAFE_KW "unsafe"
+    WHITESPACE " "
+    IMPL_KW "impl"
+    WHITESPACE " "
+    PATH_TYPE
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "T"
+    WHITESPACE " "
+    FOR_KW "for"
+    WHITESPACE " "
+    PATH_TYPE
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "S"
+    WHITESPACE " "
+    ASSOC_ITEM_LIST
+      L_CURLY "{"
+      R_CURLY "}"
+  WHITESPACE "\n"
+error 6: wrong order of qualifiers
+error 34: duplicate qualifier
+error 63: duplicate qualifier

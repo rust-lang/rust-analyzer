@@ -1,0 +1,60 @@
+SOURCE_FILE
+  FN
+    FN_KW "fn"
+    WHITESPACE " "
+    NAME
+      IDENT "f"
+    PARAM_LIST
+      L_PAREN "("
+      R_PAREN ")"
+    WHITESPACE " "
+    BLOCK_EXPR
+      STMT_LIST
+        L_CURLY "{"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          PATH_EXPR
+            PATH
+              PATH_SEGMENT
+                NAME_REF
+                  IDENT "default"
+        WHITESPACE " "
+        FN
+          FN_KW "fn"
+          WHITESPACE " "
+          NAME
+            IDENT "g"
+          PARAM_LIST
+            L_PAREN "("
+            R_PAREN ")"
+          WHITESPACE " "
+          BLOCK_EXPR
+            STMT_LIST
+              L_CURLY "{"
+              R_CURLY "}"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          PATH_EXPR
+            PATH
+              PATH_SEGMENT
+                NAME_REF
+                  IDENT "safe"
+        WHITESPACE " "
+        FN
+          FN_KW "fn"
+          WHITESPACE " "
+          NAME
+            IDENT "h"
+          PARAM_LIST
+            L_PAREN "("
+            R_PAREN ")"
+          WHITESPACE " "
+          BLOCK_EXPR
+            STMT_LIST
+              L_CURLY "{"
+              R_CURLY "}"
+        WHITESPACE "\n"
+        R_CURLY "}"
+  WHITESPACE "\n"
+error 20: expected SEMICOLON
+error 39: expected SEMICOLON

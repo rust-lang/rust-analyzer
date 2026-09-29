@@ -9,6 +9,12 @@ pub(super) fn konst(p: &mut Parser<'_>, m: Marker) {
 }
 
 pub(super) fn static_(p: &mut Parser<'_>, m: Marker) {
+    // test unsafe_static
+    // unsafe static X: u8 = 0;
+    // safe static Y: u8 = 0;
+    if !p.eat(T![unsafe]) {
+        p.eat_contextual_kw(T![safe]);
+    }
     p.bump(T![static]);
     const_or_static(p, m, false);
 }
