@@ -157,6 +157,7 @@ pub(crate) fn render_field(
         type_match: compute_type_match(ctx.completion, ty),
         exact_name_match: compute_exact_name_match(ctx.completion, &name),
         is_skipping_completion: receiver.is_some(),
+        is_async_in_sync: !dot_access.ctx.is_async && receiver.as_deref() == Some("await"),
         ..CompletionRelevance::default()
     });
     item.detail(ty.display(db, ctx.completion.display_target).to_string())
@@ -217,6 +218,7 @@ pub(crate) fn render_tuple_field(
     receiver: Option<SmolStr>,
     field: usize,
     ty: &hir::Type<'_>,
+    is_async_in_sync: bool,
 ) -> CompletionItem {
     let mut item = CompletionItem::new(
         SymbolKind::Field,
@@ -228,6 +230,7 @@ pub(crate) fn render_tuple_field(
         .lookup_by(field.to_string());
     item.set_relevance(CompletionRelevance {
         is_skipping_completion: receiver.is_some(),
+        is_async_in_sync,
         ..ctx.completion_relevance()
     });
     item.build(ctx.db())
@@ -893,6 +896,7 @@ mod tests {
                 is_skipping_completion: _,
                 has_local_inherent_impl,
                 is_deprecated,
+                is_async_in_sync,
             } = relevance;
             let relevance_factors = [
                 (type_match == Some(CompletionRelevanceTypeMatch::Exact), "type"),
@@ -905,6 +909,7 @@ mod tests {
                 (requires_import, "requires_import"),
                 (has_local_inherent_impl, "has_local_inherent_impl"),
                 (is_deprecated, "deprecated"),
+                (is_async_in_sync, "is_async_in_sync"),
             ]
             .into_iter()
             .filter_map(|(cond, desc)| cond.then_some(desc))
@@ -1009,6 +1014,73 @@ fn main() {
                 fn main() fn() []
                 fn test(…) fn(Union) []
                 en Union Union [requires_import]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn async_in_sync_context() {
+        check_relevance_for_kinds(
+            r#"
+//- minicore: future
+async fn m() -> Option<()>{}
+fn main() {
+    m().$0
+}
+"#,
+            &[CompletionItemKind::Keyword, CompletionItemKind::SymbolKind(SymbolKind::Method)],
+            expect![[r#"
+                me into_future() fn(self) -> <Self as IntoFuture>::IntoFuture [requires_import]
+                kw await expr.await [is_async_in_sync]
+            "#]],
+        );
+        check_relevance_for_kinds(
+            r#"
+//- minicore: future
+async fn m() -> Option<()>{}
+async fn main() {
+    m().$0
+}
+"#,
+            &[CompletionItemKind::Keyword, CompletionItemKind::SymbolKind(SymbolKind::Method)],
+            expect![[r#"
+                kw await expr.await []
+                me into_future() fn(self) -> <Self as IntoFuture>::IntoFuture [type_could_unify+requires_import]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn async_in_sync_context_macro() {
+        check_relevance_for_kinds(
+            r#"
+//- minicore: future
+macro_rules! identity { ($e:expr) => { $e } }
+async fn m() {}
+async fn main() {
+    identity!(m().$0);
+}
+"#,
+            &[CompletionItemKind::Keyword],
+            expect![[r#"
+                kw await expr.await []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn async_in_sync_context_const_block() {
+        check_relevance_for_kinds(
+            r#"
+//- minicore: future
+async fn m() {}
+async fn main() {
+    const { m().$0 };
+}
+"#,
+            &[CompletionItemKind::Keyword],
+            expect![[r#"
+                kw await expr.await [is_async_in_sync]
             "#]],
         );
     }
@@ -1348,6 +1420,7 @@ fn main() { Foo::Fo$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         trigger_call_info: true,
                     },
@@ -1401,6 +1474,7 @@ fn main() { Foo::Fo$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         trigger_call_info: true,
                     },
@@ -1547,6 +1621,7 @@ fn main() { Foo::Fo$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         trigger_call_info: true,
                     },
@@ -1634,6 +1709,7 @@ fn main() { let _: m::Spam = S$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         trigger_call_info: true,
                     },
@@ -1673,6 +1749,7 @@ fn main() { let _: m::Spam = S$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         trigger_call_info: true,
                     },
@@ -1719,6 +1796,7 @@ fn main() { som$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -1779,6 +1857,7 @@ fn main() { som$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -1823,6 +1902,7 @@ fn main() { A$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -1867,6 +1947,7 @@ fn main() { A$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -1919,6 +2000,7 @@ fn main() { A::$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         trigger_call_info: true,
                     },
@@ -1956,6 +2038,7 @@ fn main() { A::$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                         trigger_call_info: true,
                     },
@@ -2003,6 +2086,7 @@ fn main() { A$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -2047,6 +2131,7 @@ fn main() { A$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -2088,6 +2173,7 @@ impl A$0
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -2132,6 +2218,7 @@ fn main() { A$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -2177,6 +2264,7 @@ fn main() { a$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -2220,6 +2308,7 @@ fn main() { A { the$0 } }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: true,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -2282,6 +2371,7 @@ impl S {
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                     },
                     CompletionItem {
@@ -2376,6 +2466,7 @@ use self::E::*;
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         trigger_call_info: true,
                     },
@@ -2449,6 +2540,7 @@ fn foo(s: S) { s.$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -2664,6 +2756,7 @@ fn f() -> i32 {
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -2771,6 +2864,7 @@ fn main() {
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         ref_match: "&@65",
                     },
@@ -2820,6 +2914,7 @@ fn main() {
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         ref_match: "&@114",
                     },
@@ -2938,6 +3033,7 @@ fn main() {
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         ref_match: "&@142",
                     },
@@ -3959,6 +4055,7 @@ fn foo(f: Foo) { let _: &u32 = f.b$0 }
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         ref_match: "&@107",
                     },
@@ -4049,6 +4146,7 @@ fn foo() {
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
@@ -4110,6 +4208,7 @@ fn main() {
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                         ref_match: "&@92",
                     },
@@ -4616,6 +4715,7 @@ fn main() {
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                     },
                     CompletionItem {
@@ -4653,6 +4753,7 @@ fn main() {
                             is_skipping_completion: false,
                             has_local_inherent_impl: false,
                             is_deprecated: false,
+                            is_async_in_sync: false,
                         },
                     },
                 ]
