@@ -1224,7 +1224,7 @@ pub mod ops {
     // region:builtin_impls
     macro_rules! not_impl {
         ($($t:ty)*) => ($(
-            impl const Not for $t {
+            const impl Not for $t {
                 type Output = $t;
                 fn not(self) -> $t { !self }
             }
@@ -1235,7 +1235,7 @@ pub mod ops {
 
     macro_rules! neg_impl {
         ($($t:ty)*) => ($(
-            impl const Neg for $t {
+            const impl Neg for $t {
                 type Output = $t;
                 fn neg(self) -> $t { -self }
             }
