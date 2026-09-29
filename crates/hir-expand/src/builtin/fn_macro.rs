@@ -123,6 +123,7 @@ register_builtin! {
     (format_args_nl, FormatArgsNl) => format_args_nl_expand,
     (quote, Quote) => quote_expand,
     (pattern_type, PatternType) => pattern_type_expand,
+    (gca, Gca) => identity_expand,
 }
 
 register_builtin! {
@@ -998,6 +999,19 @@ fn unescape_str(s: &str) -> Cow<'_, str> {
     } else {
         Cow::Borrowed(s)
     }
+}
+
+fn identity_expand(
+    _db: &dyn SourceDatabase,
+    _id: MacroCallId,
+    tt: &tt::TopSubtree,
+    _span: Span,
+) -> ExpandResult<tt::TopSubtree> {
+    // `gca!` passes its argument through. Drop the call's delimiters so
+    // `{ gca!(PATH) }` lowers as `PATH`, not as `(PATH)`.
+    let mut tt = tt.clone();
+    tt.set_top_subtree_delimiter_kind(tt::DelimiterKind::Invisible);
+    ExpandResult::ok(tt)
 }
 
 fn pattern_type_expand(

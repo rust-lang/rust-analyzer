@@ -659,3 +659,25 @@ fn main() {
     "#]],
     );
 }
+
+#[test]
+fn test_gca_expand() {
+    check(
+        r#"
+#[rustc_builtin_macro]
+macro_rules! gca {() => {}}
+
+fn main() {
+    gca!(TYPES_EQ::<A, B>);
+}
+"#,
+        expect![[r#"
+#[rustc_builtin_macro]
+macro_rules! gca {() => {}}
+
+fn main() {
+    TYPES_EQ::<A, B>;
+}
+"#]],
+    );
+}
