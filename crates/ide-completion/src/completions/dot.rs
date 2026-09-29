@@ -39,6 +39,10 @@ pub(crate) fn complete_dot(
             ctx.edition,
         );
         item.detail("expr.await");
+        item.set_relevance(crate::CompletionRelevance {
+            is_async_in_sync: !dot_access.ctx.is_async,
+            ..Default::default()
+        });
         item.add_to(acc, ctx.db);
 
         if ctx.config.enable_auto_await {
@@ -65,7 +69,15 @@ pub(crate) fn complete_dot(
                 |acc, field, ty| {
                     acc.add_field(ctx, &dot_access, Some(await_str.clone()), field, &ty)
                 },
-                |acc, field, ty| acc.add_tuple_field(ctx, Some(await_str.clone()), field, &ty),
+                |acc, field, ty| {
+                    acc.add_tuple_field(
+                        ctx,
+                        Some(await_str.clone()),
+                        field,
+                        &ty,
+                        !dot_access.ctx.is_async,
+                    )
+                },
                 has_parens,
             );
             complete_methods(ctx, &future_output, &traits_in_scope, |func| {
@@ -79,7 +91,7 @@ pub(crate) fn complete_dot(
         ctx,
         receiver_ty,
         |acc, field, ty| acc.add_field(ctx, dot_access, None, field, &ty),
-        |acc, field, ty| acc.add_tuple_field(ctx, None, field, &ty),
+        |acc, field, ty| acc.add_tuple_field(ctx, None, field, &ty, false),
         has_parens,
     );
     complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
@@ -168,6 +180,7 @@ pub(crate) fn complete_undotted_self(
                     ctx: DotAccessExprCtx {
                         in_block_expr: expr_ctx.in_block_expr,
                         in_breakable: expr_ctx.in_breakable,
+                        is_async: expr_ctx.is_async,
                     },
                 },
                 Some(SmolStr::new_static(param_name)),
@@ -176,7 +189,7 @@ pub(crate) fn complete_undotted_self(
             )
         },
         |acc, field, ty| {
-            acc.add_tuple_field(ctx, Some(SmolStr::new_static(param_name)), field, &ty)
+            acc.add_tuple_field(ctx, Some(SmolStr::new_static(param_name)), field, &ty, false)
         },
         false,
     );
@@ -190,6 +203,7 @@ pub(crate) fn complete_undotted_self(
                 ctx: DotAccessExprCtx {
                     in_block_expr: expr_ctx.in_block_expr,
                     in_breakable: expr_ctx.in_breakable,
+                    is_async: expr_ctx.is_async,
                 },
             },
             func,
