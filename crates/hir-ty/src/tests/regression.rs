@@ -3372,3 +3372,56 @@ fn different() {
         "#,
     );
 }
+
+#[test]
+fn const_arg_literal_has_expected_type() {
+    check_types(
+        r#"
+struct StrParam<const TEXT: &'static str>;
+fn str_in_body() {
+    let _x: StrParam<"Send">;
+                   //^^^^^^ &'static str
+}
+        "#,
+    );
+}
+
+#[test]
+fn const_arg_array_len_has_expected_type() {
+    check_types(
+        r#"
+fn array_len() {
+    let _x: [u8; 1];
+               //^ usize
+}
+        "#,
+    );
+}
+
+#[test]
+fn const_arg_underscore_has_expected_type() {
+    check_types(
+        r#"
+struct S<const N: usize>;
+fn underscore_in_body() {
+    let _x: S<_>;
+            //^ usize
+}
+        "#,
+    );
+}
+
+#[test]
+fn const_arg_block_path_has_expected_type() {
+    check_types(
+        r#"
+const TEXT: &'static str = "hi";
+struct Remainder<const T: &'static str>;
+fn block_in_body() {
+    let _x: Remainder<{ TEXT }>;
+                    //^^^^^^^^ &'static str
+                      //^^^^ &'static str
+}
+        "#,
+    );
+}

@@ -13,7 +13,7 @@ use hir_def::{
     hir::{ExprId, ExprOrPatIdPacked},
     resolver::Resolver,
 };
-use la_arena::RawIdx;
+use la_arena::{ArenaMap, RawIdx};
 use rustc_hash::FxHashMap;
 use thin_vec::ThinVec;
 
@@ -65,6 +65,7 @@ pub(crate) struct PathDiagnosticCallbackData<'a> {
 pub(super) struct InferenceTyLoweringVarsCtx<'a, 'db> {
     pub(super) table: &'a mut InferenceTable<'db>,
     pub(super) type_of_type_placeholder: &'a mut FxHashMap<TypeRefId, StoredTy>,
+    pub(super) type_of_expr: &'a mut ArenaMap<ExprId, StoredTy>,
 }
 
 impl<'db> TyLoweringInferVarsCtx<'db> for InferenceTyLoweringVarsCtx<'_, 'db> {
@@ -82,6 +83,16 @@ impl<'db> TyLoweringInferVarsCtx<'db> for InferenceTyLoweringVarsCtx<'_, 'db> {
     }
     fn next_region_var(&mut self, span: Span) -> Region<'db> {
         self.table.infer_ctxt.next_region_var(span)
+    }
+
+    fn record_expr_ty(&mut self, expr: ExprId, ty: Ty<'db>) {
+        if !self.type_of_expr.contains_idx(expr) {
+            self.type_of_expr.insert(expr, ty.store());
+        }
+    }
+
+    fn record_type_placeholder(&mut self, type_ref: TypeRefId, ty: Ty<'db>) {
+        self.type_of_type_placeholder.entry(type_ref).or_insert_with(|| ty.store());
     }
 
     fn as_table(&mut self) -> Option<&mut InferenceTable<'db>> {

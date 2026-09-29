@@ -336,6 +336,7 @@ fn main() {
         expect![[r#"
             10..47 '{   le...s _; }': ()
             18..21 'foo': [bool; 1]
+            27..28 '_': usize
             32..39 '[false]': [bool; 1]
             32..44 '[false] as _': [bool; 1]
             33..38 'false': bool

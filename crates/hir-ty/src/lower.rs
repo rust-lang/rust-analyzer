@@ -200,6 +200,12 @@ pub trait TyLoweringInferVarsCtx<'db> {
     fn next_const_var(&mut self, span: Span) -> Const<'db>;
     fn next_region_var(&mut self, span: Span) -> Region<'db>;
 
+    /// The expected type of a const-argument expression in the body being inferred.
+    fn record_expr_ty(&mut self, _expr: ExprId, _ty: Ty<'db>) {}
+
+    /// The expected type of `_` written in const-argument position.
+    fn record_type_placeholder(&mut self, _type_ref: TypeRefId, _ty: Ty<'db>) {}
+
     #[expect(private_interfaces)]
     fn as_table(&mut self) -> Option<&mut InferenceTable<'db>> {
         None
@@ -551,10 +557,43 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             self.defined_anon_consts.push(konst);
         }
 
+        // A failed const (a mistyped literal, for example) is not the expected type.
+        if konst.is_ok() {
+            self.note_const_arg_expr_ty(expr_id, const_type);
+        }
+
         konst.unwrap_or({
             // FIXME: Report an error.
             self.types.consts.error
         })
+    }
+
+    /// Writes `ty` onto a const-argument expression while a body is being inferred.
+    ///
+    /// One empty block is unwrapped, matching `create_anon_const`, and the tail is
+    /// recorded too. Signature lowering has no inference variables and skips this.
+    fn note_const_arg_expr_ty(&mut self, expr_id: ExprId, ty: Ty<'db>) {
+        let tail = match &self.store[expr_id] {
+            hir_def::hir::Expr::Block { statements, tail: Some(tail), .. }
+                if statements.is_empty() =>
+            {
+                Some(*tail)
+            }
+            _ => None,
+        };
+        let Some(infer_vars) = self.infer_vars.as_mut() else {
+            return;
+        };
+        infer_vars.record_expr_ty(expr_id, ty);
+        if let Some(tail) = tail {
+            infer_vars.record_expr_ty(tail, ty);
+        }
+    }
+
+    fn note_const_arg_placeholder(&mut self, type_ref: TypeRefId, ty: Ty<'db>) {
+        if let Some(infer_vars) = self.infer_vars.as_mut() {
+            infer_vars.record_type_placeholder(type_ref, ty);
+        }
     }
 
     pub(crate) fn lower_path_as_const(&mut self, path: &Path, _const_type: Ty<'db>) -> Const<'db> {

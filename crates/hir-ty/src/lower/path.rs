@@ -760,7 +760,10 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
             ) -> Const<'db> {
                 match arg {
                     TypeLikeConst::Path(path) => self.ctx.ctx.lower_path_as_const(path, const_ty),
-                    TypeLikeConst::Infer => self.ctx.ctx.next_const_var(type_ref.into()),
+                    TypeLikeConst::Infer => {
+                        self.ctx.ctx.note_const_arg_placeholder(type_ref, const_ty);
+                        self.ctx.ctx.next_const_var(type_ref.into())
+                    }
                 }
             }
 
