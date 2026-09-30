@@ -222,9 +222,14 @@ impl Docs {
     fn extend_with_doc_attr(&mut self, value: ast::String, indent: &mut Indent) {
         let Some(value_offset) = value.text_range_between_quotes() else { return };
         let value_offset = value_offset.start();
-        let Ok(value) = value.value() else { return };
-        // FIXME: Handle source maps for escaped text.
-        self.extend_with_doc_str(&value, value_offset, DocCommentKind::Desugared, indent);
+        let Ok(unescaped) = value.value() else { return };
+        if *unescaped == *value.text_without_quotes() {
+            self.extend_with_doc_str(&unescaped, value_offset, DocCommentKind::Desugared, indent);
+        } else {
+            // With escapes, offsets in the unescaped text don't match offsets in the source.
+            // FIXME: Map the text between escapes.
+            self.extend_with_unmapped_doc_str(&unescaped, indent);
+        }
     }
 
     fn extend_with_doc_str(
