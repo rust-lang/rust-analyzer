@@ -45,6 +45,7 @@ use crate::{
     main_loop::Task,
     mem_docs::MemDocs,
     op_queue::{Cause, OpQueue},
+    overlay::{Overlay, SharedCrates},
     priming_scope, reload,
     target_spec::{CargoTargetSpec, ProjectJsonTargetSpec, TargetSpec},
     task_pool::{DeferredTaskQueue, TaskPool},
@@ -213,6 +214,10 @@ pub(crate) struct GlobalState {
     /// This is marked true if we failed to load a crate root file at crate graph creation,
     /// which will usually end up causing a bunch of incorrect diagnostics on startup.
     pub(crate) incomplete_crate_graph: bool,
+    /// The loaded workspaces that live in a git worktree of another loaded workspace.
+    pub(crate) overlays: Vec<Overlay>,
+    /// The crates of those workspaces that the crates of their base checkout stand in for.
+    pub(crate) shared_crates: SharedCrates,
 
     pub(crate) minicore: MiniCoreRustAnalyzerInternalOnly,
     pub(crate) last_gc_revision: Revision,
@@ -359,6 +364,8 @@ impl GlobalState {
 
             deferred_task_queue,
             incomplete_crate_graph: false,
+            overlays: Vec::new(),
+            shared_crates: SharedCrates::default(),
 
             minicore: MiniCoreRustAnalyzerInternalOnly::default(),
             last_gc_revision,

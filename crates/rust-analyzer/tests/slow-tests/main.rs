@@ -19,6 +19,7 @@ mod multi_client;
 mod ratoml;
 mod support;
 mod testdir;
+mod worktree;
 
 use std::{path::PathBuf, time::Instant};
 
