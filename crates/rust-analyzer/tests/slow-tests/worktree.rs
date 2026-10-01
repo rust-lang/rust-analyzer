@@ -263,3 +263,82 @@ fn editing_a_shared_crate_in_the_worktree_stops_sharing_it() {
     wait_for_crate_count(&server, "app", 1);
     assert!(hover("wt/core_lib/src/lib.rs").contains("pub fn answer() -> u32"));
 }
+
+#[test]
+fn references_from_a_worktree_show_the_worktree_not_the_base_checkout() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = worktree_server("pub fn run() -> u32 { core_lib::answer() + 1 }");
+    let references = |path: &str| {
+        server
+            .send_request::<lsp_types::ReferencesRequest>(lsp_types::ReferenceParams {
+                text_document_position_params: position(&server, path, 0, 8),
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+                context: lsp_types::ReferenceContext { include_declaration: false },
+            })
+            .to_string()
+    };
+
+    // `core_lib` is shared, but the worktree has its own `app` that uses it
+    let from_worktree = references("wt/core_lib/src/lib.rs");
+    assert!(from_worktree.contains("/wt/app/src/lib.rs"), "{from_worktree}");
+    assert!(!from_worktree.contains("/base/"), "{from_worktree}");
+
+    let from_base = references("base/core_lib/src/lib.rs");
+    assert!(from_base.contains("/base/app/src/lib.rs"), "{from_base}");
+}
+
+#[test]
+fn client_working_in_a_worktree_sees_symbols_of_the_worktree() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let fixture =
+        CHECKOUT_AND_WORKTREE.replace("$APP", "pub fn run() -> u32 { core_lib::answer() + 1 }");
+    let multi_server = Project::with_fixture(&fixture).root("base").root("wt").multi_server();
+    let base_client = multi_server.connect(rust_analyzer::ClientId(1));
+    base_client.wait_until_workspace_is_loaded();
+
+    let worktree_client = multi_server.connect_with_encoding(rust_analyzer::ClientId(2), None);
+    let worktree_root = worktree_client.doc_id("wt").uri;
+    let params: lsp_types::InitializeParams = serde_json::from_value(serde_json::json!({
+        "rootUri": worktree_root,
+        "capabilities": {},
+    }))
+    .unwrap();
+    worktree_client.send_request::<lsp_types::InitializeRequest>(params);
+    worktree_client
+        .notification::<lsp_types::InitializedNotification>(lsp_types::InitializedParams {});
+
+    let symbols = |query: &str| {
+        worktree_client
+            .send_request::<rust_analyzer::lsp::ext::WorkspaceSymbolRequest>(
+                rust_analyzer::lsp::ext::WorkspaceSymbolParams {
+                    partial_result_params: Default::default(),
+                    work_done_progress_params: Default::default(),
+                    query: query.to_owned(),
+                    search_scope: None,
+                    search_kind: None,
+                },
+            )
+            .to_string()
+    };
+
+    // The worktree's own crate, and not the base checkout's version of it
+    let run = symbols("run#");
+    assert!(run.contains("/wt/app/src/lib.rs"), "{run}");
+    assert!(!run.contains("/base/"), "{run}");
+
+    // A shared crate, under the worktree's path
+    let answer = symbols("answer#");
+    assert!(answer.contains("/wt/core_lib/src/lib.rs"), "{answer}");
+    assert!(!answer.contains("/base/"), "{answer}");
+
+    base_client.shutdown_and_exit();
+    worktree_client.shutdown_and_exit();
+    multi_server.wait_for_shutdown();
+}

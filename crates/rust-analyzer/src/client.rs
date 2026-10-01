@@ -1,6 +1,7 @@
 //! Multi-client abstraction for `rust-analyzer`.
 
 use crossbeam_channel::Sender;
+use vfs::AbsPathBuf;
 
 use crate::{
     global_state::ReqQueue, line_index::PositionEncoding, lsp::capabilities::ClientCapabilities,
@@ -28,6 +29,8 @@ pub(crate) struct Client {
     pub(crate) position_encoding: PositionEncoding,
     pub(crate) is_initialized: bool,
     pub(crate) caps: ClientCapabilities,
+    /// The directory the client works in, if it told us.
+    pub(crate) root: Option<AbsPathBuf>,
 }
 
 impl Client {
@@ -43,6 +46,7 @@ impl Client {
             position_encoding,
             is_initialized: false,
             caps,
+            root: None,
         }
     }
 }

@@ -756,6 +756,9 @@ pub(crate) fn handle_workspace_symbol(
     ) -> anyhow::Result<Vec<lsp_types::WorkspaceSymbol>> {
         let mut res = Vec::new();
         for nav in snap.analysis.symbol_search(query, limit)? {
+            if !snap.in_client_view(nav.file_id)? {
+                continue;
+            }
             let container_name = nav.container_name.as_ref().map(|v| v.to_string());
 
             let info = lsp_types::WorkspaceSymbol {
@@ -1491,10 +1494,17 @@ pub(crate) fn handle_references(
                 .chain(decl)
         })
         .unique()
-        .filter_map(|frange| to_proto::location(&snap, frange).ok())
-        .collect();
+        .collect::<Vec<_>>();
+    let mut res = Vec::with_capacity(locations.len());
+    for frange in locations {
+        if snap.in_client_view(frange.file_id)?
+            && let Ok(location) = to_proto::location(&snap, frange)
+        {
+            res.push(location);
+        }
+    }
 
-    Ok(Some(locations))
+    Ok(Some(res))
 }
 
 pub(crate) fn handle_formatting(

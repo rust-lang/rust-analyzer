@@ -151,9 +151,11 @@ pub struct CrateBuilder {
 
 impl CrateBuilder {
     /// Whether the two crates are analyzed in the same way, given that their sources are the
-    /// same. That is, they may only differ in where those sources are located.
-    pub fn eq_modulo_location(&self, other: &CrateBuilder) -> bool {
-        let CrateBuilder { basic, extra, cfg_options, env: _, ws_data } = self;
+    /// same. That is, they may only differ in where those sources are located: `other` in `root`
+    /// or in the directory of its build script's output, and `self` at the same place in
+    /// `other_root`.
+    pub fn eq_modulo_location(&self, other: &CrateBuilder, root: &str, other_root: &str) -> bool {
+        let CrateBuilder { basic, extra, cfg_options, env, ws_data } = self;
         let CrateData {
             root_file_id: _,
             edition,
@@ -171,6 +173,12 @@ impl CrateBuilder {
             && *extra == other.extra
             && *cfg_options == other.cfg_options
             && *ws_data == other.ws_data
+            && env.entries.len() == other.env.entries.len()
+            && env.entries.iter().all(|(key, value)| {
+                other.env.entries.get(key).is_some_and(|other_value| {
+                    key == "OUT_DIR" || *value == other_value.replace(other_root, root)
+                })
+            })
     }
 }
 

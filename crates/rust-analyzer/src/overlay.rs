@@ -134,15 +134,27 @@ pub(crate) fn base_crate(
     krate: &CrateBuilder,
 ) -> Option<CrateBuilderId> {
     let worktree_file = krate.basic.root_file_id;
-    let base_path = overlay.to_base(vfs.file_path(worktree_file).as_path()?)?;
-    let (base_file, _) = vfs.file_id(&VfsPath::from(base_path))?;
-    let same_sources = same_sources(vfs, roots, overlay, worktree_file, base_file);
-    overlay_crates.insert((worktree_file, base_file), same_sources);
-    if !same_sources {
-        return None;
-    }
+    let base_file = match overlay.to_base(vfs.file_path(worktree_file).as_path()?) {
+        Some(base_path) => {
+            let (base_file, _) = vfs.file_id(&VfsPath::from(base_path))?;
+            let same_sources = same_sources(vfs, roots, overlay, worktree_file, base_file);
+            overlay_crates.insert((worktree_file, base_file), same_sources);
+            if !same_sources {
+                return None;
+            }
+            base_file
+        }
+        // A library: the very same files, used by both.
+        None => worktree_file,
+    };
     graph.iter().find(|&id| {
-        graph[id].basic.root_file_id == base_file && graph[id].eq_modulo_location(krate)
+        let base_crate = &graph[id];
+        base_crate.basic.root_file_id == base_file
+            && base_crate.eq_modulo_location(
+                krate,
+                overlay.base_root.as_str(),
+                overlay.worktree_root.as_str(),
+            )
     })
 }
 

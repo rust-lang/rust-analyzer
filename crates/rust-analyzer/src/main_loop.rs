@@ -166,6 +166,13 @@ impl MultiClientInbox {
     }
 }
 
+/// The directory a client says it works in.
+fn client_root(params: &lsp_types::InitializeParams) -> Option<AbsPathBuf> {
+    let params = serde_json::to_value(params).ok()?;
+    let uri = params["workspaceFolders"][0]["uri"].as_str().or(params["rootUri"].as_str())?;
+    from_proto::abs_path(&uri.parse().ok()?).ok()
+}
+
 enum Event {
     Lsp(ClientId, lsp_server::Message),
     RegisterClient(ClientId, Sender<lsp_server::Message>, Option<PositionEncoding>),
@@ -1604,12 +1611,14 @@ impl GlobalState {
     fn on_request(&mut self, client_id: ClientId, req: Request) {
         let mut dispatcher = RequestDispatcher { client_id, req: Some(req), global_state: self };
         dispatcher.on_client_sync_mut::<lsp_types::InitializeRequest>(|s, client_id, params| {
+            let root = client_root(&params);
             let client_caps =
                 crate::lsp::capabilities::ClientCapabilities::new(params.capabilities);
             let encoding = client_caps.negotiated_encoding();
             if let Some(client) = s.clients.get_mut(&client_id) {
                 client.position_encoding = encoding;
                 client.caps = client_caps.clone();
+                client.root = root;
             }
             let caps = crate::lsp::capabilities::server_capabilities_for(&s.config, &client_caps);
             Ok(lsp_types::InitializeResult {

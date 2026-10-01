@@ -255,6 +255,7 @@ pub(crate) struct GlobalStateSnapshot {
     /// The overlay that the files named by the request belong to. Paths in the response are
     /// those of its worktree.
     request_overlay: OnceLock<usize>,
+    client_root: Option<AbsPathBuf>,
 }
 
 impl std::panic::UnwindSafe for GlobalStateSnapshot {}
@@ -266,6 +267,7 @@ impl GlobalState {
         this.register_client_with_id(ClientId::DEFAULT, sender, encoding);
         if let Some(client) = this.clients.get_mut(&ClientId::DEFAULT) {
             client.is_initialized = true;
+            client.root = Some(this.config.default_root_path().clone());
         }
         this
     }
@@ -633,6 +635,15 @@ impl GlobalState {
             .map(|c| c.position_encoding)
             .unwrap_or_else(|| self.config.caps().negotiated_encoding());
         let caps = client_id.and_then(|id| self.clients.get(&id)).map(|c| c.caps.clone());
+        let client_root =
+            client_id.and_then(|id| self.clients.get(&id)).and_then(|c| c.root.clone());
+        let request_overlay = OnceLock::new();
+        if let Some(root) = &client_root
+            && let Some(idx) =
+                self.overlays.iter().position(|it| root.starts_with(&it.worktree_root))
+        {
+            _ = request_overlay.set(idx);
+        }
 
         GlobalStateSnapshot {
             client_id,
@@ -650,7 +661,8 @@ impl GlobalState {
                 || self.fetch_proc_macros_queue.last_op_result().copied().unwrap_or(false),
             flycheck: self.flycheck.clone(),
             overlays: Arc::clone(&self.overlays),
-            request_overlay: OnceLock::new(),
+            request_overlay,
+            client_root,
         }
     }
 
@@ -1314,6 +1326,45 @@ impl GlobalStateSnapshot {
         match base_file {
             Some(base_file) if self.analysis.crates_for(file_id)?.is_empty() => Ok(base_file),
             _ => Ok(file_id),
+        }
+    }
+
+    /// Whether something found in `file_id` is of interest to the client that sent the request.
+    ///
+    /// A client that works in a worktree does not want to hear about the base checkout's copy of
+    /// a crate that the worktree has its own version of, nor about other worktrees. A client
+    /// that works elsewhere does not want to hear about worktrees.
+    pub(crate) fn in_client_view(&self, file_id: FileId) -> Cancellable<bool> {
+        if self.overlays.is_empty() {
+            return Ok(true);
+        }
+        let worktree_file = {
+            let vfs = self.vfs_read();
+            let Some(path) = vfs.file_path(file_id).as_path() else {
+                return Ok(true);
+            };
+            let worktree_of_file =
+                self.overlays.iter().position(|it| path.starts_with(&it.worktree_root));
+            let Some(&idx) = self.request_overlay.get() else {
+                // Without knowing where the client works, show it everything.
+                let outside_of_client_root = worktree_of_file.is_some_and(|idx| {
+                    self.client_root
+                        .as_ref()
+                        .is_some_and(|root| !self.overlays[idx].worktree_root.starts_with(root))
+                });
+                return Ok(!outside_of_client_root);
+            };
+            if worktree_of_file.is_some() {
+                return Ok(worktree_of_file == Some(idx));
+            }
+            self.overlays[idx]
+                .to_worktree(path)
+                .and_then(|path| vfs.file_id(&VfsPath::from(path)))
+                .map(|(file_id, _)| file_id)
+        };
+        match worktree_file {
+            Some(worktree_file) => Ok(self.analysis.crates_for(worktree_file)?.is_empty()),
+            None => Ok(true),
         }
     }
 
