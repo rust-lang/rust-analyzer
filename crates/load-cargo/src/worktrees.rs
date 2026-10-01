@@ -470,7 +470,9 @@ impl Worktrees {
             change.set_roots(self.source_root_config.partition(vfs));
             self.source_roots = Arc::new(SourceRoots::new(&self.source_root_config, vfs));
         }
-        if self.sharing_is_stale(vfs, &changed_files) && self.set_crate_graph(vfs, &mut change) {
+        if self.sharing_is_stale(vfs, &changed_files, created_or_deleted)
+            && self.set_crate_graph(vfs, &mut change)
+        {
             db.apply_change(change);
             return self.reload(db, vfs);
         }
@@ -514,7 +516,12 @@ impl Worktrees {
 
     /// Whether a change to `changed_files` made the sources of a crate of a worktree differ
     /// from, or become the same as, those of the base checkout.
-    fn sharing_is_stale(&self, vfs: &Vfs, changed_files: &[FileId]) -> bool {
+    fn sharing_is_stale(
+        &self,
+        vfs: &Vfs,
+        changed_files: &[FileId],
+        created_or_deleted: bool,
+    ) -> bool {
         let roots = &*self.source_roots;
         let sources = Sources {
             vfs,
@@ -523,8 +530,10 @@ impl Worktrees {
             disk_cache: &self.disk_cache,
         };
         self.overlay_crates.iter().any(|(&(worktree_file, base_file), krate)| {
-            // The files that a crate pulls in by path can be anywhere.
-            let touched = roots.pulls_in_files(&self.pulled_in_files, worktree_file)
+            // The files that a crate pulls in by path can be anywhere, and a file that is gone
+            // is in no package anymore.
+            let touched = created_or_deleted
+                || roots.pulls_in_files(&self.pulled_in_files, worktree_file)
                 || changed_files.iter().any(|&file| {
                     roots.in_same_root(file, worktree_file) || roots.in_same_root(file, base_file)
                 });
@@ -732,14 +741,19 @@ impl Views {
         if let Some(worktree_of_file) = worktree_of_file {
             return worktree_of_file == view;
         }
-        let worktree_file = view
-            .to_worktree(path)
-            .and_then(|path| vfs.file_id(&VfsPath::from(path)))
+        // A library, which is the same for all.
+        let Some(worktree_path) = view.to_worktree(path) else {
+            return true;
+        };
+        let worktree_file = vfs
+            .file_id(&VfsPath::from(worktree_path.clone()))
             .map(|(file, _)| file)
             .filter(|&file| vfs.exists(file));
         match worktree_file {
             Some(worktree_file) => !is_in_a_crate(worktree_file),
-            None => true,
+            // Either the base checkout's file stands in for the worktree's, or the worktree
+            // does not have the file.
+            None => self.is_not_loaded(view, &worktree_path),
         }
     }
 
@@ -1058,5 +1072,129 @@ mod tests {
         checkouts.worktrees.reload_file(&mut checkouts.db, &mut checkouts.vfs, &path);
         assert_eq!(checkouts.text("wt/app/src/lib.rs"), APP);
         assert_eq!(checkouts.crates(), 2);
+    }
+
+    #[test]
+    fn file_created_or_deleted_in_a_shared_package_stops_sharing_it() {
+        let mut checkouts = Checkouts::new();
+        checkouts.add_worktree("wt", CORE_LIB, APP);
+        assert_eq!(checkouts.crates(), 2);
+
+        // A new file makes the package differ, whether a crate uses it or not
+        checkouts.set_file_text("wt/core_lib/src/extra.rs", "pub fn extra() {}\n");
+        assert!(checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+        assert_eq!(checkouts.crates(), 4);
+
+        let path = checkouts.path("wt/core_lib/src/extra.rs");
+        checkouts.worktrees.set_file_text(&mut checkouts.db, &mut checkouts.vfs, &path, None);
+        assert_eq!(checkouts.crates(), 2);
+
+        // And so does a file that is gone
+        let path = checkouts.path("wt/app/src/lib.rs");
+        checkouts.worktrees.set_file_text(&mut checkouts.db, &mut checkouts.vfs, &path, None);
+        // The worktree has no `app` anymore, and the base checkout's is not its business
+        assert_eq!(checkouts.crates(), 2);
+        let view = checkouts.overlay("wt");
+        assert!(!checkouts.in_view(Some(&view), "base/app/src/lib.rs"));
+        assert!(checkouts.in_view(Some(&view), "base/core_lib/src/lib.rs"));
+    }
+
+    #[test]
+    fn adding_a_worktree_again_takes_its_new_workspace() {
+        let mut checkouts = Checkouts::new();
+        checkouts.add_worktree("wt", CORE_LIB, "pub fn run() -> u32 { 1 }\n");
+        assert_eq!(checkouts.crates(), 3);
+
+        // The same worktree, loaded again: it is still one worktree
+        checkouts.add_worktree("wt", CORE_LIB, "pub fn run() -> u32 { 1 }\n");
+        assert_eq!(checkouts.crates(), 3);
+        assert_eq!(checkouts.worktrees.overlays().count(), 1);
+    }
+
+    #[test]
+    fn replacing_the_base_workspace_keeps_sharing() {
+        let mut checkouts = Checkouts::new();
+        checkouts.add_worktree("wt", CORE_LIB, "pub fn run() -> u32 { 1 }\n");
+        assert_eq!(checkouts.crates(), 3);
+
+        let base = load_workspace(&checkouts.dir.join("base"));
+        checkouts.worktrees.set_base(&mut checkouts.db, &mut checkouts.vfs, base);
+        // Everything is loaded now, and compared file by file
+        assert!(checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+        assert_eq!(checkouts.crates(), 3);
+        assert_eq!(
+            checkouts.analyzed_file("wt/core_lib/src/lib.rs"),
+            checkouts.file("base/core_lib/src/lib.rs")
+        );
+    }
+
+    #[test]
+    fn worktree_with_another_workspace_manifest_is_loaded_and_compared() {
+        let mut checkouts = Checkouts::new();
+        write_checkout(&checkouts.dir.join("wt"), CORE_LIB, APP);
+        // The same workspace, but we cannot tell that from the manifest
+        let manifest = checkouts.dir.join("wt/Cargo.toml");
+        let text = fs::read_to_string(&manifest).unwrap();
+        fs::write(&manifest, format!("{text}\n# a comment\n")).unwrap();
+        let overlay = checkouts.overlay("wt");
+        checkouts.worktrees.add(
+            &mut checkouts.db,
+            &mut checkouts.vfs,
+            load_workspace(&checkouts.dir.join("wt")),
+            overlay,
+        );
+
+        assert!(checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+        assert_eq!(checkouts.crates(), 2);
+    }
+
+    #[test]
+    fn crate_pulling_in_a_file_that_differs_is_loaded() {
+        let pulling_in = "#[path = \"../../shared.rs\"]\nmod shared;\npub fn run() -> u32 { 1 }\n";
+        let dir = std::env::temp_dir().join(format!("ra-worktrees-pull-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let dir = fs::canonicalize(dir).unwrap();
+        write_checkout(&dir.join("base"), CORE_LIB, pulling_in);
+        fs::write(dir.join("base/shared.rs"), "pub fn shared() {}\n").unwrap();
+        let (worktrees, db, vfs) = Worktrees::load(
+            load_workspace(&dir.join("base")),
+            &FxHashMap::default(),
+            &LoadCargoConfig {
+                load_out_dirs_from_check: false,
+                with_proc_macro_server: ProcMacroServerChoice::None,
+                prefill_caches: true,
+                num_worker_threads: 1,
+                proc_macro_processes: 1,
+            },
+        )
+        .unwrap();
+        let mut checkouts = Checkouts { dir, worktrees, db, vfs };
+
+        // `app` is the same in both, but the file it pulls in from outside of its package is not
+        write_checkout(&checkouts.dir.join("differs"), CORE_LIB, pulling_in);
+        fs::write(checkouts.dir.join("differs/shared.rs"), "pub fn shared() -> u8 { 1 }\n")
+            .unwrap();
+        let overlay = checkouts.overlay("differs");
+        checkouts.worktrees.add(
+            &mut checkouts.db,
+            &mut checkouts.vfs,
+            load_workspace(&checkouts.dir.join("differs")),
+            overlay,
+        );
+        assert_eq!(checkouts.crates(), 3);
+        assert!(checkouts.is_loaded("differs/app/src/lib.rs"));
+        assert!(!checkouts.is_loaded("differs/core_lib/src/lib.rs"));
+
+        write_checkout(&checkouts.dir.join("same"), CORE_LIB, pulling_in);
+        fs::write(checkouts.dir.join("same/shared.rs"), "pub fn shared() {}\n").unwrap();
+        let overlay = checkouts.overlay("same");
+        checkouts.worktrees.add(
+            &mut checkouts.db,
+            &mut checkouts.vfs,
+            load_workspace(&checkouts.dir.join("same")),
+            overlay,
+        );
+        assert_eq!(checkouts.crates(), 3);
+        assert!(!checkouts.is_loaded("same/app/src/lib.rs"));
     }
 }

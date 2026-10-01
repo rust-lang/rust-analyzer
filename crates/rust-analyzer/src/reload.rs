@@ -706,8 +706,10 @@ impl GlobalState {
             self.overlay_crates
                 .iter()
                 .filter(|&(&(worktree_file, base_file), _)| {
-                    // The files that a crate pulls in by path can be anywhere.
-                    roots.pulls_in_files(&self.pulled_in_files, worktree_file)
+                    // The files that a crate pulls in by path can be anywhere, and a file that
+                    // is gone is in no package anymore.
+                    created_or_deleted
+                        || roots.pulls_in_files(&self.pulled_in_files, worktree_file)
                         || changed_files.iter().any(|&file| {
                             roots.in_same_root(file, worktree_file)
                                 || roots.in_same_root(file, base_file)

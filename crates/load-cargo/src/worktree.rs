@@ -565,4 +565,35 @@ mod tests {
         assert_eq!(pulled_in_files("let include = path.join(\"../x\");"), vec![]);
         assert_eq!(pulled_in_files("fn f() { format!(\"{path}\", path = \"../x\"); }"), vec![]);
     }
+
+    #[test]
+    fn compares_directories() {
+        use std::fs;
+
+        let root = std::env::temp_dir().join(format!("ra-same-dir-{}", std::process::id()));
+        _ = fs::remove_dir_all(&root);
+        let dir = |name: &str, files: &[(&str, &str)]| {
+            let dir = root.join(name);
+            for (path, text) in files {
+                let path = dir.join(path);
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(path, text).unwrap();
+            }
+            paths::Utf8PathBuf::from_path_buf(dir).unwrap()
+        };
+        let one = dir("one", &[("gen.rs", "fn a() {}"), ("nested/more.rs", "fn b() {}")]);
+        let same = dir("same", &[("gen.rs", "fn a() {}"), ("nested/more.rs", "fn b() {}")]);
+        let other_text = dir("text", &[("gen.rs", "fn a() {}"), ("nested/more.rs", "fn c() {}")]);
+        let other_files = dir("files", &[("gen.rs", "fn a() {}")]);
+        let missing = paths::Utf8PathBuf::from_path_buf(root.join("missing")).unwrap();
+        let also_missing = paths::Utf8PathBuf::from_path_buf(root.join("also_missing")).unwrap();
+
+        assert!(super::same_dir(&one, &same));
+        assert!(!super::same_dir(&one, &other_text));
+        assert!(!super::same_dir(&one, &other_files));
+        assert!(!super::same_dir(&one, &missing));
+        // Nothing was generated on either side
+        assert!(super::same_dir(&missing, &also_missing));
+        _ = fs::remove_dir_all(&root);
+    }
 }

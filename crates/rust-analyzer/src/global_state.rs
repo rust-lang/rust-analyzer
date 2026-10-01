@@ -1473,14 +1473,18 @@ impl GlobalStateSnapshot {
             if worktree_of_file.is_some() {
                 return Ok(worktree_of_file == Some(idx));
             }
-            self.overlays[idx]
-                .to_worktree(path)
-                .and_then(|path| vfs.file_id(&VfsPath::from(path)))
+            // A library, which is the same for all.
+            let Some(worktree_path) = self.overlays[idx].to_worktree(path) else {
+                return Ok(true);
+            };
+            vfs.file_id(&VfsPath::from(worktree_path))
                 .map(|(file_id, _)| file_id)
+                .filter(|&file_id| vfs.exists(file_id))
         };
         match worktree_file {
             Some(worktree_file) => Ok(self.analysis.crates_for(worktree_file)?.is_empty()),
-            None => Ok(true),
+            // The worktree does not have the file.
+            None => Ok(false),
         }
     }
 
