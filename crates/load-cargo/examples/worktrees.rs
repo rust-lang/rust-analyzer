@@ -7,16 +7,12 @@
 //! With `--plain`, the worktrees are loaded as ordinary workspaces that share nothing but
 //! libraries, to compare with.
 
+#![allow(clippy::print_stdout)]
+
 use std::time::Instant;
 
-use ide_db::{
-    FxHashMap, RootDatabase,
-    base_db::all_crates,
-    prime_caches::parallel_prime_caches,
-};
-use load_cargo::{
-    LoadCargoConfig, ProcMacroServerChoice, worktree::Overlay, worktrees::Worktrees,
-};
+use ide_db::{FxHashMap, RootDatabase, base_db::all_crates, prime_caches::parallel_prime_caches};
+use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, worktree::Overlay, worktrees::Worktrees};
 use project_model::{CargoConfig, ProjectManifest, ProjectWorkspace, RustLibSource};
 use vfs::AbsPathBuf;
 
@@ -70,8 +66,12 @@ fn main() -> anyhow::Result<()> {
         worktrees.add(&mut db, &mut vfs, workspace, overlay);
         index(&db);
         let (new_crates, new_rss) = (all_crates(&db).len(), rss_mb());
+        let files = vfs
+            .iter()
+            .filter(|(_, path)| path.as_path().is_some_and(|it| it.starts_with(&worktree_root)))
+            .count();
         println!(
-            "{:40} {:6.1}s  {:+5} crates  {:+6} MB",
+            "{:40} {:6.1}s  {:+5} crates  {:+6} MB  {files:5} files loaded",
             format!("+ {}", worktree_root.file_name().unwrap_or_default()),
             start.elapsed().as_secs_f64(),
             new_crates as i64 - crates as i64,

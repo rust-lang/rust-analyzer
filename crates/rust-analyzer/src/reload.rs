@@ -801,7 +801,7 @@ impl GlobalState {
                 pulled_in_files: &self.pulled_in_files,
                 disk_cache: &self.overlay_disk_cache,
             });
-            let graph = overlay::crate_graph(
+            let (crate_graph, proc_macro_paths, _) = overlay::crate_graph(
                 &self.workspaces,
                 self.config.extra_env(None),
                 load,
@@ -810,7 +810,7 @@ impl GlobalState {
                 &mut overlay_crates,
             );
             self.overlay_source_roots = source_roots.map(Arc::new);
-            graph
+            (crate_graph, proc_macro_paths)
         };
         self.overlays = Arc::new(overlays.into_iter().flatten().unique().collect());
         self.overlay_crates = Arc::new(overlay_crates);
@@ -1010,7 +1010,9 @@ pub fn ws_to_crate_graph(
     extra_env: &FxHashMap<String, Option<String>>,
     load: impl FnMut(&AbsPath) -> Option<vfs::FileId>,
 ) -> (CrateGraphBuilder, Vec<ProcMacroPaths>) {
-    overlay::crate_graph(workspaces, extra_env, load, &[], None, &mut OverlayCrates::default())
+    let (crate_graph, proc_macro_paths, _) =
+        overlay::crate_graph(workspaces, extra_env, load, &[], None, &mut OverlayCrates::default());
+    (crate_graph, proc_macro_paths)
 }
 
 pub(crate) fn should_refresh_for_change(

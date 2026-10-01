@@ -4,11 +4,12 @@
 //! repository at once, such as one checkout per agent. Loading each copy into a database of its
 //! own analyzes everything once per copy. Here the base checkout is loaded once, and adding a
 //! worktree only analyzes the packages that differ from the base checkout and what depends on
-//! them, see [`crate::worktree`].
+//! them, see [`crate::worktree`]. The files of the packages that a worktree shares with the base
+//! checkout are not even loaded.
 //!
 //! A worktree need not be a git worktree: any directory with a copy of the base checkout will do.
 
-use std::{cell::RefCell, sync::Arc};
+use std::{cell::RefCell, fs, sync::Arc};
 
 use crossbeam_channel::{Receiver, unbounded};
 use hir_expand::proc_macro::{ProcMacroLoadResult, ProcMacrosBuilder};
@@ -18,10 +19,12 @@ use ide_db::{
     prime_caches,
 };
 use proc_macro_api::ProcMacroClient;
-use project_model::ProjectWorkspace;
+use project_model::{Package, ProjectWorkspace, ProjectWorkspaceKind};
+use rustc_hash::FxHasher;
+use stdx::hash_once;
 use vfs::{
     AbsPath, AbsPathBuf, FileId, Vfs, VfsPath,
-    loader::{Handle, LoadingProgress},
+    loader::{Directories, Entry, Handle, LoadingProgress},
 };
 
 use crate::{
@@ -40,6 +43,9 @@ pub struct Worktrees {
     workspaces: Vec<ProjectWorkspace>,
     /// For each of `workspaces`, what it is an overlay of.
     overlays: Vec<Option<Overlay>>,
+    /// For each of `workspaces`, the directories of its packages that are not loaded, because
+    /// they are the same as in the base checkout, whose files stand in for theirs.
+    not_loaded: Vec<FxHashSet<AbsPathBuf>>,
     source_root_config: SourceRootConfig,
     source_roots: Arc<SourceRoots>,
     overlay_crates: Arc<OverlayCrates>,
@@ -75,6 +81,7 @@ impl Worktrees {
             extra_env: extra_env.clone(),
             workspaces: vec![base],
             overlays: vec![None],
+            not_loaded: vec![FxHashSet::default()],
             source_root_config: SourceRootConfig::default(),
             source_roots: Arc::new(SourceRoots::default()),
             overlay_crates: Arc::default(),
@@ -108,11 +115,17 @@ impl Worktrees {
         worktree: ProjectWorkspace,
         overlay: Overlay,
     ) {
+        let not_loaded = self.same_packages(vfs, &worktree, &overlay);
         match self.overlays.iter().position(|it| it.as_ref() == Some(&overlay)) {
-            Some(idx) => self.workspaces[idx] = worktree,
+            Some(idx) => {
+                self.workspaces[idx] = worktree;
+                // What is loaded stays loaded, the file comparison takes care of it.
+                self.not_loaded[idx].retain(|dir| not_loaded.contains(dir));
+            }
             None => {
                 self.workspaces.push(worktree);
                 self.overlays.push(Some(overlay));
+                self.not_loaded.push(not_loaded);
             }
         }
         self.reload(db, vfs);
@@ -134,6 +147,7 @@ impl Worktrees {
         };
         self.workspaces.remove(idx);
         self.overlays.remove(idx);
+        self.not_loaded.remove(idx);
         // The files of the worktree are of no use anymore, drop their text.
         let files: Vec<VfsPath> = vfs
             .iter()
@@ -152,6 +166,9 @@ impl Worktrees {
     /// Replaces the base checkout's workspace, after its manifests changed.
     pub fn set_base(&mut self, db: &mut RootDatabase, vfs: &mut Vfs, base: ProjectWorkspace) {
         self.workspaces[0] = base;
+        // The crates of the worktrees are compared with other crates now. Their files that are
+        // not loaded cannot be compared with anything, so load them all.
+        self.not_loaded.iter_mut().for_each(FxHashSet::clear);
         self.reload(db, vfs);
     }
 
@@ -167,18 +184,46 @@ impl Worktrees {
         path: &AbsPath,
         text: Option<String>,
     ) {
-        let path = VfsPath::from(path.to_path_buf());
-        self.files_in_memory.insert(path.clone());
-        vfs.set_file_contents(path, text.map(String::into_bytes));
-        self.apply_changes(db, vfs);
+        self.set_file_contents(db, vfs, path, text.map(String::into_bytes), true);
     }
 
     /// Reads the file at `path` from disk again.
     pub fn reload_file(&mut self, db: &mut RootDatabase, vfs: &mut Vfs, path: &AbsPath) {
-        self.files_in_memory.remove(&VfsPath::from(path.to_path_buf()));
         let contents = self.loader.load_sync(path);
-        vfs.set_file_contents(VfsPath::from(path.to_path_buf()), contents);
-        self.apply_changes(db, vfs);
+        self.set_file_contents(db, vfs, path, contents, false);
+    }
+
+    fn set_file_contents(
+        &mut self,
+        db: &mut RootDatabase,
+        vfs: &mut Vfs,
+        path: &AbsPath,
+        contents: Option<Vec<u8>>,
+        in_memory: bool,
+    ) {
+        let vfs_path = VfsPath::from(path.to_path_buf());
+        let hash = contents.as_deref().map(hash_once::<FxHasher>);
+        // A file that is not loaded has the contents of its counterpart in the base checkout.
+        let (stands_in, not_loaded) = self.stand_in(vfs, path);
+        let current = stands_in.and_then(|file| vfs.content_hash(file));
+        if not_loaded && hash == current {
+            // Still the same as in the base checkout, there is nothing to do or to remember.
+            return;
+        }
+        if in_memory {
+            self.files_in_memory.insert(vfs_path.clone());
+        } else {
+            self.files_in_memory.remove(&vfs_path);
+        }
+        // The packages that are not loaded and have this file, or its counterpart in the base
+        // checkout, are not the same as in the base checkout anymore.
+        let loads_more = self.load_packages_of(path);
+        vfs.set_file_contents(vfs_path, contents);
+        if loads_more {
+            self.reload(db, vfs);
+        } else {
+            self.apply_changes(db, vfs);
+        }
     }
 
     /// The worktrees that are loaded.
@@ -190,50 +235,227 @@ impl Worktrees {
     /// snapshot: it is valid for the state of the database it was taken at.
     pub fn views(&self) -> Views {
         Views {
-            overlays: self.overlays().cloned().collect(),
+            overlays: self
+                .overlays
+                .iter()
+                .zip(&self.not_loaded)
+                .filter_map(|(overlay, not_loaded)| {
+                    Some((overlay.clone()?, not_loaded.iter().cloned().collect()))
+                })
+                .collect(),
             overlay_crates: Arc::clone(&self.overlay_crates),
             source_roots: Arc::clone(&self.source_roots),
         }
     }
 
+    /// The file that holds the contents of the file at `path`, and whether that is because
+    /// `path` is in a package of a worktree that is not loaded.
+    fn stand_in(&self, vfs: &Vfs, path: &AbsPath) -> (Option<FileId>, bool) {
+        let file =
+            |path: &AbsPath| vfs.file_id(&VfsPath::from(path.to_path_buf())).map(|(file, _)| file);
+        for (overlay, not_loaded) in self.overlays.iter().zip(&self.not_loaded) {
+            if let Some(overlay) = overlay
+                && not_loaded.iter().any(|dir| path.starts_with(dir))
+            {
+                return (overlay.to_base(path).and_then(|path| file(&path)), true);
+            }
+        }
+        (file(path), false)
+    }
+
+    /// Stops standing in for the packages that have the file at `path`, or whose counterpart in
+    /// the base checkout has it. Returns whether there were any.
+    fn load_packages_of(&mut self, path: &AbsPath) -> bool {
+        let mut loads_more = false;
+        for (overlay, not_loaded) in self.overlays.iter().zip(&mut self.not_loaded) {
+            let Some(overlay) = overlay else { continue };
+            let worktree_path = overlay.to_worktree(path);
+            let before = not_loaded.len();
+            not_loaded.retain(|dir| {
+                !path.starts_with(dir)
+                    && !worktree_path.as_ref().is_some_and(|path| path.starts_with(dir))
+            });
+            loads_more |= not_loaded.len() != before;
+        }
+        loads_more
+    }
+
+    /// The directories of the packages of `worktree` that need not be loaded: they are the same
+    /// as in the base checkout, and so is everything they depend on.
+    fn same_packages(
+        &self,
+        vfs: &Vfs,
+        worktree: &ProjectWorkspace,
+        overlay: &Overlay,
+    ) -> FxHashSet<AbsPathBuf> {
+        let ProjectWorkspaceKind::Cargo { cargo, .. } = &worktree.kind else {
+            return FxHashSet::default();
+        };
+        let sources = Sources {
+            vfs,
+            roots: &self.source_roots,
+            pulled_in_files: &self.pulled_in_files,
+            disk_cache: &self.disk_cache,
+        };
+        // What applies to every package has to be the same to begin with.
+        let workspace_root = worktree.workspace_root();
+        let for_all_packages = ["Cargo.toml", "Cargo.lock", ".cargo/config.toml", ".cargo/config"];
+        let same_workspace = overlay.to_base(workspace_root).is_some_and(|base_root| {
+            for_all_packages.iter().all(|file| {
+                let read = |root: &AbsPath| fs::read(root.join(file)).ok();
+                read(workspace_root) == read(&base_root)
+            })
+        });
+        if !same_workspace {
+            return FxHashSet::default();
+        }
+
+        let dirs: Vec<Directories> = ProjectFolders::new(std::slice::from_ref(worktree), &[], None)
+            .load
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Entry::Directories(dirs) => Some(dirs),
+                Entry::Files(_) => None,
+            })
+            .collect();
+        // The files of the base checkout by the path of their counterpart in the worktree.
+        let base_files: Vec<(AbsPathBuf, FileId)> = vfs
+            .iter()
+            .filter_map(|(file, path)| Some((overlay.to_worktree(path.as_path()?)?, file)))
+            .collect();
+        let mut same_dirs: FxHashMap<usize, bool> = FxHashMap::default();
+        let mut same_dirs_of = |dir: &AbsPath| {
+            let idx = dirs.iter().position(|dirs| dirs.include.iter().any(|it| it == dir))?;
+            let same = *same_dirs
+                .entry(idx)
+                .or_insert_with(|| self.same_on_disk(&sources, overlay, &dirs[idx], &base_files));
+            same.then_some(&dirs[idx])
+        };
+
+        let in_worktree =
+            |pkg: Package| cargo[pkg].manifest.parent().starts_with(&overlay.worktree_root);
+        let mut same: FxHashMap<_, &Directories> = cargo
+            .packages()
+            .filter(|&pkg| in_worktree(pkg))
+            .filter_map(|pkg| Some((pkg, same_dirs_of(cargo[pkg].manifest.parent())?)))
+            .collect();
+        // A package that depends on a package that differs is analyzed anew, with its own files.
+        loop {
+            let before = same.len();
+            let depends_on_other = |pkg: Package| {
+                cargo[pkg]
+                    .dependencies
+                    .iter()
+                    .any(|dep| in_worktree(dep.pkg) && !same.contains_key(&dep.pkg))
+            };
+            let differ: Vec<_> =
+                same.keys().copied().filter(|&pkg| depends_on_other(pkg)).collect();
+            for pkg in differ {
+                same.remove(&pkg);
+            }
+            if same.len() == before {
+                break;
+            }
+        }
+        // Several packages can be loaded together, then all of them have to be the same.
+        let packages_of = |dirs: &Directories| {
+            cargo
+                .packages()
+                .filter(|&pkg| dirs.include.iter().any(|it| it == cargo[pkg].manifest.parent()))
+                .collect::<Vec<_>>()
+        };
+        same.values()
+            .filter(|dirs| packages_of(dirs).iter().all(|pkg| same.contains_key(pkg)))
+            .flat_map(|dirs| dirs.include.iter().cloned())
+            .collect()
+    }
+
+    /// Whether the files of the worktree in `dirs`, as they are on disk, are the same as their
+    /// counterparts in the base checkout, `base_files` by the path of the worktree's file.
+    fn same_on_disk(
+        &self,
+        sources: &Sources<'_>,
+        overlay: &Overlay,
+        dirs: &Directories,
+        base_files: &[(AbsPathBuf, FileId)],
+    ) -> bool {
+        if self
+            .files_in_memory
+            .iter()
+            .any(|path| path.as_path().is_some_and(|path| dirs.contains_file(path)))
+        {
+            return false;
+        }
+        let base_files: FxHashMap<&AbsPath, FileId> = base_files
+            .iter()
+            .filter(|(path, _)| dirs.contains_file(path))
+            .map(|(path, file)| (path.as_path(), *file))
+            .collect();
+        let mut n_files = 0;
+        let mut same_file = |path: &AbsPath| {
+            n_files += 1;
+            let Some(&base_file) = base_files.get(path) else {
+                return false;
+            };
+            fs::read(path).is_ok_and(|contents| {
+                Some(hash_once::<FxHasher>(&*contents)) == sources.vfs.content_hash(base_file)
+            }) && sources.pulls_in_the_same(overlay, base_file, path, &mut FxHashSet::default())
+        };
+        dirs.include.iter().all(|dir| walk(dirs, dir, &mut same_file))
+            && n_files == base_files.len()
+    }
+
     /// Loads the files of all workspaces and builds the crate graph.
     fn reload(&mut self, db: &mut RootDatabase, vfs: &mut Vfs) {
-        let project_folders = ProjectFolders::new(&self.workspaces, &[], None);
-        self.loader_config_version += 1;
-        self.loader.set_config(vfs::loader::Config {
-            load: project_folders.load,
-            watch: vec![],
-            version: self.loader_config_version,
-        });
-        self.source_root_config = project_folders.source_root_config;
+        let mut change = ChangeWithProcMacros::default();
+        loop {
+            let project_folders = ProjectFolders::new(&self.workspaces, &[], None);
+            let not_loaded = |entry: &Entry| match entry {
+                Entry::Directories(dirs) => dirs
+                    .include
+                    .iter()
+                    .all(|dir| self.not_loaded.iter().any(|not_loaded| not_loaded.contains(dir))),
+                Entry::Files(_) => false,
+            };
+            self.loader_config_version += 1;
+            self.loader.set_config(vfs::loader::Config {
+                load: project_folders.load.into_iter().filter(|it| !not_loaded(it)).collect(),
+                watch: vec![],
+                version: self.loader_config_version,
+            });
+            self.source_root_config = project_folders.source_root_config;
 
-        // wait until the loader has loaded all roots
-        for task in &self.receiver {
-            match task {
-                vfs::loader::Message::Progress { n_done, config_version, .. } => {
-                    if n_done == LoadingProgress::Finished
-                        && config_version == self.loader_config_version
-                    {
-                        break;
+            // wait until the loader has loaded all roots
+            for task in &self.receiver {
+                match task {
+                    vfs::loader::Message::Progress { n_done, config_version, .. } => {
+                        if n_done == LoadingProgress::Finished
+                            && config_version == self.loader_config_version
+                        {
+                            break;
+                        }
                     }
-                }
-                vfs::loader::Message::Loaded { files }
-                | vfs::loader::Message::Changed { files } => {
-                    for (path, contents) in files {
-                        let path = VfsPath::from(path);
-                        if !self.files_in_memory.contains(&path) {
-                            vfs.set_file_contents(path, contents);
+                    vfs::loader::Message::Loaded { files }
+                    | vfs::loader::Message::Changed { files } => {
+                        for (path, contents) in files {
+                            let path = VfsPath::from(path);
+                            if !self.files_in_memory.contains(&path) {
+                                vfs.set_file_contents(path, contents);
+                            }
                         }
                     }
                 }
             }
-        }
 
-        let mut change = ChangeWithProcMacros::default();
-        self.take_file_changes(vfs, &mut change);
+            self.take_file_changes(vfs, &mut change);
+            self.source_roots = Arc::new(SourceRoots::new(&self.source_root_config, vfs));
+            // A crate of a package that is not loaded that turns out to be the worktree's own
+            // needs its own files.
+            if !self.set_crate_graph(vfs, &mut change) {
+                break;
+            }
+        }
         change.set_roots(self.source_root_config.partition(vfs));
-        self.source_roots = Arc::new(SourceRoots::new(&self.source_root_config, vfs));
-        self.set_crate_graph(vfs, &mut change);
         db.apply_change(change);
     }
 
@@ -248,8 +470,9 @@ impl Worktrees {
             change.set_roots(self.source_root_config.partition(vfs));
             self.source_roots = Arc::new(SourceRoots::new(&self.source_root_config, vfs));
         }
-        if self.sharing_is_stale(vfs, &changed_files) {
-            self.set_crate_graph(vfs, &mut change);
+        if self.sharing_is_stale(vfs, &changed_files) && self.set_crate_graph(vfs, &mut change) {
+            db.apply_change(change);
+            return self.reload(db, vfs);
         }
         db.apply_change(change);
     }
@@ -317,7 +540,10 @@ impl Worktrees {
     }
 
     /// Builds the crate graph of the workspaces into `change`.
-    fn set_crate_graph(&mut self, vfs: &Vfs, change: &mut ChangeWithProcMacros) {
+    ///
+    /// Returns whether more files have to be loaded and the crate graph built again: a crate of
+    /// a package that is not loaded turned out not to be shared with the base checkout.
+    fn set_crate_graph(&mut self, vfs: &Vfs, change: &mut ChangeWithProcMacros) -> bool {
         let mut overlay_crates = OverlayCrates::default();
         // The files that are not loaded are compared anew each time the crate graph is built.
         self.disk_cache.borrow_mut().clear();
@@ -328,11 +554,10 @@ impl Worktrees {
             disk_cache: &self.disk_cache,
         };
         let load = |path: &AbsPath| {
-            vfs.file_id(&VfsPath::from(path.to_path_buf())).and_then(|(file_id, excluded)| {
-                (excluded == vfs::FileExcluded::No).then_some(file_id)
-            })
+            let (file, _) = self.stand_in(vfs, path);
+            file.filter(|&file| vfs.exists(file))
         };
-        let (crate_graph, proc_macro_paths) = worktree::crate_graph(
+        let (crate_graph, proc_macro_paths, own_crates) = worktree::crate_graph(
             &self.workspaces,
             &self.extra_env,
             load,
@@ -340,11 +565,33 @@ impl Worktrees {
             Some(&sources),
             &mut overlay_crates,
         );
-        self.overlay_crates = Arc::new(overlay_crates);
 
+        // The files of the base checkout stand in for the ones of a worktree's package that is
+        // not loaded. That only works for the crates the two share: a file is analyzed as part
+        // of one crate.
+        let mut loads_more = false;
+        for ((overlay, not_loaded), own_crates) in
+            self.overlays.iter().zip(&mut self.not_loaded).zip(own_crates)
+        {
+            let Some(overlay) = overlay else { continue };
+            for root_file in own_crates {
+                let worktree_path =
+                    vfs.file_path(root_file).as_path().and_then(|path| overlay.to_worktree(path));
+                let Some(worktree_path) = worktree_path else { continue };
+                let before = not_loaded.len();
+                not_loaded.retain(|dir| !worktree_path.starts_with(dir));
+                loads_more |= not_loaded.len() != before;
+            }
+        }
+        if loads_more {
+            return true;
+        }
+
+        self.overlay_crates = Arc::new(overlay_crates);
         let proc_macros = self.load_proc_macros(proc_macro_paths);
         change.set_crate_graph(crate_graph);
         change.set_proc_macros(proc_macros);
+        false
     }
 
     fn load_proc_macros(&mut self, proc_macro_paths: Vec<ProcMacroPaths>) -> ProcMacrosBuilder {
@@ -373,14 +620,38 @@ impl Worktrees {
     }
 }
 
+/// Calls `same_file` for the files in `dir` that `dirs` has, until it returns `false`. Returns
+/// whether it never did.
+fn walk(dirs: &Directories, dir: &AbsPath, same_file: &mut dyn FnMut(&AbsPath) -> bool) -> bool {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return true;
+    };
+    for entry in entries.flatten() {
+        let Some(path) = entry.file_name().to_str().map(|name| dir.join(name)) else {
+            return false;
+        };
+        let is_dir = entry.file_type().is_ok_and(|it| it.is_dir());
+        let same = if is_dir {
+            !dirs.contains_dir(&path) || walk(dirs, &path, same_file)
+        } else {
+            !dirs.contains_file(&path) || same_file(&path)
+        };
+        if !same {
+            return false;
+        }
+    }
+    true
+}
+
 /// How the files of the worktrees relate to the base checkout, as of some state of the database.
 ///
 /// A request about a file of a worktree is answered in three steps: analyze
-/// [`Views::analyzed_file`] instead of the file, leave out the results that are not
-/// [`Views::in_view`], and report the rest at [`Views::path_in_view`].
+/// [`Views::analyzed_file`] of [`Views::file`] instead of the file, leave out the results that
+/// are not [`Views::in_view`], and report the rest at [`Views::path_in_view`].
 #[derive(Clone)]
 pub struct Views {
-    overlays: Arc<[Overlay]>,
+    /// The worktrees, with the directories of their packages that are not loaded.
+    overlays: Arc<[(Overlay, Vec<AbsPathBuf>)]>,
     overlay_crates: Arc<OverlayCrates>,
     source_roots: Arc<SourceRoots>,
 }
@@ -388,7 +659,26 @@ pub struct Views {
 impl Views {
     /// The worktree that `path` is in.
     pub fn overlay_of(&self, path: &AbsPath) -> Option<&Overlay> {
-        self.overlays.iter().find(|it| path.starts_with(&it.worktree_root))
+        self.overlays.iter().map(|(it, _)| it).find(|it| path.starts_with(&it.worktree_root))
+    }
+
+    fn is_not_loaded(&self, view: &Overlay, path: &AbsPath) -> bool {
+        self.overlays
+            .iter()
+            .any(|(overlay, dirs)| overlay == view && dirs.iter().any(|dir| path.starts_with(dir)))
+    }
+
+    /// The file at `path`. The files of a package that a worktree shares with its base checkout
+    /// are not loaded: the files of the base checkout stand in for them.
+    pub fn file(&self, vfs: &Vfs, path: &AbsPath) -> Option<FileId> {
+        let file = |path: &AbsPath| {
+            let (file, excluded) = vfs.file_id(&VfsPath::from(path.to_path_buf()))?;
+            (excluded == vfs::FileExcluded::No).then_some(file)
+        };
+        match self.overlay_of(path) {
+            Some(overlay) if self.is_not_loaded(overlay, path) => file(&overlay.to_base(path)?),
+            _ => file(path),
+        }
     }
 
     /// The file to analyze for `file`: a file of a crate that a worktree shares with its base
@@ -405,10 +695,11 @@ impl Views {
         if self.overlays.is_empty() {
             return file;
         }
+        let overlays: Vec<Overlay> = self.overlays.iter().map(|(it, _)| it.clone()).collect();
         match worktree::shared_base_file(
             vfs,
             &self.source_roots,
-            &self.overlays,
+            &overlays,
             &self.overlay_crates,
             file,
             false,
@@ -444,7 +735,8 @@ impl Views {
         let worktree_file = view
             .to_worktree(path)
             .and_then(|path| vfs.file_id(&VfsPath::from(path)))
-            .map(|(file, _)| file);
+            .map(|(file, _)| file)
+            .filter(|&file| vfs.exists(file));
         match worktree_file {
             Some(worktree_file) => !is_in_a_crate(worktree_file),
             None => true,
@@ -455,10 +747,14 @@ impl Views {
     /// to a worktree at its own paths.
     pub fn path_in_view(&self, vfs: &Vfs, view: Option<&Overlay>, file: FileId) -> VfsPath {
         let path = vfs.file_path(file);
-        let worktree_path = view
-            .and_then(|view| view.to_worktree(path.as_path()?))
-            .map(VfsPath::from)
-            .filter(|path| vfs.file_id(path).is_some());
+        let worktree_path = view.and_then(|view| {
+            let worktree_path = view.to_worktree(path.as_path()?)?;
+            let has_it = self.is_not_loaded(view, &worktree_path)
+                || vfs
+                    .file_id(&VfsPath::from(worktree_path.clone()))
+                    .is_some_and(|(file, _)| vfs.exists(file));
+            has_it.then(|| VfsPath::from(worktree_path))
+        });
         worktree_path.unwrap_or_else(|| path.clone())
     }
 }
@@ -548,7 +844,14 @@ mod tests {
         }
 
         fn file(&self, path: &str) -> FileId {
-            self.vfs.file_id(&VfsPath::from(self.path(path))).unwrap().0
+            self.worktrees.views().file(&self.vfs, &self.path(path)).unwrap()
+        }
+
+        /// Whether the file itself is loaded, rather than another one standing in for it.
+        fn is_loaded(&self, path: &str) -> bool {
+            self.vfs
+                .file_id(&VfsPath::from(self.path(path)))
+                .is_some_and(|(file, _)| self.vfs.exists(file))
         }
 
         fn text(&self, path: &str) -> String {
@@ -613,6 +916,9 @@ mod tests {
 
         checkouts.add_worktree("wt", CORE_LIB, APP);
         assert_eq!(checkouts.crates(), base_crates);
+        // Nothing of the worktree is even loaded
+        assert!(!checkouts.is_loaded("wt/app/src/lib.rs"));
+        assert!(!checkouts.is_loaded("wt/core_lib/src/lib.rs"));
         assert_eq!(
             checkouts.analyzed_file("wt/app/src/lib.rs"),
             checkouts.file("base/app/src/lib.rs")
@@ -626,6 +932,8 @@ mod tests {
         // `app` differs: only it is analyzed for the worktree
         checkouts.add_worktree("leaf", CORE_LIB, "pub fn run() -> u32 { 1 }\n");
         assert_eq!(checkouts.crates(), 3);
+        assert!(checkouts.is_loaded("leaf/app/src/lib.rs"));
+        assert!(!checkouts.is_loaded("leaf/core_lib/src/lib.rs"));
         assert_eq!(
             checkouts.analyzed_file("leaf/core_lib/src/lib.rs"),
             checkouts.file("base/core_lib/src/lib.rs")
@@ -638,6 +946,8 @@ mod tests {
         // `core_lib` differs: `app` depends on it, so both are analyzed for the worktree
         checkouts.add_worktree("core", "pub fn answer() -> u64 { 42 }\n", APP);
         assert_eq!(checkouts.crates(), 5);
+        assert!(checkouts.is_loaded("core/core_lib/src/lib.rs"));
+        assert!(checkouts.is_loaded("core/app/src/lib.rs"));
         assert_eq!(
             checkouts.analyzed_file("core/app/src/lib.rs"),
             checkouts.file("core/app/src/lib.rs")
@@ -679,7 +989,14 @@ mod tests {
         checkouts.add_worktree("wt", CORE_LIB, APP);
         assert_eq!(checkouts.crates(), 2);
 
+        // Setting the text it has already changes nothing
+        checkouts.set_file_text("wt/core_lib/src/lib.rs", CORE_LIB);
+        assert!(!checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+        assert_eq!(checkouts.crates(), 2);
+
         checkouts.set_file_text("wt/core_lib/src/lib.rs", "pub fn answer() -> u64 { 42 }\n");
+        assert!(checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+        assert!(checkouts.is_loaded("wt/app/src/lib.rs"));
         assert_eq!(checkouts.crates(), 4);
         assert_eq!(checkouts.text("wt/core_lib/src/lib.rs"), "pub fn answer() -> u64 { 42 }\n");
         assert_eq!(checkouts.text("base/core_lib/src/lib.rs"), CORE_LIB);
@@ -701,6 +1018,8 @@ mod tests {
 
         checkouts.set_file_text("base/app/src/lib.rs", "pub fn run() -> u32 { 7 }\n");
         assert_eq!(checkouts.crates(), 3);
+        assert!(checkouts.is_loaded("wt/app/src/lib.rs"));
+        assert!(!checkouts.is_loaded("wt/core_lib/src/lib.rs"));
         assert_eq!(checkouts.text("wt/app/src/lib.rs"), APP);
     }
 

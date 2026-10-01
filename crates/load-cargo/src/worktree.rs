@@ -307,7 +307,7 @@ impl Sources<'_> {
 
     /// Whether the files that the worktree's `file` at `path` pulls in by path are the same as
     /// what its counterpart in the base checkout pulls in.
-    fn pulls_in_the_same(
+    pub(crate) fn pulls_in_the_same(
         &self,
         overlay: &Overlay,
         file: FileId,
@@ -480,6 +480,9 @@ pub type OverlayCrates = FxHashMap<(FileId, FileId), OverlayCrate>;
 /// by `overlays`, is replaced by the crate of its base checkout that stands in for it, if
 /// `sources` are given to compare the two with. What was decided is recorded in
 /// `overlay_crates`.
+///
+/// Also returns, for each workspace, the root files of the crates that are its own: the ones
+/// that are not shared with a workspace that comes before it.
 pub fn crate_graph(
     workspaces: &[ProjectWorkspace],
     extra_env: &FxHashMap<String, Option<String>>,
@@ -487,9 +490,10 @@ pub fn crate_graph(
     overlays: &[Option<Overlay>],
     sources: Option<&Sources<'_>>,
     overlay_crates: &mut OverlayCrates,
-) -> (CrateGraphBuilder, Vec<ProcMacroPaths>) {
+) -> (CrateGraphBuilder, Vec<ProcMacroPaths>, Vec<Vec<FileId>>) {
     let mut crate_graph = CrateGraphBuilder::default();
     let mut proc_macro_paths = vec![ProcMacroPaths::default(); workspaces.len()];
+    let mut own_crates = vec![Vec::new(); workspaces.len()];
     let overlay_of = |idx: usize| overlays.get(idx).and_then(Option::as_ref);
     // The base checkouts have to be in the graph before the worktrees that are overlaid on them.
     let (overlaid, plain): (Vec<usize>, Vec<usize>) =
@@ -497,7 +501,8 @@ pub fn crate_graph(
     for idx in plain.into_iter().chain(overlaid) {
         let (other, mut crate_proc_macros) = workspaces[idx].to_crate_graph(&mut load, extra_env);
 
-        match (overlay_of(idx), sources) {
+        let known: FxHashSet<CrateBuilderId> = crate_graph.iter().collect();
+        let id_map = match (overlay_of(idx), sources) {
             (Some(overlay), Some(sources)) => {
                 crate_graph.extend_with(other, &mut crate_proc_macros, |graph, krate| {
                     base_crate(sources, overlay, overlay_crates, graph, krate)
@@ -505,12 +510,17 @@ pub fn crate_graph(
             }
             _ => crate_graph.extend(other, &mut crate_proc_macros),
         };
+        own_crates[idx] = id_map
+            .values()
+            .filter(|id| !known.contains(id))
+            .map(|&id| crate_graph[id].basic.root_file_id)
+            .collect();
         proc_macro_paths[idx] = crate_proc_macros;
     }
 
     crate_graph.shrink_to_fit();
     proc_macro_paths.shrink_to_fit();
-    (crate_graph, proc_macro_paths)
+    (crate_graph, proc_macro_paths, own_crates)
 }
 
 #[cfg(test)]
