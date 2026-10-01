@@ -608,6 +608,13 @@ config_data! {
         /// Stderr is not parsed as JSONL. It is treated as command log
         /// output and forwarded to rust-analyzer's own logs.
         workspace_discoverConfig: Option<DiscoverWorkspaceConfig> = None,
+
+        /// Share the analysis of a git worktree with the checkout it was created from.
+        ///
+        /// A crate of the worktree whose package has the same sources as in the base checkout,
+        /// and that does not depend on a package that differs, is not analyzed a second time.
+        /// If only the worktree is opened, its base checkout is loaded as well.
+        workspace_shareWorktrees: bool = false,
     }
 }
 
@@ -2395,6 +2402,10 @@ impl Config {
         NotificationsConfig {
             cargo_toml_not_found: self.notifications_cargoTomlNotFound().to_owned(),
         }
+    }
+
+    pub fn share_worktrees(&self) -> bool {
+        *self.workspace_shareWorktrees()
     }
 
     pub fn cargo_autoreload_config(&self, source_root: Option<SourceRootId>) -> bool {

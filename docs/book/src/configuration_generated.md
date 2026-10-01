@@ -1808,6 +1808,17 @@ Stderr is not parsed as JSONL. It is treated as command log
 output and forwarded to rust-analyzer's own logs.
 
 
+## rust-analyzer.workspace.shareWorktrees {#workspace.shareWorktrees}
+
+Default: `false`
+
+Share the analysis of a git worktree with the checkout it was created from.
+
+A crate of the worktree whose package has the same sources as in the base checkout,
+and that does not depend on a package that differs, is not analyzed a second time.
+If only the worktree is opened, its base checkout is loaded as well.
+
+
 ## rust-analyzer.workspace.symbol.search.excludeImports {#workspace.symbol.search.excludeImports}
 
 Default: `false`

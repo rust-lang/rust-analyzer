@@ -13,8 +13,10 @@ use ide_db::{
     base_db::{CrateBuilder, CrateBuilderId, CrateGraphBuilder, SourceRoot},
 };
 use load_cargo::SourceRootConfig;
-use project_model::ProjectWorkspace;
+use project_model::{ProjectManifest, ProjectWorkspace};
 use vfs::{AbsPath, AbsPathBuf, FileId, Vfs, VfsPath};
+
+use crate::config::LinkedProject;
 
 /// A workspace that lives in a git worktree, together with its counterpart in the checkout the
 /// worktree was created from.
@@ -67,6 +69,33 @@ pub(crate) fn find_overlays(workspaces: &[ProjectWorkspace]) -> Vec<Option<Overl
                 .then_some(overlay)
         })
         .collect()
+}
+
+/// The projects in the base checkouts of the worktrees that `projects` are in, unless they are
+/// among `projects` already.
+pub(crate) fn base_checkouts(projects: &[LinkedProject]) -> Vec<LinkedProject> {
+    let manifest = |project: &LinkedProject| match project {
+        LinkedProject::ProjectManifest(manifest) => Some(manifest.manifest_path().clone()),
+        LinkedProject::InlineProjectJson(_) => None,
+    };
+    let mut known: Vec<_> = projects.iter().filter_map(manifest).collect();
+    let mut res = Vec::new();
+    for project in projects {
+        let Some(manifest) = manifest(project) else { continue };
+        let Some(base_manifest) =
+            worktree_of(manifest.parent()).and_then(|overlay| overlay.to_base(&manifest))
+        else {
+            continue;
+        };
+        if known.iter().any(|it| **it == *base_manifest) || fs::metadata(&base_manifest).is_err() {
+            continue;
+        }
+        if let Ok(base_project) = ProjectManifest::from_manifest_file(base_manifest) {
+            known.push(base_project.manifest_path().clone());
+            res.push(base_project.into());
+        }
+    }
+    res
 }
 
 /// The partition of the files into source roots, as of the moment the crate graph is built.

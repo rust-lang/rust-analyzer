@@ -286,7 +286,12 @@ impl GlobalState {
         info!(%cause, "will fetch workspaces");
 
         self.task_pool.handle.spawn_with_sender(ThreadIntent::Worker, {
-            let linked_projects = self.config.linked_or_discovered_projects();
+            let mut linked_projects = self.config.linked_or_discovered_projects();
+            if self.config.share_worktrees() {
+                // The base checkouts go first, they are what the worktrees are compared with.
+                let base_checkouts = overlay::base_checkouts(&linked_projects);
+                linked_projects.splice(0..0, base_checkouts);
+            }
             let detached_files: Vec<_> = self
                 .config
                 .detached_files()
@@ -739,7 +744,11 @@ impl GlobalState {
             .collect();
 
         self.incomplete_crate_graph = false;
-        let overlays = overlay::find_overlays(&self.workspaces);
+        let overlays = if self.config.share_worktrees() {
+            overlay::find_overlays(&self.workspaces)
+        } else {
+            Vec::new()
+        };
         let mut overlay_crates = OverlayCrates::default();
         let (crate_graph, proc_macro_paths) = {
             // Create crate graph from all the workspaces

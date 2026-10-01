@@ -66,6 +66,10 @@ $APP
 
 "#;
 
+fn share_worktrees() -> serde_json::Value {
+    serde_json::json!({ "workspace": { "shareWorktrees": true } })
+}
+
 fn crate_count(crate_graph: &str, name: &str) -> usize {
     crate_graph.matches(&format!("label=\"{name}\"")).count()
 }
@@ -79,6 +83,7 @@ fn worktree_shares_unchanged_crates_with_its_base_checkout() {
     let fixture =
         CHECKOUT_AND_WORKTREE.replace("$APP", "pub fn run() -> u32 { core_lib::answer() + 1 }");
     let server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
         .root("base")
         .root("wt")
         .server()
@@ -101,6 +106,7 @@ fn worktree_identical_to_its_base_checkout_adds_no_crates() {
     let fixture =
         CHECKOUT_AND_WORKTREE.replace("$APP", "pub fn run() -> u32 { core_lib::answer() }");
     let server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
         .root("base")
         .root("wt")
         .server()
@@ -127,6 +133,7 @@ fn worktree_with_changed_dependency_shares_nothing_that_depends_on_it() {
             1,
         );
     let server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
         .root("base")
         .root("wt")
         .server()
@@ -143,6 +150,7 @@ fn worktree_with_changed_dependency_shares_nothing_that_depends_on_it() {
 fn worktree_server(app: &str) -> Server {
     let fixture = CHECKOUT_AND_WORKTREE.replace("$APP", app);
     Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
         .root("base")
         .root("wt")
         .server()
@@ -299,7 +307,11 @@ fn client_working_in_a_worktree_sees_symbols_of_the_worktree() {
 
     let fixture =
         CHECKOUT_AND_WORKTREE.replace("$APP", "pub fn run() -> u32 { core_lib::answer() + 1 }");
-    let multi_server = Project::with_fixture(&fixture).root("base").root("wt").multi_server();
+    let multi_server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
+        .root("base")
+        .root("wt")
+        .multi_server();
     let base_client = multi_server.connect(rust_analyzer::ClientId(1));
     base_client.wait_until_workspace_is_loaded();
 
@@ -341,4 +353,45 @@ fn client_working_in_a_worktree_sees_symbols_of_the_worktree() {
     base_client.shutdown_and_exit();
     worktree_client.shutdown_and_exit();
     multi_server.wait_for_shutdown();
+}
+
+#[test]
+fn opening_only_the_worktree_loads_its_base_checkout() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let fixture =
+        CHECKOUT_AND_WORKTREE.replace("$APP", "pub fn run() -> u32 { core_lib::answer() + 1 }");
+    let server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
+        .root("wt")
+        .server()
+        .wait_until_workspace_is_loaded();
+
+    wait_for_crate_count(&server, "core_lib", 1);
+    wait_for_crate_count(&server, "app", 2);
+    let hover = server.send_request::<HoverRequest>(HoverParams {
+        text_document_position_params: position(&server, "wt/core_lib/src/lib.rs", 0, 8),
+        work_done_progress_params: Default::default(),
+    });
+    assert!(hover.to_string().contains("pub fn answer() -> u32"), "{hover}");
+}
+
+#[test]
+fn worktrees_are_not_shared_unless_asked_for() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let fixture =
+        CHECKOUT_AND_WORKTREE.replace("$APP", "pub fn run() -> u32 { core_lib::answer() }");
+    let server = Project::with_fixture(&fixture)
+        .root("base")
+        .root("wt")
+        .server()
+        .wait_until_workspace_is_loaded();
+
+    wait_for_crate_count(&server, "core_lib", 2);
+    wait_for_crate_count(&server, "app", 2);
 }
