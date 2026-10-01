@@ -809,10 +809,9 @@ fn isolation(base: &str, copies: usize, changes: usize) -> anyhow::Result<()> {
     }
     host.trigger_garbage_collection();
     println!(
-        "worktrees removed: {:+} crates, {} MB, {} MB of it in use by the program",
+        "worktrees removed: {:+} crates, {} MB",
         all_crates(host.raw_database()).len() as i64 - base_crates as i64,
-        rss_mb(),
-        heap_in_use_mb()
+        rss_mb()
     );
     give_back_free_memory();
     println!("what the allocator holds given back to the system: {} MB left", rss_mb());
@@ -846,10 +845,18 @@ fn isolation(base: &str, copies: usize, changes: usize) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Asks the allocator to return to the system what the program has freed.
+/// Asks the allocator to return to the system what the program has freed, where we know how.
 fn give_back_free_memory() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
     // SAFETY: Neither has preconditions; tcmalloc's function is there if that is preloaded.
     unsafe {
+        unsafe extern "C" {
+            fn dlsym(
+                handle: *mut std::ffi::c_void,
+                name: *const std::ffi::c_char,
+            ) -> *mut std::ffi::c_void;
+            fn malloc_trim(pad: usize) -> i32;
+        }
         let release = dlsym(std::ptr::null_mut(), c"MallocExtension_ReleaseFreeMemory".as_ptr());
         if release.is_null() {
             malloc_trim(0);
@@ -857,32 +864,4 @@ fn give_back_free_memory() {
             std::mem::transmute::<*mut std::ffi::c_void, extern "C" fn()>(release)();
         }
     }
-}
-
-unsafe extern "C" {
-    fn dlsym(handle: *mut std::ffi::c_void, name: *const std::ffi::c_char)
-    -> *mut std::ffi::c_void;
-    fn malloc_trim(pad: usize) -> i32;
-    fn mallinfo2() -> MallInfo2;
-}
-
-#[repr(C)]
-struct MallInfo2 {
-    arena: usize,
-    ordblks: usize,
-    smblks: usize,
-    hblks: usize,
-    hblkhd: usize,
-    usmblks: usize,
-    fsmblks: usize,
-    uordblks: usize,
-    fordblks: usize,
-    keepcost: usize,
-}
-
-/// What the program has allocated and not freed, as opposed to what the allocator holds.
-fn heap_in_use_mb() -> usize {
-    // SAFETY: Has no preconditions.
-    let info = unsafe { mallinfo2() };
-    (info.uordblks + info.hblkhd) / (1024 * 1024)
 }
