@@ -280,9 +280,11 @@ impl Worktrees {
         overlay: &Overlay,
     ) -> Vec<AbsPathBuf> {
         let same = self.same_packages(vfs, worktree, overlay);
-        // A library is the same package for both.
-        let is_same =
-            |dir: &AbsPath| !dir.starts_with(&overlay.worktree_root) || same.contains(dir);
+        // A library is the same package for both, if it is built with the same features.
+        let same_features = self.same_features(worktree, overlay);
+        let is_same = |dir: &AbsPath| {
+            same_features(dir) && (!dir.starts_with(&overlay.worktree_root) || same.contains(dir))
+        };
         worktree.inherit_build_scripts(self.base(), &is_same);
         match &worktree.kind {
             ProjectWorkspaceKind::Cargo { cargo, .. } => cargo
@@ -402,11 +404,12 @@ impl Worktrees {
             same.then_some(&dirs[idx])
         };
 
+        let same_features = self.same_features(worktree, overlay);
         let in_worktree =
             |pkg: Package| cargo[pkg].manifest.parent().starts_with(&overlay.worktree_root);
         let mut same: FxHashMap<_, &Directories> = cargo
             .packages()
-            .filter(|&pkg| in_worktree(pkg))
+            .filter(|&pkg| in_worktree(pkg) && same_features(cargo[pkg].manifest.parent()))
             .filter_map(|pkg| Some((pkg, same_dirs_of(cargo[pkg].manifest.parent())?)))
             .collect();
         // A package that depends on a package that differs is analyzed anew, with its own files.
@@ -440,6 +443,33 @@ impl Worktrees {
             .filter(|dir| dir.starts_with(&overlay.worktree_root))
             .cloned()
             .collect()
+    }
+
+    /// Tells whether the package with its manifest in a directory is built with the same
+    /// features in `worktree` as in the base checkout: a change to the manifest of one package
+    /// can enable a feature of another one.
+    fn same_features<'a>(
+        &self,
+        worktree: &ProjectWorkspace,
+        overlay: &'a Overlay,
+    ) -> Box<dyn Fn(&AbsPath) -> bool + 'a> {
+        let features = |workspace: &ProjectWorkspace| -> FxHashMap<AbsPathBuf, Vec<String>> {
+            let ProjectWorkspaceKind::Cargo { cargo, .. } = &workspace.kind else {
+                return FxHashMap::default();
+            };
+            cargo
+                .packages()
+                .map(|pkg| {
+                    let features = cargo[pkg].active_features.iter().cloned().sorted().collect();
+                    (cargo[pkg].manifest.parent().to_path_buf(), features)
+                })
+                .collect()
+        };
+        let (base_features, features) = (features(self.base()), features(worktree));
+        Box::new(move |dir: &AbsPath| {
+            let base_dir = overlay.to_base(dir).unwrap_or_else(|| dir.to_path_buf());
+            features.get(dir).is_some_and(|features| base_features.get(&base_dir) == Some(features))
+        })
     }
 
     /// Whether the files of the worktree in `dirs`, as they are on disk, are the same as their
@@ -1407,5 +1437,54 @@ mod tests {
             to_build,
             vec![checkouts.path("changed/app"), checkouts.path("changed/core_lib")]
         );
+    }
+
+    #[test]
+    fn package_built_with_other_features_is_not_the_same() {
+        let with_feature = |root: &std::path::Path, app_enables_it: bool| {
+            write_checkout(root, CORE_LIB, APP);
+            let manifest = root.join("core_lib/Cargo.toml");
+            let text = fs::read_to_string(&manifest).unwrap();
+            fs::write(&manifest, format!("{text}\n[features]\nspecial = []\n")).unwrap();
+            if app_enables_it {
+                let manifest = root.join("app/Cargo.toml");
+                let text = fs::read_to_string(&manifest).unwrap();
+                let text = text.replace(
+                    "core_lib = { path = \"../core_lib\" }",
+                    "core_lib = { path = \"../core_lib\", features = [\"special\"] }",
+                );
+                fs::write(&manifest, text).unwrap();
+            }
+        };
+        let dir = std::env::temp_dir().join(format!("ra-worktrees-feat-{}", std::process::id()));
+        _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let dir = fs::canonicalize(dir).unwrap();
+        with_feature(&dir.join("base"), false);
+        let (worktrees, db, vfs) = Worktrees::load(
+            load_workspace(&dir.join("base")),
+            &FxHashMap::default(),
+            &LoadCargoConfig {
+                load_out_dirs_from_check: false,
+                with_proc_macro_server: ProcMacroServerChoice::None,
+                prefill_caches: false,
+                num_worker_threads: 1,
+                proc_macro_processes: 1,
+            },
+        )
+        .unwrap();
+        let mut checkouts = Checkouts { dir, worktrees, db, vfs };
+
+        // Only the manifest of `app` differs, but it enables a feature of `core_lib`, whose
+        // files are the same
+        with_feature(&checkouts.dir.join("wt"), true);
+        let overlay = checkouts.overlay("wt");
+        let mut worktree = load_workspace(&checkouts.dir.join("wt"));
+        let to_build =
+            checkouts.worktrees.inherit_build_scripts(&checkouts.vfs, &mut worktree, &overlay);
+        assert_eq!(to_build, vec![checkouts.path("wt/app"), checkouts.path("wt/core_lib")]);
+        checkouts.worktrees.add(&mut checkouts.db, &mut checkouts.vfs, worktree, overlay);
+        assert_eq!(checkouts.crates(), 4);
+        assert!(checkouts.is_loaded("wt/core_lib/src/lib.rs"));
     }
 }
