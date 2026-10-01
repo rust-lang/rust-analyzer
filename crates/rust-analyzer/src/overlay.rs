@@ -16,6 +16,8 @@ use load_cargo::SourceRootConfig;
 use parser::{Edition, LexedStr, SyntaxKind};
 use paths::Utf8Path;
 use project_model::{ProjectManifest, ProjectWorkspace};
+use rustc_hash::FxHasher;
+use stdx::hash_once;
 use vfs::{AbsPath, AbsPathBuf, FileId, Vfs, VfsPath};
 
 use crate::config::LinkedProject;
@@ -263,8 +265,20 @@ impl Sources<'_> {
                     && (!visited.insert(file)
                         || self.pulls_in_the_same(overlay, file, path, visited))
             }
+            // Only one of them is loaded, for example because a client has it open. What we
+            // remember about the files on disk says nothing about the loaded one.
+            (Some((_, hash)), None) | (None, Some((_, hash))) => {
+                let on_disk = if loaded(path).is_some() { base_path } else { path };
+                fs::read(on_disk).is_ok_and(|contents| {
+                    hash_once::<FxHasher>(&*contents) == hash
+                        && (path.extension() != Some("rs")
+                            || str::from_utf8(&contents).is_ok_and(|text| {
+                                self.all_the_same(overlay, &pulled_in_files(text), path, visited)
+                            }))
+                })
+            }
             // Not every file is loaded, for example the ones that are not Rust sources.
-            _ => {
+            (None, None) => {
                 let key = (path.to_path_buf(), base_path.to_path_buf());
                 if let Some(&same) = self.disk_cache.borrow().get(&key) {
                     return same;

@@ -597,3 +597,31 @@ fn crate_pulling_in_a_file_that_pulls_in_a_file_that_differs_is_not_shared() {
     wait_for_crate_count(&server, "core_lib", 1);
     wait_for_crate_count(&server, "app", 2);
 }
+
+#[test]
+fn editing_a_pulled_in_file_in_the_worktree_stops_sharing_the_crate() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let fixture = pulling_in_fixture("pub fn shared() {}", "pub fn shared() {}");
+    let server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
+        .root("base")
+        .root("wt")
+        .server()
+        .wait_until_workspace_is_loaded();
+    wait_for_crate_count(&server, "app", 1);
+
+    // Only the worktree's copy of the file gets opened and edited
+    let doc_id = server.doc_id("wt/shared.rs");
+    server.notification::<DidOpenTextDocumentNotification>(DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: doc_id.uri,
+            language_id: LanguageKind::Rust,
+            version: 1,
+            text: "pub fn shared() -> u8 { 1 }\n".to_owned(),
+        },
+    });
+    wait_for_crate_count(&server, "app", 2);
+}
