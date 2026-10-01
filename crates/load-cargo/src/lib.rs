@@ -8,6 +8,9 @@
 #[cfg(feature = "in-rust-tree")]
 extern crate rustc_driver as _;
 
+pub mod worktree;
+pub mod worktrees;
+
 use std::{any::Any, collections::hash_map::Entry, mem, path::Path, sync};
 
 use crossbeam_channel::{Receiver, unbounded};
@@ -107,42 +110,7 @@ pub fn load_workspace_into_db(
         Box::new(loader)
     };
 
-    tracing::debug!(?load_config, "LoadCargoConfig");
-    let proc_macro_server = match &load_config.with_proc_macro_server {
-        ProcMacroServerChoice::Sysroot => ws.find_sysroot_proc_macro_srv().map(|it| {
-            it.and_then(|it| {
-                ProcMacroClient::spawn(
-                    &it,
-                    extra_env,
-                    ws.toolchain.as_ref(),
-                    load_config.proc_macro_processes,
-                )
-                .map_err(Into::into)
-            })
-            .map_err(|e| ProcMacroLoadingError::ProcMacroSrvError(e.to_string().into_boxed_str()))
-        }),
-        ProcMacroServerChoice::Explicit(path) => Some(
-            ProcMacroClient::spawn(
-                path,
-                extra_env,
-                ws.toolchain.as_ref(),
-                load_config.proc_macro_processes,
-            )
-            .map_err(|e| ProcMacroLoadingError::ProcMacroSrvError(e.to_string().into_boxed_str())),
-        ),
-        ProcMacroServerChoice::None => Some(Err(ProcMacroLoadingError::Disabled)),
-    };
-    match &proc_macro_server {
-        Some(Ok(server)) => {
-            tracing::info!(manifest=%ws.manifest_or_root(), path=%server.server_path(), "Proc-macro server started")
-        }
-        Some(Err(e)) => {
-            tracing::info!(manifest=%ws.manifest_or_root(), %e, "Failed to start proc-macro server")
-        }
-        None => {
-            tracing::info!(manifest=%ws.manifest_or_root(), "No proc-macro server started")
-        }
-    }
+    let proc_macro_server = spawn_proc_macro_server(&ws, extra_env, load_config);
 
     let (crate_graph, proc_macros) = ws.to_crate_graph(
         &mut |path: &AbsPath| {
@@ -202,6 +170,51 @@ pub fn load_workspace_into_db(
     }
 
     Ok((vfs, proc_macro_server.and_then(Result::ok)))
+}
+
+/// Starts the proc macro server that `load_config` asks for.
+fn spawn_proc_macro_server(
+    ws: &ProjectWorkspace,
+    extra_env: &FxHashMap<String, Option<String>>,
+    load_config: &LoadCargoConfig,
+) -> Option<Result<ProcMacroClient, ProcMacroLoadingError>> {
+    tracing::debug!(?load_config, "LoadCargoConfig");
+    let proc_macro_server = match &load_config.with_proc_macro_server {
+        ProcMacroServerChoice::Sysroot => ws.find_sysroot_proc_macro_srv().map(|it| {
+            it.and_then(|it| {
+                ProcMacroClient::spawn(
+                    &it,
+                    extra_env,
+                    ws.toolchain.as_ref(),
+                    load_config.proc_macro_processes,
+                )
+                .map_err(Into::into)
+            })
+            .map_err(|e| ProcMacroLoadingError::ProcMacroSrvError(e.to_string().into_boxed_str()))
+        }),
+        ProcMacroServerChoice::Explicit(path) => Some(
+            ProcMacroClient::spawn(
+                path,
+                extra_env,
+                ws.toolchain.as_ref(),
+                load_config.proc_macro_processes,
+            )
+            .map_err(|e| ProcMacroLoadingError::ProcMacroSrvError(e.to_string().into_boxed_str())),
+        ),
+        ProcMacroServerChoice::None => Some(Err(ProcMacroLoadingError::Disabled)),
+    };
+    match &proc_macro_server {
+        Some(Ok(server)) => {
+            tracing::info!(manifest=%ws.manifest_or_root(), path=%server.server_path(), "Proc-macro server started")
+        }
+        Some(Err(e)) => {
+            tracing::info!(manifest=%ws.manifest_or_root(), %e, "Failed to start proc-macro server")
+        }
+        None => {
+            tracing::info!(manifest=%ws.manifest_or_root(), "No proc-macro server started")
+        }
+    }
+    proc_macro_server
 }
 
 #[derive(Default)]

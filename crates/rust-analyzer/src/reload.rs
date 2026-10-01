@@ -18,9 +18,7 @@ use std::{iter, mem, sync::atomic::AtomicUsize, time::Duration};
 use hir::{ChangeWithProcMacros, ProcMacrosBuilder};
 use ide_db::{
     FxHashMap,
-    base_db::{
-        CrateBuilder, CrateBuilderId, CrateGraphBuilder, ProcMacroLoadingError, ProcMacroPaths,
-    },
+    base_db::{CrateGraphBuilder, ProcMacroLoadingError, ProcMacroPaths},
 };
 use itertools::Itertools;
 use load_cargo::{ProjectFolders, load_proc_macro};
@@ -42,7 +40,7 @@ use crate::{
     lsp_ext,
     main_loop::{DiscoverProjectParam, Task},
     op_queue::Cause,
-    overlay::{self, Overlay, OverlayCrates, SourceRoots, Sources},
+    overlay::{self, OverlayCrates, SourceRoots, Sources},
 };
 use tracing::{debug, info};
 
@@ -797,20 +795,19 @@ impl GlobalState {
                 })
             };
 
-            let graph = ws_to_crate_graph_with_overlays(
+            let sources = source_roots.as_ref().map(|roots| Sources {
+                vfs,
+                roots,
+                pulled_in_files: &self.pulled_in_files,
+                disk_cache: &self.overlay_disk_cache,
+            });
+            let graph = overlay::crate_graph(
                 &self.workspaces,
                 self.config.extra_env(None),
                 load,
                 &overlays,
-                |overlay, graph, krate| {
-                    let sources = Sources {
-                        vfs,
-                        roots: source_roots.as_ref()?,
-                        pulled_in_files: &self.pulled_in_files,
-                        disk_cache: &self.overlay_disk_cache,
-                    };
-                    overlay::base_crate(&sources, overlay, &mut overlay_crates, graph, krate)
-                },
+                sources.as_ref(),
+                &mut overlay_crates,
             );
             self.overlay_source_roots = source_roots.map(Arc::new);
             graph
@@ -1013,41 +1010,7 @@ pub fn ws_to_crate_graph(
     extra_env: &FxHashMap<String, Option<String>>,
     load: impl FnMut(&AbsPath) -> Option<vfs::FileId>,
 ) -> (CrateGraphBuilder, Vec<ProcMacroPaths>) {
-    ws_to_crate_graph_with_overlays(workspaces, extra_env, load, &[], |_, _, _| None)
-}
-
-/// Like [`ws_to_crate_graph`], but a crate of a workspace that is an overlay may be replaced by
-/// the crate of its base checkout that `base_crate` picks.
-fn ws_to_crate_graph_with_overlays(
-    workspaces: &[ProjectWorkspace],
-    extra_env: &FxHashMap<String, Option<String>>,
-    mut load: impl FnMut(&AbsPath) -> Option<vfs::FileId>,
-    overlays: &[Option<Overlay>],
-    mut base_crate: impl FnMut(&Overlay, &CrateGraphBuilder, &CrateBuilder) -> Option<CrateBuilderId>,
-) -> (CrateGraphBuilder, Vec<ProcMacroPaths>) {
-    let mut crate_graph = CrateGraphBuilder::default();
-    let mut proc_macro_paths = vec![ProcMacroPaths::default(); workspaces.len()];
-    let overlay_of = |idx: usize| overlays.get(idx).and_then(Option::as_ref);
-    // The base checkouts have to be in the graph before the worktrees that are overlaid on them.
-    let (overlaid, plain): (Vec<usize>, Vec<usize>) =
-        (0..workspaces.len()).partition(|&idx| overlay_of(idx).is_some());
-    for idx in plain.into_iter().chain(overlaid) {
-        let (other, mut crate_proc_macros) = workspaces[idx].to_crate_graph(&mut load, extra_env);
-
-        match overlay_of(idx) {
-            Some(overlay) => {
-                crate_graph.extend_with(other, &mut crate_proc_macros, |graph, krate| {
-                    base_crate(overlay, graph, krate)
-                })
-            }
-            None => crate_graph.extend(other, &mut crate_proc_macros),
-        };
-        proc_macro_paths[idx] = crate_proc_macros;
-    }
-
-    crate_graph.shrink_to_fit();
-    proc_macro_paths.shrink_to_fit();
-    (crate_graph, proc_macro_paths)
+    overlay::crate_graph(workspaces, extra_env, load, &[], None, &mut OverlayCrates::default())
 }
 
 pub(crate) fn should_refresh_for_change(
