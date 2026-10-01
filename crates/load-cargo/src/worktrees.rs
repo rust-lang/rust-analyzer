@@ -1763,4 +1763,125 @@ mod tests {
         checkouts.worktrees.add(&mut checkouts.db, &mut checkouts.vfs, loaded, overlay);
         assert_eq!(checkouts.crates(), base_crates);
     }
+
+    /// Many worktrees and many changes in no particular order: after each of them, what is
+    /// shared has to be exactly what follows from the texts of the files.
+    #[test]
+    fn sharing_follows_the_files_through_many_changes() {
+        const WORKTREES: usize = 6;
+        const CORE_LIBS: [&str; 3] =
+            [CORE_LIB, "pub fn answer() -> u64 { 42 }\n", "pub fn answer() -> u8 { 4 }\n"];
+        const APPS: [&str; 3] = [
+            APP,
+            "pub fn run() -> u32 { 1 }\n",
+            "pub fn run() -> u32 { core_lib::answer() as u32 + 2 }\n",
+        ];
+
+        // The texts of `core_lib` and `app` of a checkout, as indices into the above
+        #[derive(Clone, Copy, PartialEq)]
+        struct Texts {
+            core_lib: usize,
+            app: usize,
+        }
+        let mut random = {
+            let mut state = 0x9e3779b97f4a7c15u64;
+            move |below: usize| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                (state % below as u64) as usize
+            }
+        };
+
+        let mut checkouts = Checkouts::new();
+        let mut base = Texts { core_lib: 0, app: 0 };
+        // `None` for a worktree that is not added
+        let mut worktrees: Vec<Option<Texts>> = vec![None; WORKTREES];
+        let name = |idx: usize| format!("wt{idx}");
+
+        for step in 0..400 {
+            let idx = random(WORKTREES);
+            match (random(10), worktrees[idx]) {
+                // Add a worktree, with whatever its files on disk are
+                (0..=2, None) => {
+                    let texts = Texts { core_lib: random(3), app: random(3) };
+                    checkouts.add_worktree(&name(idx), CORE_LIBS[texts.core_lib], APPS[texts.app]);
+                    worktrees[idx] = Some(texts);
+                }
+                (0, Some(_)) => {
+                    let root = checkouts.overlay(&name(idx)).worktree_root;
+                    assert!(checkouts.worktrees.remove(
+                        &mut checkouts.db,
+                        &mut checkouts.vfs,
+                        &root
+                    ));
+                    worktrees[idx] = None;
+                }
+                // Edit a file of a worktree
+                (1..=4, Some(texts)) => {
+                    let texts = if random(2) == 0 {
+                        let core_lib = random(3);
+                        checkouts.set_file_text(
+                            &format!("{}/core_lib/src/lib.rs", name(idx)),
+                            CORE_LIBS[core_lib],
+                        );
+                        Texts { core_lib, ..texts }
+                    } else {
+                        let app = random(3);
+                        checkouts
+                            .set_file_text(&format!("{}/app/src/lib.rs", name(idx)), APPS[app]);
+                        Texts { app, ..texts }
+                    };
+                    worktrees[idx] = Some(texts);
+                }
+                // Edit a file of the base checkout
+                (5..=6, _) => {
+                    if random(2) == 0 {
+                        base.core_lib = random(3);
+                        checkouts
+                            .set_file_text("base/core_lib/src/lib.rs", CORE_LIBS[base.core_lib]);
+                    } else {
+                        base.app = random(3);
+                        checkouts.set_file_text("base/app/src/lib.rs", APPS[base.app]);
+                    }
+                }
+                (7, _) => checkouts.worktrees.unload_shared(&mut checkouts.db, &mut checkouts.vfs),
+                _ => continue,
+            }
+
+            // `core_lib` is shared if it is the same, `app` if both are
+            let mut crates = 2;
+            for (idx, texts) in worktrees.iter().enumerate() {
+                let Some(texts) = texts else { continue };
+                let shares_core_lib = texts.core_lib == base.core_lib;
+                let shares_app = shares_core_lib && texts.app == base.app;
+                crates += usize::from(!shares_core_lib) + usize::from(!shares_app);
+
+                let checks = [
+                    ("core_lib/src/lib.rs", shares_core_lib, CORE_LIBS[texts.core_lib]),
+                    ("app/src/lib.rs", shares_app, APPS[texts.app]),
+                ];
+                for (file, shared, text) in checks {
+                    let path = format!("{}/{file}", name(idx));
+                    let analyzed = checkouts.analyzed_file(&path);
+                    assert_eq!(
+                        analyzed == checkouts.file(&format!("base/{file}")),
+                        shared,
+                        "step {step}: {path}"
+                    );
+                    // Whichever file is analyzed, it has the text of the worktree's file
+                    let analyzed_text = checkouts.db.file_text(analyzed).text(&checkouts.db);
+                    assert_eq!(&**analyzed_text, text, "step {step}: {path}");
+                    // The worktree sees the base checkout's file exactly if it shares it
+                    let view = checkouts.overlay(&name(idx));
+                    assert_eq!(
+                        checkouts.in_view(Some(&view), &format!("base/{file}")),
+                        shared,
+                        "step {step}: {path}"
+                    );
+                }
+            }
+            assert_eq!(checkouts.crates(), crates, "step {step}");
+        }
+    }
 }
