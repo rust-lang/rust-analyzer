@@ -315,6 +315,10 @@ impl Worktrees {
                 return None;
             }
         }
+        // Cargo also finds packages and targets by looking at what files there are.
+        if discovered_by_cargo(&overlay.base_root) != discovered_by_cargo(&overlay.worktree_root) {
+            return None;
+        }
         base.rerooted(&overlay.base_root, &overlay.worktree_root)
     }
 
@@ -853,6 +857,63 @@ impl Worktrees {
         self.proc_macros = loaded;
         proc_macros
     }
+}
+
+/// The files in the checkout at `root` whose presence tells cargo about a package or a target, by
+/// their path in the checkout: manifests, and the files at the places where targets are found
+/// without being declared.
+fn discovered_by_cargo(root: &AbsPath) -> std::collections::BTreeSet<String> {
+    fn walk(root: &AbsPath, dir: &AbsPath, res: &mut std::collections::BTreeSet<String>) {
+        let Ok(entries) = fs::read_dir(dir) else { return };
+        let mut record = |path: &AbsPath| {
+            if let Some(in_checkout) = path.strip_prefix(root) {
+                res.insert(in_checkout.as_str().to_owned());
+            }
+        };
+        let mut subdirs = Vec::new();
+        let mut is_package = false;
+        for entry in entries.flatten() {
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue };
+            let path = dir.join(&name);
+            if entry.file_type().is_ok_and(|it| it.is_dir()) {
+                if name != "target" && !name.starts_with('.') {
+                    subdirs.push(path);
+                }
+            } else if name == "Cargo.toml" {
+                is_package = true;
+                record(&path);
+            }
+        }
+        if is_package {
+            for target in ["src/lib.rs", "src/main.rs", "build.rs"] {
+                if fs::metadata(dir.join(target)).is_ok() {
+                    record(&dir.join(target));
+                }
+            }
+            for targets in ["src/bin", "examples", "tests", "benches"] {
+                let Ok(entries) = fs::read_dir(dir.join(targets)) else { continue };
+                for entry in entries.flatten() {
+                    let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                        continue;
+                    };
+                    let path = dir.join(targets).join(&name);
+                    let is_target = match entry.file_type() {
+                        Ok(it) if it.is_dir() => fs::metadata(path.join("main.rs")).is_ok(),
+                        _ => name.ends_with(".rs"),
+                    };
+                    if is_target {
+                        record(&path);
+                    }
+                }
+            }
+        }
+        for subdir in subdirs {
+            walk(root, &subdir, res);
+        }
+    }
+    let mut res = std::collections::BTreeSet::new();
+    walk(root, root, &mut res);
+    res
 }
 
 /// Calls `same_file` for the files in `dir` that `dirs` has, until it returns `false`. Returns
@@ -1598,6 +1659,14 @@ mod tests {
             checkouts.analyzed_file("wt/app/src/lib.rs"),
             checkouts.file("wt/app/src/lib.rs")
         );
+
+        // With a target that cargo finds by its file, the workspace has to be loaded
+        let new_target = checkouts.dir.join("wt/app/src/bin/tool.rs");
+        fs::create_dir_all(new_target.parent().unwrap()).unwrap();
+        fs::write(&new_target, "fn main() {}\n").unwrap();
+        assert!(checkouts.worktrees.workspace_of_copy(&overlay).is_none());
+        fs::remove_file(&new_target).unwrap();
+        assert!(checkouts.worktrees.workspace_of_copy(&overlay).is_some());
 
         // With another manifest the workspace has to be loaded
         let manifest = checkouts.dir.join("wt/app/Cargo.toml");

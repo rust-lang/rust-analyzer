@@ -539,23 +539,7 @@ impl CargoWorkspace {
         let manifest = |manifest: &ManifestPath| {
             ManifestPath::try_from(path(manifest)).unwrap_or_else(|_| manifest.clone())
         };
-        // In text, `from` is a path only where a whole path starts with it: `/work/repo` is
-        // neither in `/work/repo-utils` nor in `/home/work/repo`.
-        let text = |text: &str| {
-            let is_in_name = |c: char| c.is_alphanumeric() || matches!(c, '_' | '-' | '.');
-            let mut res = String::with_capacity(text.len());
-            let mut rest = text;
-            while let Some(idx) = rest.find(from.as_str()) {
-                let (before, after) = (&rest[..idx], &rest[idx + from.as_str().len()..]);
-                let starts_a_path = !before.chars().next_back().is_some_and(is_in_name)
-                    && !after.chars().next().is_some_and(is_in_name);
-                res.push_str(before);
-                res.push_str(if starts_a_path { to.as_str() } else { from.as_str() });
-                rest = after;
-            }
-            res.push_str(rest);
-            res
-        };
+        let text = |text: &str| move_paths_in_text(text, from.as_str(), to.as_str());
         let utf8_path = |path: &Utf8PathBuf| match path.strip_prefix(from) {
             Ok(in_workspace) => Utf8PathBuf::from(to.join(in_workspace)),
             Err(_) => path.clone(),
@@ -904,5 +888,45 @@ impl FetchMetadata {
         .with_context(|| format!("Failed to run `{:?}`", command.cargo_command()));
         progress("cargo metadata: finished".to_owned());
         res
+    }
+}
+
+/// Replaces the paths in `text` that start with `from` by the same path under `to`.
+///
+/// `from` is such a path only where a whole path starts with it: `/work/repo` is neither in
+/// `/work/repo-utils` nor in `/deps/work/repo`.
+fn move_paths_in_text(text: &str, from: &str, to: &str) -> String {
+    let is_in_name = |c: char| c.is_alphanumeric() || matches!(c, '_' | '-' | '.');
+    let mut res = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(idx) = rest.find(from) {
+        let (before, after) = (&rest[..idx], &rest[idx + from.len()..]);
+        res.push_str(before);
+        let starts_a_path = !res.chars().next_back().is_some_and(is_in_name)
+            && !after.chars().next().is_some_and(is_in_name);
+        res.push_str(if starts_a_path { to } else { from });
+        rest = after;
+    }
+    res.push_str(rest);
+    res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::move_paths_in_text;
+
+    #[test]
+    fn moves_whole_paths_only() {
+        let moved = |text: &str| move_paths_in_text(text, "/work/repo", "/copy");
+        assert_eq!(moved("/work/repo"), "/copy");
+        assert_eq!(moved("/work/repo/app"), "/copy/app");
+        assert_eq!(moved("path+file:///work/repo/app#0.1.0"), "path+file:///copy/app#0.1.0");
+        assert_eq!(moved("/work/repo/a:/work/repo/b"), "/copy/a:/copy/b");
+        // A sibling whose name starts the same
+        assert_eq!(moved("/work/repo-utils/helper"), "/work/repo-utils/helper");
+        assert_eq!(moved("/work/repository"), "/work/repository");
+        // The same components in the middle of another path
+        assert_eq!(moved("/deps/work/repo/helper"), "/deps/work/repo/helper");
+        assert_eq!(moved("path+file:///deps/work/repo#0.1.0"), "path+file:///deps/work/repo#0.1.0");
     }
 }
