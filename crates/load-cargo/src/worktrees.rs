@@ -47,6 +47,8 @@ pub struct Worktrees {
     /// For each of `workspaces`, the directories of its packages that are not loaded, because
     /// they are the same as in the base checkout, whose files stand in for theirs.
     not_loaded: Vec<FxHashSet<AbsPathBuf>>,
+    /// The directories whose files are loaded.
+    loaded: FxHashSet<AbsPathBuf>,
     source_root_config: SourceRootConfig,
     source_roots: Arc<SourceRoots>,
     overlay_crates: Arc<OverlayCrates>,
@@ -84,6 +86,7 @@ impl Worktrees {
             workspaces: vec![base],
             overlays: vec![None],
             not_loaded: vec![FxHashSet::default()],
+            loaded: FxHashSet::default(),
             source_root_config: SourceRootConfig::default(),
             source_roots: Arc::new(SourceRoots::default()),
             overlay_crates: Arc::default(),
@@ -161,6 +164,7 @@ impl Worktrees {
             self.files_in_memory.remove(&path);
             vfs.set_file_contents(path, None);
         }
+        self.loaded.retain(|dir| !dir.starts_with(worktree_root));
         self.reload(db, vfs);
         true
     }
@@ -198,6 +202,7 @@ impl Worktrees {
             for path in files {
                 vfs.set_file_contents(path, None);
             }
+            self.loaded.retain(|dir| !unloaded.iter().any(|unloaded| dir.starts_with(unloaded)));
             unloads |= !unloaded.is_empty();
             self.not_loaded[idx] = same;
         }
@@ -263,6 +268,40 @@ impl Worktrees {
     /// The workspace of the base checkout.
     pub fn base(&self) -> &ProjectWorkspace {
         &self.workspaces[0]
+    }
+
+    /// The workspace of a copy of the base checkout, without loading it, which is most of the
+    /// time it takes to add a worktree. Returns `None` if it has to be loaded: the manifests,
+    /// the lock file, the cargo configuration or the toolchain file of the copy are not the
+    /// same as in the base checkout.
+    pub fn workspace_of_copy(&self, overlay: &Overlay) -> Option<ProjectWorkspace> {
+        let base = self.base();
+        let ProjectWorkspaceKind::Cargo { cargo, .. } = &base.kind else {
+            return None;
+        };
+        let workspace_root = base.workspace_root();
+        let for_all_packages = [
+            "Cargo.lock",
+            ".cargo/config.toml",
+            ".cargo/config",
+            "rust-toolchain.toml",
+            "rust-toolchain",
+        ];
+        let manifests = cargo
+            .packages()
+            .map(|pkg| AbsPath::to_path_buf(&cargo[pkg].manifest))
+            .chain([AbsPath::to_path_buf(cargo.manifest_path())])
+            .chain(for_all_packages.iter().map(|file| workspace_root.join(file)))
+            .filter(|path| path.starts_with(&overlay.base_root));
+        let same = |path: &AbsPath| {
+            overlay.to_worktree(path).is_some_and(|copy| fs::read(path).ok() == fs::read(copy).ok())
+        };
+        for path in manifests {
+            if !same(&path) {
+                return None;
+            }
+        }
+        base.rerooted(&overlay.base_root, &overlay.worktree_root)
     }
 
     /// Lets `worktree`, which is about to be [added](Worktrees::add), take over the outputs of
@@ -535,17 +574,23 @@ impl Worktrees {
             let is_not_loaded = |dir: &AbsPathBuf| {
                 self.not_loaded.iter().any(|not_loaded| not_loaded.contains(dir))
             };
+            // What was loaded before is not read again: changes on disk are for the embedder to
+            // tell us about.
+            let mut newly_loaded = Vec::new();
             let load = project_folders
                 .load
                 .into_iter()
                 .filter_map(|entry| match entry {
                     Entry::Directories(mut dirs) => {
-                        dirs.include.retain(|dir| !is_not_loaded(dir));
+                        dirs.include
+                            .retain(|dir| !is_not_loaded(dir) && !self.loaded.contains(dir));
+                        newly_loaded.extend(dirs.include.iter().cloned());
                         (!dirs.include.is_empty()).then_some(Entry::Directories(dirs))
                     }
                     entry @ Entry::Files(_) => Some(entry),
                 })
                 .collect();
+            self.loaded.extend(newly_loaded);
             self.loader_config_version += 1;
             self.loader.set_config(vfs::loader::Config {
                 load,
@@ -1486,5 +1531,34 @@ mod tests {
         checkouts.worktrees.add(&mut checkouts.db, &mut checkouts.vfs, worktree, overlay);
         assert_eq!(checkouts.crates(), 4);
         assert!(checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+    }
+
+    #[test]
+    fn workspace_of_a_copy_is_what_loading_it_gives() {
+        let mut checkouts = Checkouts::new();
+        write_checkout(&checkouts.dir.join("wt"), CORE_LIB, "pub fn run() -> u32 { 1 }\n");
+        let overlay = checkouts.overlay("wt");
+        // A copy has the lock file of the base checkout, if that has one
+        if let Ok(lock) = fs::read(checkouts.dir.join("base/Cargo.lock")) {
+            fs::write(checkouts.dir.join("wt/Cargo.lock"), lock).unwrap();
+        }
+
+        let copy = checkouts.worktrees.workspace_of_copy(&overlay).unwrap();
+        let loaded = load_workspace(&checkouts.dir.join("wt"));
+        assert!(copy.eq_ignore_build_data(&loaded), "{copy:#?}\n{loaded:#?}");
+
+        checkouts.worktrees.add(&mut checkouts.db, &mut checkouts.vfs, copy, overlay.clone());
+        assert_eq!(checkouts.crates(), 3);
+        assert!(!checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+        assert_eq!(
+            checkouts.analyzed_file("wt/app/src/lib.rs"),
+            checkouts.file("wt/app/src/lib.rs")
+        );
+
+        // With another manifest the workspace has to be loaded
+        let manifest = checkouts.dir.join("wt/app/Cargo.toml");
+        let text = fs::read_to_string(&manifest).unwrap();
+        fs::write(&manifest, format!("{text}\n[features]\nextra = []\n")).unwrap();
+        assert!(checkouts.worktrees.workspace_of_copy(&overlay).is_none());
     }
 }

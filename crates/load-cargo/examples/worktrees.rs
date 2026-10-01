@@ -57,11 +57,15 @@ fn main() -> anyhow::Result<()> {
     for worktree_root in worktree_roots {
         let worktree_root = abs(worktree_root);
         let start = Instant::now();
-        let workspace = load(&worktree_root)?;
         let overlay = Overlay {
             worktree_root: worktree_root.clone(),
             // Nothing is under the base checkout of a plain copy, so nothing is compared.
             base_root: if plain { worktree_root.clone() } else { base_root.clone() },
+        };
+        // With the same manifests as the base checkout, the workspace need not be loaded.
+        let workspace = match worktrees.workspace_of_copy(&overlay).filter(|_| !plain) {
+            Some(workspace) => workspace,
+            None => load(&worktree_root)?,
         };
         worktrees.add(&mut db, &mut vfs, workspace, overlay);
         index(&db);

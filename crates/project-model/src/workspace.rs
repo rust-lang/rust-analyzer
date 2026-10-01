@@ -708,6 +708,32 @@ impl ProjectWorkspace {
             .collect()
     }
 
+    /// This workspace as it is loaded from a copy of it: what is at `from` here is at `to`
+    /// there. Spares loading the workspace of the copy, which runs `cargo metadata`.
+    ///
+    /// This only holds if the manifests, the lock file, the cargo configuration and the
+    /// toolchain of the copy are the same. The outputs of the build scripts are not taken along.
+    pub fn rerooted(&self, from: &AbsPath, to: &AbsPath) -> Option<ProjectWorkspace> {
+        let ProjectWorkspaceKind::Cargo { cargo, error, build_scripts: _, rustc } = &self.kind
+        else {
+            return None;
+        };
+        let path = |path: &AbsPathBuf| match path.strip_prefix(from) {
+            Some(in_workspace) => to.join(in_workspace),
+            None => path.clone(),
+        };
+        Some(ProjectWorkspace {
+            kind: ProjectWorkspaceKind::Cargo {
+                cargo: cargo.rerooted(from, to),
+                error: error.clone(),
+                build_scripts: WorkspaceBuildScripts::default(),
+                rustc: rustc.clone(),
+            },
+            extra_includes: self.extra_includes.iter().map(path).collect(),
+            ..self.clone()
+        })
+    }
+
     /// Takes over the outputs of the build scripts of `base`, which this workspace is a copy of
     /// at another place, instead of running them once more.
     ///

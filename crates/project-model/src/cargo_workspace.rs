@@ -1,6 +1,6 @@
 //! See [`CargoWorkspace`].
 
-use std::{borrow::Cow, ops, str::from_utf8};
+use std::{borrow::Cow, mem, ops, str::from_utf8};
 
 use anyhow::Context;
 use base_db::Env;
@@ -526,6 +526,41 @@ impl CargoWorkspace {
             is_sysroot,
             env: cargo_env,
         }
+    }
+
+    /// This workspace as `cargo metadata` describes a copy of it: what is at `from` here is at
+    /// `to` there. This only holds if the manifests, the lock file and the cargo configuration
+    /// of the copy are the same.
+    pub(crate) fn rerooted(&self, from: &AbsPath, to: &AbsPath) -> CargoWorkspace {
+        let path = |path: &AbsPath| match path.strip_prefix(from) {
+            Some(in_workspace) => to.join(in_workspace),
+            None => path.to_path_buf(),
+        };
+        let manifest = |manifest: &ManifestPath| {
+            ManifestPath::try_from(path(manifest)).unwrap_or_else(|_| manifest.clone())
+        };
+        let text = |text: &str| text.replace(from.as_str(), to.as_str());
+        let utf8_path = |path: &Utf8PathBuf| Utf8PathBuf::from(text(path.as_str()));
+
+        let mut this = self.clone();
+        for (_, package) in this.packages.iter_mut() {
+            package.manifest = manifest(&package.manifest);
+            package.id = Arc::new(PackageId { repr: text(&package.id.repr) });
+            package.license_file = package.license_file.as_ref().map(utf8_path);
+            package.readme = package.readme.as_ref().map(utf8_path);
+        }
+        for (_, target) in this.targets.iter_mut() {
+            target.root = path(&target.root);
+        }
+        this.workspace_root = path(&this.workspace_root);
+        this.target_directory = path(&this.target_directory);
+        this.build_directory = this.build_directory.as_deref().map(path);
+        this.manifest_path = manifest(&this.manifest_path);
+        this.env = Vec::from(mem::take(&mut this.env))
+            .into_iter()
+            .map(|(key, value)| (key, text(&value)))
+            .collect();
+        this
     }
 
     pub fn packages(&self) -> impl ExactSizeIterator<Item = Package> + '_ {
