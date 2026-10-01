@@ -689,7 +689,7 @@ impl GlobalState {
         if self.overlays.is_empty() || !self.vfs_done {
             return;
         }
-        let stale = {
+        let flipped: Vec<((FileId, FileId), bool)> = {
             let vfs = &self.vfs.read().0;
             let overlay_of = |file: FileId| {
                 let path = vfs.file_path(file).as_path()?;
@@ -701,29 +701,47 @@ impl GlobalState {
                 return;
             }
             if created_or_deleted || self.overlay_source_roots.is_none() {
-                self.overlay_source_roots = Some(SourceRoots::new(&self.source_root_config, vfs));
+                self.overlay_source_roots =
+                    Some(Arc::new(SourceRoots::new(&self.source_root_config, vfs)));
             }
             let roots = self.overlay_source_roots.as_ref().unwrap();
-            self.overlay_crates.iter().any(|(&(worktree_file, base_file), krate)| {
-                let touched = changed_files.iter().any(|&file| {
-                    roots.in_same_root(file, worktree_file) || roots.in_same_root(file, base_file)
-                });
-                touched
-                    && overlay_of(worktree_file).is_some_and(|overlay| {
-                        overlay::same_sources(
-                            vfs,
-                            roots,
-                            &self.files_reaching_outside,
-                            overlay,
-                            worktree_file,
-                            base_file,
-                        ) != krate.same_sources
-                    })
-            })
+            self.overlay_crates
+                .iter()
+                .filter(|&(&(worktree_file, base_file), _)| {
+                    // The files that a crate pulls in by path can be anywhere.
+                    roots.pulls_in_files(&self.pulled_in_files, worktree_file)
+                        || changed_files.iter().any(|&file| {
+                            roots.in_same_root(file, worktree_file)
+                                || roots.in_same_root(file, base_file)
+                        })
+                })
+                .filter_map(|(&(worktree_file, base_file), krate)| {
+                    let same_sources = overlay::same_sources(
+                        vfs,
+                        roots,
+                        &self.pulled_in_files,
+                        overlay_of(worktree_file)?,
+                        worktree_file,
+                        base_file,
+                    );
+                    (same_sources != krate.same_sources)
+                        .then_some(((worktree_file, base_file), same_sources))
+                })
+                .collect()
         };
-        if stale {
-            self.recreate_crate_graph("worktree changed relative to its base".to_owned(), false);
+        if flipped.is_empty() {
+            return;
         }
+        // The new crate graph is not in effect at once. Until it is, the files of the crates
+        // that are not the same anymore must not be answered from the base checkout.
+        let overlay_crates = Arc::make_mut(&mut self.overlay_crates);
+        for (key, same_sources) in flipped {
+            if let Some(krate) = overlay_crates.get_mut(&key) {
+                krate.same_sources = same_sources;
+                krate.shared &= same_sources;
+            }
+        }
+        self.recreate_crate_graph("worktree changed relative to its base".to_owned(), false);
     }
 
     fn recreate_crate_graph(&mut self, cause: String, initial_build: bool) -> Option<Duration> {
@@ -782,7 +800,7 @@ impl GlobalState {
                     overlay::base_crate(
                         vfs,
                         source_roots.as_ref()?,
-                        &self.files_reaching_outside,
+                        &self.pulled_in_files,
                         overlay,
                         &mut overlay_crates,
                         graph,
@@ -790,11 +808,11 @@ impl GlobalState {
                     )
                 },
             );
-            self.overlay_source_roots = source_roots;
+            self.overlay_source_roots = source_roots.map(Arc::new);
             graph
         };
         self.overlays = Arc::new(overlays.into_iter().flatten().unique().collect());
-        self.overlay_crates = overlay_crates;
+        self.overlay_crates = Arc::new(overlay_crates);
         let mut change = ChangeWithProcMacros::default();
         if initial_build || !self.config.expand_proc_macros() {
             if self.config.expand_proc_macros() {

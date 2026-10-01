@@ -46,7 +46,7 @@ use crate::{
     main_loop::Task,
     mem_docs::MemDocs,
     op_queue::{Cause, OpQueue},
-    overlay::{self, Overlay, OverlayCrates, SourceRoots},
+    overlay::{self, Overlay, OverlayCrates, PulledInFile, SourceRoots},
     priming_scope, reload,
     target_spec::{CargoTargetSpec, ProjectJsonTargetSpec, TargetSpec},
     task_pool::{DeferredTaskQueue, TaskPool},
@@ -219,11 +219,11 @@ pub(crate) struct GlobalState {
     pub(crate) overlays: Arc<Vec<Overlay>>,
     /// For the crates of those workspaces, whether their sources were the same as in the base
     /// checkout when the crate graph was built.
-    pub(crate) overlay_crates: OverlayCrates,
+    pub(crate) overlay_crates: Arc<OverlayCrates>,
     /// The partition of the files into source roots, kept while there are overlays.
-    pub(crate) overlay_source_roots: Option<SourceRoots>,
-    /// The files whose text may pull in sources from outside of their package.
-    pub(crate) files_reaching_outside: FxHashSet<FileId>,
+    pub(crate) overlay_source_roots: Option<Arc<SourceRoots>>,
+    /// The files that source files pull in by path, which may be outside of their package.
+    pub(crate) pulled_in_files: FxHashMap<FileId, Vec<PulledInFile>>,
 
     pub(crate) minicore: MiniCoreRustAnalyzerInternalOnly,
     pub(crate) last_gc_revision: Revision,
@@ -254,6 +254,8 @@ pub(crate) struct GlobalStateSnapshot {
     pub(crate) flycheck: Arc<[FlycheckHandle]>,
     minicore: MiniCoreRustAnalyzerInternalOnly,
     overlays: Arc<Vec<Overlay>>,
+    overlay_crates: Arc<OverlayCrates>,
+    overlay_source_roots: Option<Arc<SourceRoots>>,
     /// The overlay that the files named by the request belong to. Paths in the response are
     /// those of its worktree.
     request_overlay: OnceLock<usize>,
@@ -377,9 +379,9 @@ impl GlobalState {
             deferred_task_queue,
             incomplete_crate_graph: false,
             overlays: Arc::default(),
-            overlay_crates: OverlayCrates::default(),
+            overlay_crates: Arc::default(),
             overlay_source_roots: None,
-            files_reaching_outside: FxHashSet::default(),
+            pulled_in_files: FxHashMap::default(),
 
             minicore: MiniCoreRustAnalyzerInternalOnly::default(),
             last_gc_revision,
@@ -479,10 +481,20 @@ impl GlobalState {
                     } else {
                         None
                     };
-                    if text.as_ref().is_some_and(|(text, _)| overlay::reaches_outside(text)) {
-                        self.files_reaching_outside.insert(file.file_id);
+                    let pulled_in_files = match &text {
+                        Some((text, _))
+                            if vfs_path
+                                .name_and_extension()
+                                .is_some_and(|(_, ext)| ext == Some("rs")) =>
+                        {
+                            overlay::pulled_in_files(text)
+                        }
+                        _ => Vec::new(),
+                    };
+                    if pulled_in_files.is_empty() {
+                        self.pulled_in_files.remove(&file.file_id);
                     } else {
-                        self.files_reaching_outside.remove(&file.file_id);
+                        self.pulled_in_files.insert(file.file_id, pulled_in_files);
                     }
                     // delay `line_endings_map` changes until we are done normalizing the text
                     // this allows delaying the re-acquisition of the write lock
@@ -669,6 +681,8 @@ impl GlobalState {
                 || self.fetch_proc_macros_queue.last_op_result().copied().unwrap_or(false),
             flycheck: self.flycheck.clone(),
             overlays: Arc::clone(&self.overlays),
+            overlay_crates: Arc::clone(&self.overlay_crates),
+            overlay_source_roots: self.overlay_source_roots.clone(),
             request_overlay,
             client_root,
         }
@@ -784,22 +798,26 @@ impl GlobalState {
             &self.overlays,
             &self.overlay_crates,
             file_id,
+            true,
         )
     }
 
-    /// The path under which `client` wants the diagnostics of the file at `path`, if at all.
+    /// The paths under which a client wants the diagnostics of the file at `path`.
     ///
-    /// A client that works in a worktree gets the diagnostics of the crates it shares with the
-    /// base checkout under the worktree's paths, and none for the rest of the base checkout. A
-    /// client that works elsewhere gets none for the worktree.
-    fn diagnostics_path_for(
+    /// The diagnostics of a crate that a worktree shares with its base checkout are also those
+    /// of the worktree's files. A client gets them under the worktree's paths if it works in
+    /// that worktree, or has the worktree's document open. A client that works in a worktree
+    /// gets none for the rest of the base checkout, and one that works elsewhere none for the
+    /// worktree.
+    fn diagnostics_paths_for(
         &self,
         vfs: &vfs::Vfs,
+        client_id: ClientId,
         client: &Client,
         path: &VfsPath,
-    ) -> Option<VfsPath> {
+    ) -> Vec<VfsPath> {
         let Some(abs_path) = path.as_path().filter(|_| !self.overlays.is_empty()) else {
-            return Some(path.clone());
+            return vec![path.clone()];
         };
         let overlay_of = |path: &vfs::AbsPath| {
             self.overlays.iter().position(|it| path.starts_with(&it.worktree_root))
@@ -811,59 +829,67 @@ impl GlobalState {
                 (None, Some(root)) => self.overlays[file_overlay].worktree_root.starts_with(root),
                 (None, None) => true,
             };
-            return wanted.then(|| path.clone());
+            return if wanted { vec![path.clone()] } else { Vec::new() };
         }
-        let Some(worktree_path) =
-            client_overlay.and_then(|idx| self.overlays[idx].to_worktree(abs_path))
-        else {
-            return Some(path.clone());
-        };
-        let worktree_path = VfsPath::from(worktree_path);
-        let (worktree_file, _) = vfs.file_id(&worktree_path)?;
-        let (file_id, _) = vfs.file_id(path)?;
-        (self.shared_base_file(vfs, worktree_file) == Some(file_id)).then_some(worktree_path)
+        let file_id = vfs.file_id(path).map(|(file_id, _)| file_id);
+        let mut paths: Vec<VfsPath> = self
+            .overlays
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, overlay)| {
+                let worktree_path = VfsPath::from(overlay.to_worktree(abs_path)?);
+                let (worktree_file, _) = vfs.file_id(&worktree_path)?;
+                let wanted = client_overlay == Some(idx)
+                    || (client_overlay.is_none()
+                        && self.mem_docs.get(client_id, &worktree_path).is_some());
+                (wanted && self.shared_base_file(vfs, worktree_file) == file_id)
+                    .then_some(worktree_path)
+            })
+            .collect();
+        let in_base_checkout_of_client =
+            client_overlay.is_some_and(|idx| abs_path.starts_with(&self.overlays[idx].base_root));
+        if !in_base_checkout_of_client {
+            paths.push(path.clone());
+        }
+        paths
     }
 
     pub(crate) fn replay_diagnostics_for_file_to(&self, client_id: ClientId, file_id: FileId) {
-        let client = match self.clients.get(&client_id) {
-            Some(c) => c,
-            None => return,
+        let Some(client) = self.clients.get(&client_id) else {
+            return;
         };
         let vfs = self.vfs.read();
         let file_id = self.shared_base_file(&vfs.0, file_id).unwrap_or(file_id);
-        let Some(path) = self.diagnostics_path_for(&vfs.0, client, vfs.0.file_path(file_id)) else {
-            return;
-        };
-        let Some(uri) = path.as_path().map(url_from_abs_path) else {
-            return;
-        };
-        let mut diagnostics =
-            self.diagnostics.diagnostics_for(file_id).cloned().collect::<Vec<_>>();
-        let path = Some(path);
-        if let Some(p) = &path
-            && self.mem_docs.get(client_id, p).is_some()
-            && !self.mem_docs.is_in_sync_with_vfs(client_id, p)
-        {
-            // Suppress diagnostics for divergent open buffers
-            return;
-        }
         let base_encoding = self.config.caps().negotiated_encoding();
-        if client.position_encoding != base_encoding {
-            diagnostics = to_proto::reencode_diagnostics(
-                &self.snapshot(),
-                &uri,
-                base_encoding,
-                client.position_encoding,
-                diagnostics,
+        for path in self.diagnostics_paths_for(&vfs.0, client_id, client, vfs.0.file_path(file_id))
+        {
+            if self.mem_docs.get(client_id, &path).is_some()
+                && !self.mem_docs.is_in_sync_with_vfs(client_id, &path)
+            {
+                // Suppress diagnostics for divergent open buffers
+                continue;
+            }
+            let Some(uri) = path.as_path().map(url_from_abs_path) else {
+                continue;
+            };
+            let mut diagnostics =
+                self.diagnostics.diagnostics_for(file_id).cloned().collect::<Vec<_>>();
+            if client.position_encoding != base_encoding {
+                diagnostics = to_proto::reencode_diagnostics(
+                    &self.snapshot(),
+                    &uri,
+                    base_encoding,
+                    client.position_encoding,
+                    diagnostics,
+                );
+            }
+            let version = self.mem_docs.get(client_id, &path).map(|d| d.version);
+            let not = lsp_server::Notification::new(
+                lsp_types::PublishDiagnosticsNotification::METHOD.into(),
+                lsp_types::PublishDiagnosticsParams { uri, diagnostics, version },
             );
+            self.send(client_id, not.into());
         }
-        let version =
-            path.as_ref().and_then(|p| self.mem_docs.get(client_id, p).map(|d| d.version));
-        let not = lsp_server::Notification::new(
-            lsp_types::PublishDiagnosticsNotification::METHOD.into(),
-            lsp_types::PublishDiagnosticsParams { uri, diagnostics, version },
-        );
-        self.send(client_id, not.into());
     }
 
     pub(crate) fn replay_diagnostics_to(&self, client_id: ClientId) {
@@ -1109,32 +1135,37 @@ impl GlobalState {
         let base_encoding = self.config.caps().negotiated_encoding();
         let path = from_proto::vfs_path(&uri).ok();
         let clients: Vec<(Sender<lsp_server::Message>, PositionEncoding, Option<i32>, Uri)> = {
-            let vfs = &self.vfs.read().0;
-            self.clients
+            let this = &*self;
+            let mem_docs = &this.mem_docs;
+            let vfs = &this.vfs.read().0;
+            this.clients
                 .iter()
-                .filter_map(|(&id, c)| {
-                    if !c.is_initialized {
-                        return None;
-                    }
-                    // A client working in a worktree knows the file under another path.
-                    let path = match &path {
-                        Some(path) => Some(self.diagnostics_path_for(vfs, c, path)?),
-                        None => None,
+                .filter(|(_, c)| c.is_initialized)
+                .flat_map(|(&id, c)| {
+                    // A client may know the file under other paths than the one we analyze.
+                    let targets = match &path {
+                        Some(path) => this
+                            .diagnostics_paths_for(vfs, id, c, path)
+                            .into_iter()
+                            .filter_map(|path| {
+                                let uri = url_from_abs_path(path.as_path()?);
+                                Some((Some(path), uri))
+                            })
+                            .collect(),
+                        None => vec![(None, uri.clone())],
                     };
-                    let uri = match path.as_ref().and_then(|path| path.as_path()) {
-                        Some(path) => url_from_abs_path(path),
-                        None => uri.clone(),
-                    };
-                    if let Some(p) = &path
-                        && self.mem_docs.get(id, p).is_some()
-                        && !self.mem_docs.is_in_sync_with_vfs(id, p)
-                    {
-                        // Suppress diagnostics for divergent open buffers
-                        return None;
-                    }
-                    let version =
-                        path.as_ref().and_then(|p| self.mem_docs.get(id, p).map(|d| d.version));
-                    Some((c.sender.clone(), c.position_encoding, version, uri))
+                    targets.into_iter().filter_map(move |(path, uri)| {
+                        if let Some(p) = &path
+                            && mem_docs.get(id, p).is_some()
+                            && !mem_docs.is_in_sync_with_vfs(id, p)
+                        {
+                            // Suppress diagnostics for divergent open buffers
+                            return None;
+                        }
+                        let version =
+                            path.as_ref().and_then(|p| mem_docs.get(id, p).map(|d| d.version));
+                        Some((c.sender.clone(), c.position_encoding, version, uri))
+                    })
                 })
                 .collect()
         };
@@ -1389,15 +1420,19 @@ impl GlobalStateSnapshot {
                 return Ok(file_id);
             };
             _ = self.request_overlay.set(idx);
-            self.overlays[idx]
-                .to_base(path)
-                .and_then(|path| vfs.file_id(&VfsPath::from(path)))
-                .and_then(|(file_id, excluded)| {
-                    (excluded == vfs::FileExcluded::No).then_some(file_id)
-                })
-                // The crate graph is not rebuilt at once when the worktree's file changes, do
-                // not answer from a file with another text in the meantime.
-                .filter(|&base_file| vfs.content_hash(base_file) == vfs.content_hash(file_id))
+            // Until the crate graph is rebuilt after a change, the file may be in no crate
+            // although its package is not shared anymore: that the file is the same and that
+            // its package is known to be shared has to be checked as well.
+            self.overlay_source_roots.as_ref().and_then(|roots| {
+                overlay::shared_base_file(
+                    &vfs,
+                    roots,
+                    &self.overlays,
+                    &self.overlay_crates,
+                    file_id,
+                    false,
+                )
+            })
         };
         match base_file {
             Some(base_file) if self.analysis.crates_for(file_id)?.is_empty() => Ok(base_file),

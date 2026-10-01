@@ -1818,6 +1818,9 @@ A crate of the worktree whose package has the same sources as in the base checko
 and that does not depend on a package that differs, is not analyzed a second time.
 If only the worktree is opened, its base checkout is loaded as well.
 
+This assumes that procedural macros expand the same in both: one that reads files
+relative to its working directory may see the files of the base checkout.
+
 
 ## rust-analyzer.workspace.symbol.search.excludeImports {#workspace.symbol.search.excludeImports}
 

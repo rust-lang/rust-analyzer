@@ -396,18 +396,24 @@ fn worktrees_are_not_shared_unless_asked_for() {
     wait_for_crate_count(&server, "app", 2);
 }
 
+/// The fixture with `app` pulling in `shared.rs` from the root of its checkout.
+fn pulling_in_fixture(base_shared: &str, worktree_shared: &str) -> String {
+    let app =
+        "#[path = \"../../shared.rs\"]\nmod shared;\npub fn run() -> u32 { core_lib::answer() }";
+    CHECKOUT_AND_WORKTREE.replace("$APP", app).replace(
+        "pub fn run() -> u32 { core_lib::answer() }\n\n//- /wt/.git",
+        &format!("{app}\n\n//- /wt/.git"),
+    ) + &format!("//- /base/shared.rs\n{base_shared}\n\n//- /wt/shared.rs\n{worktree_shared}\n\n")
+}
+
 #[test]
-fn crate_reaching_outside_of_its_package_is_not_shared() {
+fn crate_pulling_in_a_file_that_differs_is_not_shared() {
     if skip_slow_tests() {
         return;
     }
 
-    // Identical in both, but what `../extra.rs` is cannot be told from the package's files
-    let app = "#[path = \"../extra.rs\"]\nmod extra;\npub fn run() -> u32 { core_lib::answer() }";
-    let fixture = CHECKOUT_AND_WORKTREE.replace("$APP", app).replace(
-        "pub fn run() -> u32 { core_lib::answer() }\n\n//- /wt/.git",
-        &format!("{app}\n\n//- /wt/.git"),
-    );
+    // `app` itself is identical in both, but what it pulls in from outside of its package is not
+    let fixture = pulling_in_fixture("pub fn shared() {}", "pub fn shared() -> u8 { 1 }");
     let server = Project::with_fixture(&fixture)
         .with_config(share_worktrees())
         .root("base")
@@ -417,6 +423,24 @@ fn crate_reaching_outside_of_its_package_is_not_shared() {
 
     wait_for_crate_count(&server, "core_lib", 1);
     wait_for_crate_count(&server, "app", 2);
+}
+
+#[test]
+fn crate_pulling_in_a_file_that_is_the_same_is_shared() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let fixture = pulling_in_fixture("pub fn shared() {}", "pub fn shared() {}");
+    let server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
+        .root("base")
+        .root("wt")
+        .server()
+        .wait_until_workspace_is_loaded();
+
+    wait_for_crate_count(&server, "core_lib", 1);
+    wait_for_crate_count(&server, "app", 1);
 }
 
 #[test]
@@ -483,4 +507,73 @@ fn diagnostics_of_a_shared_crate_reach_the_worktree_client_under_its_path() {
     base_client.shutdown_and_exit();
     worktree_client.shutdown_and_exit();
     multi_server.wait_for_shutdown();
+}
+
+#[test]
+fn file_dropped_from_the_worktrees_crate_is_not_answered_from_the_base_checkout() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    // The worktree no longer declares `mod extra`, but still has the unchanged file
+    let fixture = CHECKOUT_AND_WORKTREE
+        .replace("$APP", "pub fn run() -> u32 { core_lib::answer() }")
+        .replacen(
+            "//- /base/core_lib/src/lib.rs\npub fn answer() -> u32 { 42 }",
+            "//- /base/core_lib/src/lib.rs\npub mod extra;\npub fn answer() -> u32 { 42 }",
+            1,
+        )
+        + "//- /base/core_lib/src/extra.rs\npub fn extra() {}\n\n//- /wt/core_lib/src/extra.rs\npub fn extra() {}\n\n";
+    let server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
+        .root("base")
+        .root("wt")
+        .server()
+        .wait_until_workspace_is_loaded();
+    wait_for_crate_count(&server, "core_lib", 2);
+
+    let hover = |path: &str| {
+        server
+            .send_request::<HoverRequest>(HoverParams {
+                text_document_position_params: position(&server, path, 0, 8),
+                work_done_progress_params: Default::default(),
+            })
+            .to_string()
+    };
+    assert!(hover("base/core_lib/src/extra.rs").contains("core_lib::extra"));
+    assert!(!hover("wt/core_lib/src/extra.rs").contains("core_lib::extra"));
+}
+
+#[test]
+fn diagnostics_of_a_shared_crate_reach_an_open_worktree_document() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    // The client works in a directory that contains both checkouts
+    let fixture = CHECKOUT_AND_WORKTREE
+        .replace("$APP", "pub fn run() -> u32 { core_lib::answer() }")
+        .replace("pub fn answer() -> u32 { 42 }", "pub fn answer() -> u32 { \"no\" }");
+    let server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
+        .root("base")
+        .root("wt")
+        .server()
+        .wait_until_workspace_is_loaded();
+    wait_for_crate_count(&server, "core_lib", 1);
+
+    let doc_id = server.doc_id("wt/core_lib/src/lib.rs");
+    let text = std::fs::read_to_string(doc_id.uri.to_file_path().unwrap()).unwrap();
+    server.notification::<DidOpenTextDocumentNotification>(DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: doc_id.uri.clone(),
+            language_id: LanguageKind::Rust,
+            version: 1,
+            text,
+        },
+    });
+
+    let diagnostics = server.wait_for_diagnostics();
+    assert_eq!(diagnostics.uri, doc_id.uri);
+    assert_eq!(diagnostics.version, Some(1));
 }
