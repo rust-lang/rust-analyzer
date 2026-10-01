@@ -284,9 +284,12 @@ impl Worktrees {
         let leads_out = cargo
             .packages()
             .any(|pkg| cargo[pkg].is_local && !cargo[pkg].manifest.starts_with(&overlay.base_root));
+        // Cargo and rustup both look for their configuration in every directory above.
+        let found_above =
+            [".cargo/config.toml", ".cargo/config", "rust-toolchain.toml", "rust-toolchain"];
         let configs_above = |root: &AbsPath| -> Vec<AbsPathBuf> {
             std::iter::successors(root.parent(), |dir| dir.parent())
-                .flat_map(|dir| [dir.join(".cargo/config.toml"), dir.join(".cargo/config")])
+                .flat_map(|dir| found_above.map(|file| dir.join(file)))
                 .filter(|config| fs::metadata(config).is_ok())
                 .collect()
         };
@@ -294,18 +297,16 @@ impl Worktrees {
             return None;
         }
         let workspace_root = base.workspace_root();
-        let for_all_packages = [
-            "Cargo.lock",
-            ".cargo/config.toml",
-            ".cargo/config",
-            "rust-toolchain.toml",
-            "rust-toolchain",
-        ];
+        // The workspace need not be at the root of the checkout.
+        let configs_in_checkout = std::iter::successors(Some(workspace_root), |dir| dir.parent())
+            .take_while(|dir| dir.starts_with(&overlay.base_root))
+            .flat_map(|dir| found_above.map(|file| dir.join(file)));
         let manifests = cargo
             .packages()
             .map(|pkg| AbsPath::to_path_buf(&cargo[pkg].manifest))
             .chain([AbsPath::to_path_buf(cargo.manifest_path())])
-            .chain(for_all_packages.iter().map(|file| workspace_root.join(file)))
+            .chain([workspace_root.join("Cargo.lock")])
+            .chain(configs_in_checkout)
             .filter(|path| path.starts_with(&overlay.base_root));
         let same = |path: &AbsPath| {
             overlay.to_worktree(path).is_some_and(|copy| fs::read(path).ok() == fs::read(copy).ok())
@@ -1659,6 +1660,13 @@ mod tests {
             checkouts.analyzed_file("wt/app/src/lib.rs"),
             checkouts.file("wt/app/src/lib.rs")
         );
+
+        // With another toolchain chosen for the copy, the workspace has to be loaded
+        let toolchain = checkouts.dir.join("wt/rust-toolchain.toml");
+        fs::write(&toolchain, "[toolchain]\nchannel = \"stable\"\n").unwrap();
+        assert!(checkouts.worktrees.workspace_of_copy(&overlay).is_none());
+        fs::remove_file(&toolchain).unwrap();
+        assert!(checkouts.worktrees.workspace_of_copy(&overlay).is_some());
 
         // With a target that cargo finds by its file, the workspace has to be loaded
         let new_target = checkouts.dir.join("wt/app/src/bin/tool.rs");
