@@ -9,10 +9,11 @@
 use std::fs;
 
 use ide_db::{
-    FxHashMap,
+    FxHashMap, FxHashSet,
     base_db::{CrateBuilder, CrateBuilderId, CrateGraphBuilder, SourceRoot},
 };
 use load_cargo::SourceRootConfig;
+use paths::Utf8Path;
 use project_model::{ProjectManifest, ProjectWorkspace};
 use vfs::{AbsPath, AbsPathBuf, FileId, Vfs, VfsPath};
 
@@ -128,11 +129,19 @@ impl SourceRoots {
     }
 }
 
+/// Whether the text of a source file may pull in sources from outside of its package, which
+/// comparing the packages file by file does not cover.
+pub(crate) fn reaches_outside(text: &str) -> bool {
+    (text.contains("#[path") || text.contains("include"))
+        && (text.contains("../") || text.contains("= \"/") || text.contains("(\"/"))
+}
+
 /// Whether the source root of `worktree_file` has the same files with the same contents as the
-/// source root of `base_file`.
+/// source root of `base_file`, and none of them reaches for sources outside of it.
 pub(crate) fn same_sources(
     vfs: &Vfs,
     roots: &SourceRoots,
+    reaching_outside: &FxHashSet<FileId>,
     overlay: &Overlay,
     worktree_file: FileId,
     base_file: FileId,
@@ -149,14 +158,57 @@ pub(crate) fn same_sources(
             .path_for_file(&file)
             .and_then(|path| overlay.to_base(path.as_path()?))
             .and_then(|path| base_root.file_for_path(&VfsPath::from(path)).copied());
-        base_file.is_some_and(|base_file| vfs.content_hash(file) == vfs.content_hash(base_file))
+        base_file.is_some_and(|base_file| {
+            vfs.content_hash(file) == vfs.content_hash(base_file)
+                && !reaching_outside.contains(&file)
+        })
     })
+}
+
+/// Whether the two directories have the same files with the same contents.
+fn same_dir(dir: &Utf8Path, other: &Utf8Path) -> bool {
+    let entries = |dir: &Utf8Path| -> Option<Vec<(String, bool)>> {
+        let mut entries = fs::read_dir(dir)
+            .ok()?
+            .map(|entry| {
+                let entry = entry.ok()?;
+                Some((entry.file_name().into_string().ok()?, entry.file_type().ok()?.is_dir()))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        entries.sort();
+        Some(entries)
+    };
+    let (Some(entries), Some(other_entries)) = (entries(dir), entries(other)) else {
+        return false;
+    };
+    entries == other_entries
+        && entries.iter().all(|(name, is_dir)| {
+            let (path, other_path) = (dir.join(name), other.join(name));
+            if *is_dir {
+                same_dir(&path, &other_path)
+            } else {
+                matches!((fs::read(path), fs::read(other_path)), (Ok(it), Ok(other)) if it == other)
+            }
+        })
+}
+
+/// Whether what the build scripts of the two crates generated is the same.
+fn same_build_script_output(krate: &CrateBuilder, base_crate: &CrateBuilder) -> bool {
+    match (krate.env.get("OUT_DIR"), base_crate.env.get("OUT_DIR")) {
+        (None, None) => true,
+        (Some(out_dir), Some(base_out_dir)) => {
+            out_dir == base_out_dir
+                || same_dir(Utf8Path::new(&out_dir), Utf8Path::new(&base_out_dir))
+        }
+        _ => false,
+    }
 }
 
 /// Picks the crate of the base checkout that can stand in for the worktree's `krate`.
 pub(crate) fn base_crate(
     vfs: &Vfs,
     roots: &SourceRoots,
+    reaching_outside: &FxHashSet<FileId>,
     overlay: &Overlay,
     overlay_crates: &mut OverlayCrates,
     graph: &CrateGraphBuilder,
@@ -166,8 +218,10 @@ pub(crate) fn base_crate(
     let base_file = match overlay.to_base(vfs.file_path(worktree_file).as_path()?) {
         Some(base_path) => {
             let (base_file, _) = vfs.file_id(&VfsPath::from(base_path))?;
-            let same_sources = same_sources(vfs, roots, overlay, worktree_file, base_file);
-            overlay_crates.insert((worktree_file, base_file), same_sources);
+            let same_sources =
+                same_sources(vfs, roots, reaching_outside, overlay, worktree_file, base_file);
+            overlay_crates
+                .insert((worktree_file, base_file), OverlayCrate { same_sources, shared: false });
             if !same_sources {
                 return None;
             }
@@ -176,7 +230,7 @@ pub(crate) fn base_crate(
         // A library: the very same files, used by both.
         None => worktree_file,
     };
-    graph.iter().find(|&id| {
+    let base_crate = graph.iter().find(|&id| {
         let base_crate = &graph[id];
         base_crate.basic.root_file_id == base_file
             && base_crate.eq_modulo_location(
@@ -184,9 +238,60 @@ pub(crate) fn base_crate(
                 overlay.base_root.as_str(),
                 overlay.worktree_root.as_str(),
             )
-    })
+            && same_build_script_output(krate, base_crate)
+    })?;
+    if let Some(overlay_crate) = overlay_crates.get_mut(&(worktree_file, base_file)) {
+        overlay_crate.shared = true;
+    }
+    Some(base_crate)
 }
 
-/// For the crates of worktrees that have a counterpart in the base checkout, as the root files
-/// of both, whether the sources of the two were the same when the crate graph was built.
-pub(crate) type OverlayCrates = FxHashMap<(FileId, FileId), bool>;
+/// The file of the base checkout that is analyzed in place of the worktree's `file`: the two are
+/// the same, and all crates of the package of `file` are shared with the base checkout.
+pub(crate) fn shared_base_file(
+    vfs: &Vfs,
+    roots: &SourceRoots,
+    overlays: &[Overlay],
+    overlay_crates: &OverlayCrates,
+    file: FileId,
+) -> Option<FileId> {
+    let path = vfs.file_path(file).as_path()?;
+    let overlay = overlays.iter().find(|it| path.starts_with(&it.worktree_root))?;
+    let (base_file, _) = vfs.file_id(&VfsPath::from(overlay.to_base(path)?))?;
+    if vfs.content_hash(file) != vfs.content_hash(base_file) {
+        return None;
+    }
+    let mut crates_of_package = overlay_crates
+        .iter()
+        .filter(|&(&(worktree_root_file, _), _)| roots.in_same_root(worktree_root_file, file))
+        .peekable();
+    crates_of_package.peek()?;
+    crates_of_package.all(|(_, krate)| krate.shared).then_some(base_file)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OverlayCrate {
+    /// Whether the sources of the crate were the same as in the base checkout when the crate
+    /// graph was built.
+    pub(crate) same_sources: bool,
+    /// Whether the crate of the base checkout stands in for the crate.
+    pub(crate) shared: bool,
+}
+
+/// The crates of worktrees that have a counterpart in the base checkout, by the root files of
+/// both.
+pub(crate) type OverlayCrates = FxHashMap<(FileId, FileId), OverlayCrate>;
+
+#[cfg(test)]
+mod tests {
+    use super::reaches_outside;
+
+    #[test]
+    fn detects_sources_outside_of_the_package() {
+        assert!(reaches_outside("#[path = \"../shared.rs\"]\nmod shared;"));
+        assert!(reaches_outside("include!(\"../../gen.rs\");"));
+        assert!(reaches_outside("const S: &str = include_str!(\"/etc/hosts\");"));
+        assert!(!reaches_outside("#[path = \"imp/unix.rs\"]\nmod imp;"));
+        assert!(!reaches_outside("mod a;\nuse super::b;"));
+    }
+}

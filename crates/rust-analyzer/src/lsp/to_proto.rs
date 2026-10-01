@@ -1637,6 +1637,11 @@ pub(crate) fn snippet_workspace_edit(
         }
     }
     for (file_id, (edit, snippet_edit)) in source_change.source_file_edits {
+        // A client working in a worktree does not edit the base checkout's copy of a crate the
+        // worktree has its own version of.
+        if !snap.in_client_view(file_id)? {
+            continue;
+        }
         let edit = snippet_text_document_edit(
             snap,
             source_change.is_snippet,

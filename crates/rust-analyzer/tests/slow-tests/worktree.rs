@@ -395,3 +395,92 @@ fn worktrees_are_not_shared_unless_asked_for() {
     wait_for_crate_count(&server, "core_lib", 2);
     wait_for_crate_count(&server, "app", 2);
 }
+
+#[test]
+fn crate_reaching_outside_of_its_package_is_not_shared() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    // Identical in both, but what `../extra.rs` is cannot be told from the package's files
+    let app = "#[path = \"../extra.rs\"]\nmod extra;\npub fn run() -> u32 { core_lib::answer() }";
+    let fixture = CHECKOUT_AND_WORKTREE.replace("$APP", app).replace(
+        "pub fn run() -> u32 { core_lib::answer() }\n\n//- /wt/.git",
+        &format!("{app}\n\n//- /wt/.git"),
+    );
+    let server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
+        .root("base")
+        .root("wt")
+        .server()
+        .wait_until_workspace_is_loaded();
+
+    wait_for_crate_count(&server, "core_lib", 1);
+    wait_for_crate_count(&server, "app", 2);
+}
+
+#[test]
+fn rename_from_a_worktree_edits_the_worktree_only() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = worktree_server("pub fn run() -> u32 { core_lib::answer() + 1 }");
+    let edit = server.send_request::<lsp_types::RenameRequest>(lsp_types::RenameParams {
+        text_document_position_params: position(&server, "wt/core_lib/src/lib.rs", 0, 8),
+        new_name: "reply".to_owned(),
+        work_done_progress_params: Default::default(),
+    });
+    let edit = edit.to_string();
+    assert!(edit.contains("/wt/core_lib/src/lib.rs"), "{edit}");
+    assert!(edit.contains("/wt/app/src/lib.rs"), "{edit}");
+    assert!(!edit.contains("/base/"), "{edit}");
+}
+
+#[test]
+fn diagnostics_of_a_shared_crate_reach_the_worktree_client_under_its_path() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let broken = "pub fn answer() -> u32 { \"no\" }";
+    let fixture = CHECKOUT_AND_WORKTREE
+        .replace("$APP", "pub fn run() -> u32 { core_lib::answer() }")
+        .replace("pub fn answer() -> u32 { 42 }", broken);
+    let multi_server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
+        .root("base")
+        .root("wt")
+        .multi_server();
+    let base_client = multi_server.connect(rust_analyzer::ClientId(1));
+    base_client.wait_until_workspace_is_loaded();
+
+    let worktree_client = multi_server.connect_with_encoding(rust_analyzer::ClientId(2), None);
+    let params: lsp_types::InitializeParams = serde_json::from_value(serde_json::json!({
+        "rootUri": worktree_client.doc_id("wt").uri,
+        "capabilities": {},
+    }))
+    .unwrap();
+    worktree_client.send_request::<lsp_types::InitializeRequest>(params);
+    worktree_client
+        .notification::<lsp_types::InitializedNotification>(lsp_types::InitializedParams {});
+
+    let doc_id = worktree_client.doc_id("wt/core_lib/src/lib.rs");
+    let text = std::fs::read_to_string(doc_id.uri.to_file_path().unwrap()).unwrap();
+    worktree_client.notification::<DidOpenTextDocumentNotification>(DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: doc_id.uri.clone(),
+            language_id: LanguageKind::Rust,
+            version: 1,
+            text,
+        },
+    });
+
+    let diagnostics = worktree_client.wait_for_diagnostics();
+    assert_eq!(diagnostics.uri, doc_id.uri);
+    assert_eq!(diagnostics.version, Some(1));
+
+    base_client.shutdown_and_exit();
+    worktree_client.shutdown_and_exit();
+    multi_server.wait_for_shutdown();
+}

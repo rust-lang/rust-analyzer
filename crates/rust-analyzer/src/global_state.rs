@@ -46,7 +46,7 @@ use crate::{
     main_loop::Task,
     mem_docs::MemDocs,
     op_queue::{Cause, OpQueue},
-    overlay::{Overlay, OverlayCrates, SourceRoots},
+    overlay::{self, Overlay, OverlayCrates, SourceRoots},
     priming_scope, reload,
     target_spec::{CargoTargetSpec, ProjectJsonTargetSpec, TargetSpec},
     task_pool::{DeferredTaskQueue, TaskPool},
@@ -222,6 +222,8 @@ pub(crate) struct GlobalState {
     pub(crate) overlay_crates: OverlayCrates,
     /// The partition of the files into source roots, kept while there are overlays.
     pub(crate) overlay_source_roots: Option<SourceRoots>,
+    /// The files whose text may pull in sources from outside of their package.
+    pub(crate) files_reaching_outside: FxHashSet<FileId>,
 
     pub(crate) minicore: MiniCoreRustAnalyzerInternalOnly,
     pub(crate) last_gc_revision: Revision,
@@ -377,6 +379,7 @@ impl GlobalState {
             overlays: Arc::default(),
             overlay_crates: OverlayCrates::default(),
             overlay_source_roots: None,
+            files_reaching_outside: FxHashSet::default(),
 
             minicore: MiniCoreRustAnalyzerInternalOnly::default(),
             last_gc_revision,
@@ -476,6 +479,11 @@ impl GlobalState {
                     } else {
                         None
                     };
+                    if text.as_ref().is_some_and(|(text, _)| overlay::reaches_outside(text)) {
+                        self.files_reaching_outside.insert(file.file_id);
+                    } else {
+                        self.files_reaching_outside.remove(&file.file_id);
+                    }
                     // delay `line_endings_map` changes until we are done normalizing the text
                     // this allows delaying the re-acquisition of the write lock
                     bytes.push((file.file_id, text));
@@ -768,16 +776,70 @@ impl GlobalState {
                 .any(|client| client.caps.did_change_watched_files_dynamic_registration())
     }
 
+    /// The file of the base checkout that is analyzed in place of the worktree's `file_id`.
+    pub(crate) fn shared_base_file(&self, vfs: &vfs::Vfs, file_id: FileId) -> Option<FileId> {
+        overlay::shared_base_file(
+            vfs,
+            self.overlay_source_roots.as_ref()?,
+            &self.overlays,
+            &self.overlay_crates,
+            file_id,
+        )
+    }
+
+    /// The path under which `client` wants the diagnostics of the file at `path`, if at all.
+    ///
+    /// A client that works in a worktree gets the diagnostics of the crates it shares with the
+    /// base checkout under the worktree's paths, and none for the rest of the base checkout. A
+    /// client that works elsewhere gets none for the worktree.
+    fn diagnostics_path_for(
+        &self,
+        vfs: &vfs::Vfs,
+        client: &Client,
+        path: &VfsPath,
+    ) -> Option<VfsPath> {
+        let Some(abs_path) = path.as_path().filter(|_| !self.overlays.is_empty()) else {
+            return Some(path.clone());
+        };
+        let overlay_of = |path: &vfs::AbsPath| {
+            self.overlays.iter().position(|it| path.starts_with(&it.worktree_root))
+        };
+        let client_overlay = client.root.as_deref().and_then(overlay_of);
+        if let Some(file_overlay) = overlay_of(abs_path) {
+            let wanted = match (client_overlay, &client.root) {
+                (Some(client_overlay), _) => client_overlay == file_overlay,
+                (None, Some(root)) => self.overlays[file_overlay].worktree_root.starts_with(root),
+                (None, None) => true,
+            };
+            return wanted.then(|| path.clone());
+        }
+        let Some(worktree_path) =
+            client_overlay.and_then(|idx| self.overlays[idx].to_worktree(abs_path))
+        else {
+            return Some(path.clone());
+        };
+        let worktree_path = VfsPath::from(worktree_path);
+        let (worktree_file, _) = vfs.file_id(&worktree_path)?;
+        let (file_id, _) = vfs.file_id(path)?;
+        (self.shared_base_file(vfs, worktree_file) == Some(file_id)).then_some(worktree_path)
+    }
+
     pub(crate) fn replay_diagnostics_for_file_to(&self, client_id: ClientId, file_id: FileId) {
         let client = match self.clients.get(&client_id) {
             Some(c) => c,
             None => return,
         };
         let vfs = self.vfs.read();
-        let uri = file_id_to_url(&vfs.0, file_id);
+        let file_id = self.shared_base_file(&vfs.0, file_id).unwrap_or(file_id);
+        let Some(path) = self.diagnostics_path_for(&vfs.0, client, vfs.0.file_path(file_id)) else {
+            return;
+        };
+        let Some(uri) = path.as_path().map(url_from_abs_path) else {
+            return;
+        };
         let mut diagnostics =
             self.diagnostics.diagnostics_for(file_id).cloned().collect::<Vec<_>>();
-        let path = from_proto::vfs_path(&uri).ok();
+        let path = Some(path);
         if let Some(p) = &path
             && self.mem_docs.get(client_id, p).is_some()
             && !self.mem_docs.is_in_sync_with_vfs(client_id, p)
@@ -1046,13 +1108,23 @@ impl GlobalState {
     ) {
         let base_encoding = self.config.caps().negotiated_encoding();
         let path = from_proto::vfs_path(&uri).ok();
-        let clients: Vec<(Sender<lsp_server::Message>, PositionEncoding, Option<i32>)> = {
+        let clients: Vec<(Sender<lsp_server::Message>, PositionEncoding, Option<i32>, Uri)> = {
+            let vfs = &self.vfs.read().0;
             self.clients
                 .iter()
                 .filter_map(|(&id, c)| {
                     if !c.is_initialized {
                         return None;
                     }
+                    // A client working in a worktree knows the file under another path.
+                    let path = match &path {
+                        Some(path) => Some(self.diagnostics_path_for(vfs, c, path)?),
+                        None => None,
+                    };
+                    let uri = match path.as_ref().and_then(|path| path.as_path()) {
+                        Some(path) => url_from_abs_path(path),
+                        None => uri.clone(),
+                    };
                     if let Some(p) = &path
                         && self.mem_docs.get(id, p).is_some()
                         && !self.mem_docs.is_in_sync_with_vfs(id, p)
@@ -1062,7 +1134,7 @@ impl GlobalState {
                     }
                     let version =
                         path.as_ref().and_then(|p| self.mem_docs.get(id, p).map(|d| d.version));
-                    Some((c.sender.clone(), c.position_encoding, version))
+                    Some((c.sender.clone(), c.position_encoding, version, uri))
                 })
                 .collect()
         };
@@ -1071,7 +1143,8 @@ impl GlobalState {
         }
         // Positions are computed in the server-wide encoding; a snapshot is only needed to
         // re-encode them for clients that negotiated a different one.
-        let snap = clients.iter().any(|&(_, enc, _)| enc != base_encoding).then(|| self.snapshot());
+        let snap =
+            clients.iter().any(|&(_, enc, _, _)| enc != base_encoding).then(|| self.snapshot());
         // We put this on a separate thread to avoid blocking the main thread with serialization work
         self.task_pool.handle.spawn_with_sender(stdx::thread::ThreadIntent::Worker, {
             move |_| {
@@ -1110,7 +1183,7 @@ impl GlobalState {
                     }
                 }
 
-                for (sender, enc, version) in clients {
+                for (sender, enc, version, uri) in clients {
                     let client_diagnostics = match &snap {
                         Some(snap) if enc != base_encoding => to_proto::reencode_diagnostics(
                             snap,
@@ -1125,7 +1198,7 @@ impl GlobalState {
                     let not = lsp_server::Notification::new(
                         lsp_types::PublishDiagnosticsNotification::METHOD.into(),
                         lsp_types::PublishDiagnosticsParams {
-                            uri: uri.clone(),
+                            uri,
                             diagnostics: client_diagnostics,
                             version,
                         },
@@ -1322,6 +1395,9 @@ impl GlobalStateSnapshot {
                 .and_then(|(file_id, excluded)| {
                     (excluded == vfs::FileExcluded::No).then_some(file_id)
                 })
+                // The crate graph is not rebuilt at once when the worktree's file changes, do
+                // not answer from a file with another text in the meantime.
+                .filter(|&base_file| vfs.content_hash(base_file) == vfs.content_hash(file_id))
         };
         match base_file {
             Some(base_file) if self.analysis.crates_for(file_id)?.is_empty() => Ok(base_file),
@@ -1366,6 +1442,26 @@ impl GlobalStateSnapshot {
             Some(worktree_file) => Ok(self.analysis.crates_for(worktree_file)?.is_empty()),
             None => Ok(true),
         }
+    }
+
+    /// Keeps the items that are in files that are of interest to the client.
+    pub(crate) fn retain_in_client_view<T>(
+        &self,
+        items: &mut Vec<T>,
+        file_id: impl Fn(&T) -> FileId,
+    ) -> Cancellable<()> {
+        if self.overlays.is_empty() {
+            return Ok(());
+        }
+        let mut res = Ok(());
+        items.retain(|item| match self.in_client_view(file_id(item)) {
+            Ok(in_view) => in_view,
+            Err(cancelled) => {
+                res = Err(cancelled);
+                true
+            }
+        });
+        res
     }
 
     /// The path under which the client that sent the request knows the file.

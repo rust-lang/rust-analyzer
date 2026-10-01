@@ -918,11 +918,12 @@ pub(crate) fn handle_goto_implementation(
     let _p = tracing::info_span!("handle_goto_implementation").entered();
     let position =
         try_default!(from_proto::file_position(&snap, &params.text_document_position_params)?);
-    let nav_info =
+    let mut nav_info =
         match snap.analysis.goto_implementation(&snap.config.goto_implementation(), position)? {
             None => return Ok(None),
             Some(it) => it,
         };
+    snap.retain_in_client_view(&mut nav_info.info, |nav| nav.file_id)?;
     let src = FileRange { file_id: position.file_id, range: nav_info.range };
     let res = to_proto::goto_implementation_response(&snap, Some(src), nav_info.info)?;
     Ok(Some(res))
@@ -2051,10 +2052,11 @@ pub(crate) fn handle_call_hierarchy_incoming(
     let fpos = FilePosition { file_id: frange.file_id, offset: frange.range.start() };
 
     let config = snap.config.call_hierarchy(snap.minicore());
-    let call_items = match snap.analysis.incoming_calls(&config, fpos)? {
+    let mut call_items = match snap.analysis.incoming_calls(&config, fpos)? {
         None => return Ok(None),
         Some(it) => it,
     };
+    snap.retain_in_client_view(&mut call_items, |call_item| call_item.target.file_id)?;
 
     Ok(Some(
         call_items
@@ -2091,10 +2093,11 @@ pub(crate) fn handle_call_hierarchy_outgoing(
     let line_index = snap.file_line_index(fpos.file_id)?;
 
     let config = snap.config.call_hierarchy(snap.minicore());
-    let call_items = match snap.analysis.outgoing_calls(&config, fpos)? {
+    let mut call_items = match snap.analysis.outgoing_calls(&config, fpos)? {
         None => return Ok(None),
         Some(it) => it,
     };
+    snap.retain_in_client_view(&mut call_items, |call_item| call_item.target.file_id)?;
 
     let mut res = vec![];
 

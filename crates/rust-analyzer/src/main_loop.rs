@@ -934,6 +934,10 @@ impl GlobalState {
                 .filter_map(|(file_id, excluded)| {
                     (excluded == vfs::FileExcluded::No).then_some(file_id)
                 })
+                // A file of a worktree's shared crate is analyzed as the base checkout's file.
+                .map(|file_id| self.shared_base_file(vfs, file_id).unwrap_or(file_id))
+                .collect::<ide_db::FxHashSet<_>>()
+                .into_iter()
                 .filter(|&file_id| {
                     let source_root_id = db.file_source_root(file_id).source_root_id(db);
                     let source_root = db.source_root(source_root_id).source_root(db);

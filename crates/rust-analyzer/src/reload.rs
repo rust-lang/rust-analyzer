@@ -704,14 +704,20 @@ impl GlobalState {
                 self.overlay_source_roots = Some(SourceRoots::new(&self.source_root_config, vfs));
             }
             let roots = self.overlay_source_roots.as_ref().unwrap();
-            self.overlay_crates.iter().any(|(&(worktree_file, base_file), &same_sources)| {
+            self.overlay_crates.iter().any(|(&(worktree_file, base_file), krate)| {
                 let touched = changed_files.iter().any(|&file| {
                     roots.in_same_root(file, worktree_file) || roots.in_same_root(file, base_file)
                 });
                 touched
                     && overlay_of(worktree_file).is_some_and(|overlay| {
-                        overlay::same_sources(vfs, roots, overlay, worktree_file, base_file)
-                            != same_sources
+                        overlay::same_sources(
+                            vfs,
+                            roots,
+                            &self.files_reaching_outside,
+                            overlay,
+                            worktree_file,
+                            base_file,
+                        ) != krate.same_sources
                     })
             })
         };
@@ -776,6 +782,7 @@ impl GlobalState {
                     overlay::base_crate(
                         vfs,
                         source_roots.as_ref()?,
+                        &self.files_reaching_outside,
                         overlay,
                         &mut overlay_crates,
                         graph,
