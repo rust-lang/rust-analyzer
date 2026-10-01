@@ -711,9 +711,14 @@ impl ProjectWorkspace {
     /// Takes over the outputs of the build scripts of `base`, which this workspace is a copy of
     /// at another place, instead of running them once more.
     ///
-    /// For a package whose sources differ from `base`, what is taken over is what the build
-    /// script of the other version generated, until the build scripts are run for real.
-    pub fn inherit_build_scripts(&mut self, base: &ProjectWorkspace) {
+    /// Only the packages that are `same` in the two, by the directory of their manifest in this
+    /// workspace, get the outputs: for the others they would be what another version of the
+    /// package generated. Those are left without, as if their build scripts did not run yet.
+    pub fn inherit_build_scripts(
+        &mut self,
+        base: &ProjectWorkspace,
+        same: &dyn Fn(&AbsPath) -> bool,
+    ) {
         if let (
             ProjectWorkspaceKind::Cargo {
                 cargo: base_cargo,
@@ -723,7 +728,7 @@ impl ProjectWorkspace {
             ProjectWorkspaceKind::Cargo { cargo, build_scripts, .. },
         ) = (&base.kind, &mut self.kind)
         {
-            *build_scripts = base_build_scripts.for_copy(base_cargo, cargo);
+            *build_scripts = base_build_scripts.for_copy(base_cargo, cargo, same);
         }
     }
 

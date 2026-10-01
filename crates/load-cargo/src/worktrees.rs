@@ -18,6 +18,7 @@ use ide_db::{
     base_db::{ProcMacroLoadingError, ProcMacroPaths},
     prime_caches,
 };
+use itertools::Itertools;
 use proc_macro_api::ProcMacroClient;
 use project_model::{Package, ProjectWorkspace, ProjectWorkspaceKind};
 use rustc_hash::FxHasher;
@@ -259,10 +260,40 @@ impl Worktrees {
         }
     }
 
-    /// The workspace of the base checkout, for example for a worktree to
-    /// [inherit](ProjectWorkspace::inherit_build_scripts) the outputs of its build scripts.
+    /// The workspace of the base checkout.
     pub fn base(&self) -> &ProjectWorkspace {
         &self.workspaces[0]
+    }
+
+    /// Lets `worktree`, which is about to be [added](Worktrees::add), take over the outputs of
+    /// the build scripts of the base checkout instead of running its own, which is what makes
+    /// adding a worktree slow.
+    ///
+    /// Only the packages that are the same as in the base checkout, and depend only on such
+    /// packages, get them. Returns the directories of the other packages of the worktree: their
+    /// crates have no build script output and no proc macros until the build scripts of the
+    /// worktree are run and its workspace is added again.
+    pub fn inherit_build_scripts(
+        &self,
+        vfs: &Vfs,
+        worktree: &mut ProjectWorkspace,
+        overlay: &Overlay,
+    ) -> Vec<AbsPathBuf> {
+        let same = self.same_packages(vfs, worktree, overlay);
+        // A library is the same package for both.
+        let is_same =
+            |dir: &AbsPath| !dir.starts_with(&overlay.worktree_root) || same.contains(dir);
+        worktree.inherit_build_scripts(self.base(), &is_same);
+        match &worktree.kind {
+            ProjectWorkspaceKind::Cargo { cargo, .. } => cargo
+                .packages()
+                .map(|pkg| cargo[pkg].manifest.parent())
+                .filter(|dir| !is_same(dir))
+                .map(AbsPath::to_path_buf)
+                .sorted()
+                .collect(),
+            _ => Vec::new(),
+        }
     }
 
     /// The worktrees that are loaded.
@@ -1351,9 +1382,30 @@ mod tests {
         // Without the outputs of the build scripts the crates of the worktree are not the same
         let overlay = checkouts.overlay("wt");
         let mut worktree = load_workspace(&checkouts.dir.join("wt"));
-        worktree.inherit_build_scripts(checkouts.worktrees.base());
+        let to_build =
+            checkouts.worktrees.inherit_build_scripts(&checkouts.vfs, &mut worktree, &overlay);
+        assert_eq!(to_build, Vec::<AbsPathBuf>::new());
         checkouts.worktrees.add(&mut checkouts.db, &mut checkouts.vfs, worktree, overlay);
         assert_eq!(checkouts.crates(), base_crates);
         assert!(!checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+
+        // A package that differs does not get what the base checkout's version of it generated
+        with_build_script(&checkouts.dir.join("changed"));
+        fs::write(
+            checkouts.dir.join("changed/core_lib/build.rs"),
+            "fn main() { println!(\"cargo:rustc-cfg=another_flag\"); }\n",
+        )
+        .unwrap();
+        fs::copy(checkouts.dir.join("base/Cargo.lock"), checkouts.dir.join("changed/Cargo.lock"))
+            .unwrap();
+        let overlay = checkouts.overlay("changed");
+        let mut worktree = load_workspace(&checkouts.dir.join("changed"));
+        let to_build =
+            checkouts.worktrees.inherit_build_scripts(&checkouts.vfs, &mut worktree, &overlay);
+        // `app` depends on it, so what it would take over may be wrong as well
+        assert_eq!(
+            to_build,
+            vec![checkouts.path("changed/app"), checkouts.path("changed/core_lib")]
+        );
     }
 }
