@@ -539,8 +539,27 @@ impl CargoWorkspace {
         let manifest = |manifest: &ManifestPath| {
             ManifestPath::try_from(path(manifest)).unwrap_or_else(|_| manifest.clone())
         };
-        let text = |text: &str| text.replace(from.as_str(), to.as_str());
-        let utf8_path = |path: &Utf8PathBuf| Utf8PathBuf::from(text(path.as_str()));
+        // In text, `from` is a path only where a whole path starts with it: `/work/repo` is
+        // neither in `/work/repo-utils` nor in `/home/work/repo`.
+        let text = |text: &str| {
+            let is_in_name = |c: char| c.is_alphanumeric() || matches!(c, '_' | '-' | '.');
+            let mut res = String::with_capacity(text.len());
+            let mut rest = text;
+            while let Some(idx) = rest.find(from.as_str()) {
+                let (before, after) = (&rest[..idx], &rest[idx + from.as_str().len()..]);
+                let starts_a_path = !before.chars().next_back().is_some_and(is_in_name)
+                    && !after.chars().next().is_some_and(is_in_name);
+                res.push_str(before);
+                res.push_str(if starts_a_path { to.as_str() } else { from.as_str() });
+                rest = after;
+            }
+            res.push_str(rest);
+            res
+        };
+        let utf8_path = |path: &Utf8PathBuf| match path.strip_prefix(from) {
+            Ok(in_workspace) => Utf8PathBuf::from(to.join(in_workspace)),
+            Err(_) => path.clone(),
+        };
 
         let mut this = self.clone();
         for (_, package) in this.packages.iter_mut() {

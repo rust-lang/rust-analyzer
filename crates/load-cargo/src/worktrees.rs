@@ -279,6 +279,20 @@ impl Worktrees {
         let ProjectWorkspaceKind::Cargo { cargo, .. } = &base.kind else {
             return None;
         };
+        // A path that leads out of the checkout, as a path dependency or a patch can have, leads
+        // somewhere else from the copy, and so can the cargo configuration above the two.
+        let leads_out = cargo
+            .packages()
+            .any(|pkg| cargo[pkg].is_local && !cargo[pkg].manifest.starts_with(&overlay.base_root));
+        let configs_above = |root: &AbsPath| -> Vec<AbsPathBuf> {
+            std::iter::successors(root.parent(), |dir| dir.parent())
+                .flat_map(|dir| [dir.join(".cargo/config.toml"), dir.join(".cargo/config")])
+                .filter(|config| fs::metadata(config).is_ok())
+                .collect()
+        };
+        if leads_out || configs_above(&overlay.base_root) != configs_above(&overlay.worktree_root) {
+            return None;
+        }
         let workspace_root = base.workspace_root();
         let for_all_packages = [
             "Cargo.lock",
@@ -574,6 +588,36 @@ impl Worktrees {
             let is_not_loaded = |dir: &AbsPathBuf| {
                 self.not_loaded.iter().any(|not_loaded| not_loaded.contains(dir))
             };
+            // The directories that no workspace has anymore are not loaded anymore either: if
+            // they come back, their files are read again.
+            let current: FxHashSet<&AbsPathBuf> = project_folders
+                .load
+                .iter()
+                .flat_map(|entry| match entry {
+                    Entry::Directories(dirs) => dirs.include.as_slice(),
+                    Entry::Files(_) => &[],
+                })
+                .collect();
+            let dropped: Vec<AbsPathBuf> =
+                self.loaded.iter().filter(|dir| !current.contains(dir)).cloned().collect();
+            if !dropped.is_empty() {
+                let files: Vec<VfsPath> = vfs
+                    .iter()
+                    .map(|(_, path)| path)
+                    .filter(|path| {
+                        path.as_path().is_some_and(|path| {
+                            dropped.iter().any(|dir| path.starts_with(dir))
+                                && !current.iter().any(|dir| path.starts_with(dir))
+                        })
+                    })
+                    .cloned()
+                    .collect();
+                for path in files {
+                    self.files_in_memory.remove(&path);
+                    vfs.set_file_contents(path, None);
+                }
+                self.loaded.retain(|dir| !dropped.contains(dir));
+            }
             // What was loaded before is not read again: changes on disk are for the embedder to
             // tell us about.
             let mut newly_loaded = Vec::new();
@@ -1560,5 +1604,86 @@ mod tests {
         let text = fs::read_to_string(&manifest).unwrap();
         fs::write(&manifest, format!("{text}\n[features]\nextra = []\n")).unwrap();
         assert!(checkouts.worktrees.workspace_of_copy(&overlay).is_none());
+    }
+
+    #[test]
+    fn package_that_comes_back_is_read_again() {
+        let mut checkouts = Checkouts::new();
+        let overlay = checkouts.add_worktree("wt", CORE_LIB, "pub fn run() -> u32 { 1 }\n");
+        assert!(checkouts.is_loaded("wt/app/src/lib.rs"));
+
+        // The worktree drops `app` from its workspace
+        let manifest = checkouts.dir.join("wt/Cargo.toml");
+        let with_app = fs::read_to_string(&manifest).unwrap();
+        fs::write(
+            &manifest,
+            with_app.replace("members = [\"core_lib\", \"app\"]", "members = [\"core_lib\"]"),
+        )
+        .unwrap();
+        let workspace = load_workspace(&checkouts.dir.join("wt"));
+        checkouts.worktrees.add(&mut checkouts.db, &mut checkouts.vfs, workspace, overlay.clone());
+        assert!(!checkouts.is_loaded("wt/app/src/lib.rs"));
+        assert_eq!(checkouts.crates(), 2);
+
+        // And takes it back, with other sources
+        fs::write(&manifest, with_app).unwrap();
+        fs::write(checkouts.dir.join("wt/app/src/lib.rs"), "pub fn run() -> u32 { 2 }\n").unwrap();
+        let workspace = load_workspace(&checkouts.dir.join("wt"));
+        checkouts.worktrees.add(&mut checkouts.db, &mut checkouts.vfs, workspace, overlay);
+        assert_eq!(checkouts.text("wt/app/src/lib.rs"), "pub fn run() -> u32 { 2 }\n");
+        assert_eq!(checkouts.crates(), 3);
+    }
+
+    #[test]
+    fn copy_with_a_dependency_outside_of_the_checkout_is_loaded() {
+        let dir = std::env::temp_dir().join(format!("ra-worktrees-out-{}", std::process::id()));
+        _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let dir = fs::canonicalize(dir).unwrap();
+        // A sibling of the checkout whose name starts like it, which `app` depends on
+        let outside = dir.join("base-utils");
+        fs::create_dir_all(outside.join("src")).unwrap();
+        fs::write(outside.join("Cargo.toml"), "[package]\nname = \"utils\"\nversion = \"0.0.0\"\n")
+            .unwrap();
+        fs::write(outside.join("src/lib.rs"), "pub fn util() {}\n").unwrap();
+        let with_outside_dependency = |root: &std::path::Path| {
+            write_checkout(root, CORE_LIB, APP);
+            let manifest = root.join("app/Cargo.toml");
+            let text = fs::read_to_string(&manifest).unwrap();
+            fs::write(&manifest, format!("{text}utils = {{ path = \"../../base-utils\" }}\n"))
+                .unwrap();
+        };
+        with_outside_dependency(&dir.join("base"));
+        let (worktrees, db, vfs) = Worktrees::load(
+            load_workspace(&dir.join("base")),
+            &FxHashMap::default(),
+            &LoadCargoConfig {
+                load_out_dirs_from_check: false,
+                with_proc_macro_server: ProcMacroServerChoice::None,
+                prefill_caches: false,
+                num_worker_threads: 1,
+                proc_macro_processes: 1,
+            },
+        )
+        .unwrap();
+        let mut checkouts = Checkouts { dir, worktrees, db, vfs };
+        let base_crates = checkouts.crates();
+
+        with_outside_dependency(&checkouts.dir.join("wt"));
+        let overlay = checkouts.overlay("wt");
+        // The path leads to the same package from the copy here, but we do not rely on it
+        assert!(checkouts.worktrees.workspace_of_copy(&overlay).is_none());
+
+        // Moving the workspace leaves the sibling where it is
+        let moved = checkouts
+            .worktrees
+            .base()
+            .rerooted(&overlay.base_root, &overlay.worktree_root)
+            .unwrap();
+        let loaded = load_workspace(&checkouts.dir.join("wt"));
+        assert!(moved.eq_ignore_build_data(&loaded), "{moved:#?}\n{loaded:#?}");
+
+        checkouts.worktrees.add(&mut checkouts.db, &mut checkouts.vfs, loaded, overlay);
+        assert_eq!(checkouts.crates(), base_crates);
     }
 }
