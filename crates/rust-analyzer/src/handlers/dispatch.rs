@@ -13,6 +13,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use stdx::thread::ThreadIntent;
 
 use crate::{
+    client::ClientId,
     global_state::{GlobalState, GlobalStateSnapshot},
     lsp::LspError,
     main_loop::Task,
@@ -34,6 +35,7 @@ use crate::{
 /// Read-only requests are wrapped into `catch_unwind` -- they don't modify the
 /// state, so it's OK to recover from their failures.
 pub(crate) struct RequestDispatcher<'a> {
+    pub(crate) client_id: ClientId,
     pub(crate) req: Option<lsp_server::Request>,
     pub(crate) global_state: &'a mut GlobalState,
 }
@@ -51,6 +53,19 @@ impl RequestDispatcher<'_> {
         R::Params: DeserializeOwned + panic::UnwindSafe + fmt::Debug,
         R::Result: Serialize,
     {
+        self.on_client_sync_mut::<R>(|state, _, params| f(state, params))
+    }
+
+    /// Like [`Self::on_sync_mut`], but also tells the handler which client sent the request.
+    pub(crate) fn on_client_sync_mut<R>(
+        &mut self,
+        f: impl FnOnce(&mut GlobalState, ClientId, R::Params) -> anyhow::Result<R::Result>,
+    ) -> &mut Self
+    where
+        R: lsp_types::Request,
+        R::Params: DeserializeOwned + panic::UnwindSafe + fmt::Debug,
+        R::Result: Serialize,
+    {
         let (req, params, panic_context) = match self.parse::<R>() {
             Some(it) => it,
             None => return self,
@@ -60,10 +75,10 @@ impl RequestDispatcher<'_> {
         tracing::debug!(?params);
         let result = {
             let _pctx = DbPanicContext::enter(panic_context);
-            f(self.global_state, params)
+            f(self.global_state, self.client_id, params)
         };
         if let Ok(response) = result_to_response::<R>(req.id, result) {
-            self.global_state.respond(response);
+            self.global_state.respond(self.client_id, response);
         }
 
         self
@@ -86,7 +101,7 @@ impl RequestDispatcher<'_> {
         let _guard =
             tracing::info_span!("request", method = ?req.method, "request_id" = ?req.id).entered();
         tracing::debug!(?params);
-        let global_state_snapshot = self.global_state.snapshot();
+        let global_state_snapshot = self.global_state.snapshot_for(Some(self.client_id));
 
         let result = panic::catch_unwind(move || {
             let _pctx = DbPanicContext::enter(panic_context);
@@ -94,7 +109,7 @@ impl RequestDispatcher<'_> {
         });
 
         if let Ok(response) = thread_result_to_response::<R>(req.id, result) {
-            self.global_state.respond(response);
+            self.global_state.respond(self.client_id, response);
         }
 
         self
@@ -116,7 +131,10 @@ impl RequestDispatcher<'_> {
             if let Some(lsp_server::Request { id, .. }) =
                 self.req.take_if(|it| it.method.as_str() == R::METHOD.as_str())
             {
-                self.global_state.respond(lsp_server::Response::new_ok(id, R::Result::default()));
+                self.global_state.respond(
+                    self.client_id,
+                    lsp_server::Response::new_ok(id, R::Result::default()),
+                );
             }
             return self;
         }
@@ -145,7 +163,8 @@ impl RequestDispatcher<'_> {
             if let Some(lsp_server::Request { id, .. }) =
                 self.req.take_if(|it| it.method.as_str() == R::METHOD.as_str())
             {
-                self.global_state.respond(lsp_server::Response::new_ok(id, default()));
+                self.global_state
+                    .respond(self.client_id, lsp_server::Response::new_ok(id, default()));
             }
             return self;
         }
@@ -164,7 +183,8 @@ impl RequestDispatcher<'_> {
     {
         if !self.global_state.vfs_done {
             if let Some((request, params, _)) = self.parse::<R>() {
-                self.global_state.respond(lsp_server::Response::new_ok(request.id, &params))
+                self.global_state
+                    .respond(self.client_id, lsp_server::Response::new_ok(request.id, &params));
             }
             return self;
         }
@@ -191,7 +211,10 @@ impl RequestDispatcher<'_> {
             if let Some(lsp_server::Request { id, .. }) =
                 self.req.take_if(|it| it.method.as_str() == R::METHOD.as_str())
             {
-                self.global_state.respond(lsp_server::Response::new_ok(id, R::Result::default()));
+                self.global_state.respond(
+                    self.client_id,
+                    lsp_server::Response::new_ok(id, R::Result::default()),
+                );
             }
             return self;
         }
@@ -229,7 +252,7 @@ impl RequestDispatcher<'_> {
                 lsp_server::ErrorCode::MethodNotFound as i32,
                 "unknown request".to_owned(),
             );
-            self.global_state.respond(response);
+            self.global_state.respond(self.client_id, response);
         }
     }
 
@@ -252,7 +275,8 @@ impl RequestDispatcher<'_> {
             tracing::info_span!("request", method = ?req.method, "request_id" = ?req.id).entered();
         tracing::debug!(?params);
 
-        let world = self.global_state.snapshot();
+        let world = self.global_state.snapshot_for(Some(self.client_id));
+        let client_id = self.client_id;
         if RUSTFMT {
             &mut self.global_state.fmt_pool.handle
         } else {
@@ -264,11 +288,14 @@ impl RequestDispatcher<'_> {
                 f(world, params)
             });
             match thread_result_to_response::<R>(req.id.clone(), result) {
-                Ok(response) => Task::Response(response),
-                Err(_cancelled) if ALLOW_RETRYING => Task::Retry(req),
+                Ok(response) => Task::Response(client_id, response),
+                Err(_cancelled) if ALLOW_RETRYING => Task::Retry(client_id, req),
                 Err(_cancelled) => {
                     let error = on_cancelled();
-                    Task::Response(Response { id: req.id, result: None, error: Some(error) })
+                    Task::Response(
+                        client_id,
+                        Response { id: req.id, result: None, error: Some(error) },
+                    )
                 }
             }
         });
@@ -295,7 +322,7 @@ impl RequestDispatcher<'_> {
                     lsp_server::ErrorCode::InvalidParams as i32,
                     err.to_string(),
                 );
-                self.global_state.respond(response);
+                self.global_state.respond(self.client_id, response);
                 None
             }
         }
@@ -391,6 +418,7 @@ where
 }
 
 pub(crate) struct NotificationDispatcher<'a> {
+    pub(crate) client_id: ClientId,
     pub(crate) not: Option<lsp_server::Notification>,
     pub(crate) global_state: &'a mut GlobalState,
 }
@@ -399,6 +427,18 @@ impl NotificationDispatcher<'_> {
     pub(crate) fn on_sync_mut<N>(
         &mut self,
         f: fn(&mut GlobalState, N::Params) -> anyhow::Result<()>,
+    ) -> &mut Self
+    where
+        N: lsp_types::Notification,
+        N::Params: DeserializeOwned + Send + Debug,
+    {
+        self.on_client_sync_mut::<N>(|state, _, params| f(state, params))
+    }
+
+    /// Like [`Self::on_sync_mut`], but also tells the handler which client sent the notification.
+    pub(crate) fn on_client_sync_mut<N>(
+        &mut self,
+        f: impl FnOnce(&mut GlobalState, ClientId, N::Params) -> anyhow::Result<()>,
     ) -> &mut Self
     where
         N: lsp_types::Notification,
@@ -427,7 +467,7 @@ impl NotificationDispatcher<'_> {
 
         let _pctx =
             DbPanicContext::enter(format!("\nversion: {}\nnotification: {}", version(), N::METHOD));
-        if let Err(e) = f(self.global_state, params) {
+        if let Err(e) = f(self.global_state, self.client_id, params) {
             tracing::error!(handler = %N::METHOD, error = %e, "notification handler failed");
         }
         self

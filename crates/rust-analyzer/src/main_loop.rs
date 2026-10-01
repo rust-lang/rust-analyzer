@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crossbeam_channel::{Receiver, never, select};
+use crossbeam_channel::{Receiver, Sender, never, select};
 use ide_db::base_db::{SourceDatabase, VfsPath};
 use lsp_server::{Connection, Notification, Request};
 use lsp_types::{Notification as _, TextDocumentIdentifier};
@@ -17,6 +17,7 @@ use tracing::{Level, error, span};
 use vfs::{AbsPathBuf, FileId, loader::LoadingProgress};
 
 use crate::{
+    client::ClientId,
     config::Config,
     diagnostics::{DiagnosticsGeneration, NativeDiagnosticsFetchKind, fetch_native_diagnostics},
     discover::{DiscoverArgument, DiscoverCommand, DiscoverProjectMessage},
@@ -29,6 +30,7 @@ use crate::{
         dispatch::{NotificationDispatcher, RequestDispatcher},
         request::empty_diagnostic_report,
     },
+    line_index::PositionEncoding,
     lsp::{
         from_proto, to_proto,
         utils::{Progress, notification_is},
@@ -39,6 +41,17 @@ use crate::{
 };
 
 pub fn main_loop(config: Config, connection: Connection) -> anyhow::Result<()> {
+    init_main_loop(&config);
+    GlobalState::new(connection.sender, config).run(connection.receiver)
+}
+
+/// Like [`main_loop`], but serves every client attached to `inbox` from a single analysis host.
+pub fn main_loop_multi(config: Config, inbox: MultiClientInbox) -> anyhow::Result<()> {
+    init_main_loop(&config);
+    GlobalState::new_multi(config).run(inbox)
+}
+
+fn init_main_loop(config: &Config) {
     tracing::info!("initial config: {:#?}", config);
 
     // Windows scheduler implements priority boosts: if thread waits for an
@@ -67,12 +80,96 @@ pub fn main_loop(config: Config, connection: Connection) -> anyhow::Result<()> {
                 Some(dhat::Profiler::builder().file_name(&dhat_output_file).build());
         }
     }
+}
 
-    GlobalState::new(connection.sender, config).run(connection.receiver)
+/// Events sent into a multi-client inbox.
+pub(crate) enum ClientEvent {
+    Register {
+        client_id: ClientId,
+        sender: Sender<lsp_server::Message>,
+        position_encoding: Option<PositionEncoding>,
+    },
+    Disconnected(ClientId),
+    Message(ClientId, lsp_server::Message),
+}
+
+/// Inbox of messages received by rust-analyzer.
+pub(crate) enum Inbox {
+    /// Single-client receiver (standard standalone mode).
+    Single(Receiver<lsp_server::Message>),
+    /// Multi-client multiplexed receiver.
+    Multi(Receiver<ClientEvent>),
+}
+
+impl From<Receiver<lsp_server::Message>> for Inbox {
+    fn from(r: Receiver<lsp_server::Message>) -> Self {
+        Inbox::Single(r)
+    }
+}
+
+impl From<MultiClientInbox> for Inbox {
+    fn from(m: MultiClientInbox) -> Self {
+        Inbox::Multi(m.receiver)
+    }
+}
+
+/// Helper for multiplexing multiple attached clients into a single inbox channel.
+#[derive(Clone)]
+pub struct MultiClientInbox {
+    sender: crossbeam_channel::Sender<ClientEvent>,
+    receiver: crossbeam_channel::Receiver<ClientEvent>,
+}
+
+impl Default for MultiClientInbox {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MultiClientInbox {
+    pub fn new() -> Self {
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        Self { sender, receiver }
+    }
+
+    pub fn register_client(
+        &self,
+        client_id: ClientId,
+        sender: Sender<lsp_server::Message>,
+        receiver: Receiver<lsp_server::Message>,
+    ) -> stdx::thread::JoinHandle {
+        self.register_client_with_encoding(client_id, sender, receiver, None)
+    }
+
+    pub fn register_client_with_encoding(
+        &self,
+        client_id: ClientId,
+        sender: Sender<lsp_server::Message>,
+        receiver: Receiver<lsp_server::Message>,
+        position_encoding: Option<PositionEncoding>,
+    ) -> stdx::thread::JoinHandle {
+        let _ = self.sender.send(ClientEvent::Register { client_id, sender, position_encoding });
+        let event_sender = self.sender.clone();
+        stdx::thread::Builder::new(
+            stdx::thread::ThreadIntent::Worker,
+            format!("client-{client_id}-inbox"),
+        )
+        .spawn(move || {
+            while let Ok(msg) = receiver.recv() {
+                if event_sender.send(ClientEvent::Message(client_id, msg)).is_err() {
+                    return;
+                }
+            }
+            let _ = event_sender.send(ClientEvent::Disconnected(client_id));
+        })
+        .expect("failed to spawn client inbox forwarder thread")
+    }
 }
 
 enum Event {
-    Lsp(lsp_server::Message),
+    Lsp(ClientId, lsp_server::Message),
+    RegisterClient(ClientId, Sender<lsp_server::Message>, Option<PositionEncoding>),
+    ClientDisconnected(ClientId),
     Task(Task),
     DeferredTask(DeferredTask),
     Vfs(vfs::loader::Message),
@@ -85,7 +182,9 @@ enum Event {
 impl fmt::Display for Event {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Event::Lsp(_) => write!(f, "Event::Lsp"),
+            Event::Lsp(id, _) => write!(f, "Event::Lsp({id})"),
+            Event::RegisterClient(id, ..) => write!(f, "Event::RegisterClient({id})"),
+            Event::ClientDisconnected(id) => write!(f, "Event::ClientDisconnected({id})"),
             Event::Task(_) => write!(f, "Event::Task"),
             Event::Vfs(_) => write!(f, "Event::Vfs"),
             Event::Flycheck(_) => write!(f, "Event::Flycheck"),
@@ -111,9 +210,9 @@ pub(crate) enum DiagnosticsTaskKind {
 
 #[derive(Debug)]
 pub(crate) enum Task {
-    Response(lsp_server::Response),
+    Response(ClientId, lsp_server::Response),
     DiscoverLinkedProjects(DiscoverProjectParam),
-    Retry(lsp_server::Request),
+    Retry(ClientId, lsp_server::Request),
     Diagnostics(DiagnosticsTaskKind),
     DiscoverTest(lsp_ext::DiscoverTestResults),
     PrimeCaches(PrimeCachesProgress),
@@ -144,13 +243,13 @@ impl fmt::Debug for Event {
         };
 
         match self {
-            Event::Lsp(lsp_server::Message::Notification(not))
+            Event::Lsp(_client_id, lsp_server::Message::Notification(not))
                 if (notification_is::<lsp_types::DidOpenTextDocumentNotification>(not)
                     || notification_is::<lsp_types::DidChangeTextDocumentNotification>(not)) =>
             {
                 return debug_non_verbose(not, f);
             }
-            Event::Task(Task::Response(resp)) => {
+            Event::Task(Task::Response(_client_id, resp)) => {
                 return f
                     .debug_struct("Response")
                     .field("id", &resp.id)
@@ -161,7 +260,9 @@ impl fmt::Debug for Event {
         }
 
         match self {
-            Event::Lsp(it) => fmt::Debug::fmt(it, f),
+            Event::Lsp(client_id, it) => write!(f, "Lsp({client_id:?}, {it:?})"),
+            Event::RegisterClient(client_id, ..) => write!(f, "RegisterClient({client_id:?})"),
+            Event::ClientDisconnected(client_id) => write!(f, "ClientDisconnected({client_id:?})"),
             Event::Task(it) => fmt::Debug::fmt(it, f),
             Event::DeferredTask(it) => fmt::Debug::fmt(it, f),
             Event::Vfs(it) => fmt::Debug::fmt(it, f),
@@ -174,7 +275,8 @@ impl fmt::Debug for Event {
 }
 
 impl GlobalState {
-    fn run(mut self, inbox: Receiver<lsp_server::Message>) -> anyhow::Result<()> {
+    pub(crate) fn run(mut self, inbox: impl Into<Inbox>) -> anyhow::Result<()> {
+        let inbox = inbox.into();
         self.update_status_or_notify();
 
         if self.config.did_save_text_document_dynamic_registration() {
@@ -204,20 +306,33 @@ impl GlobalState {
             let Some(event) = event else {
                 anyhow::bail!("client exited without proper shutdown sequence");
             };
-            if matches!(
-                &event,
-                Event::Lsp(lsp_server::Message::Notification(Notification { method, .. }))
-                if method == lsp_types::ExitNotification::METHOD.as_str()
-            ) {
+            if let Event::Lsp(client_id, lsp_server::Message::Notification(ref not)) = event
+                && not.method == lsp_types::ExitNotification::METHOD.as_str()
+            {
+                self.unregister_client(client_id);
+                if self.clients.is_empty() {
+                    return Ok(());
+                }
+            }
+            let is_disconnect = matches!(event, Event::ClientDisconnected(_));
+            self.handle_event(event);
+            if is_disconnect && self.clients.is_empty() {
                 return Ok(());
             }
-            self.handle_event(event);
         }
 
         Err(anyhow::anyhow!("A receiver has been dropped, something panicked!"))
     }
 
     fn register_did_save_capability(&mut self, additional_patterns: impl Iterator<Item = String>) {
+        self.register_did_save_capability_for(None, additional_patterns);
+    }
+
+    fn register_did_save_capability_for(
+        &mut self,
+        client_id: Option<ClientId>,
+        additional_patterns: impl Iterator<Item = String>,
+    ) {
         let additional_filters = additional_patterns.map(|pattern| {
             lsp_types::DocumentFilter::TextDocumentFilter(lsp_types::TextDocumentFilter::Pattern(
                 lsp_types::TextDocumentFilterPattern {
@@ -265,24 +380,101 @@ impl GlobalState {
             method: "textDocument/didSave".to_owned(),
             register_options: Some(serde_json::to_value(save_registration_options).unwrap()),
         };
-        self.send_request::<lsp_types::RegistrationRequest>(
-            lsp_types::RegistrationParams { registrations: vec![registration] },
-            |_, _| (),
-        );
+        let params = lsp_types::RegistrationParams { registrations: vec![registration] };
+        if let Some(client_id) = client_id {
+            self.send_request_to::<lsp_types::RegistrationRequest>(client_id, params, |_, _, _| ());
+        } else {
+            self.send_request::<lsp_types::RegistrationRequest>(params, |_, _, _| ());
+        }
     }
 
-    fn next_event(
-        &mut self,
-        inbox: &Receiver<lsp_server::Message>,
-    ) -> Result<Option<Event>, crossbeam_channel::RecvError> {
+    fn replay_client_registrations(&mut self, client_id: ClientId) {
+        let Some(client) = self.clients.get_mut(&client_id) else {
+            return;
+        };
+        if client.is_initialized {
+            return;
+        }
+        client.is_initialized = true;
+        let client_caps = client.caps.clone();
+
+        if client_caps.did_save_text_document_dynamic_registration() {
+            let additional_patterns = self
+                .config
+                .discover_workspace_config()
+                .map(|cfg| cfg.files_to_watch.clone().into_iter())
+                .into_iter()
+                .flatten()
+                .map(|f| format!("**/{f}"));
+            self.register_did_save_capability_for(Some(client_id), additional_patterns);
+        }
+        if client_caps.server_status_notification() {
+            self.send_notification_to::<lsp_ext::ServerStatusNotification>(
+                client_id,
+                self.current_status(),
+            );
+        }
+        if let Some(registration) = self.watched_files_registration_for(&client_caps) {
+            self.send_request_to::<lsp_types::RegistrationRequest>(
+                client_id,
+                lsp_types::RegistrationParams { registrations: vec![registration] },
+                |_, _, _| (),
+            );
+            // Reloading the VFS is expensive, only do it when the watching side changes.
+            if self.any_client_watches_files() != self.files_watched_by_client {
+                self.update_file_watching();
+            }
+        }
+        if client_caps.work_done_progress() {
+            let active_progress: Vec<_> =
+                self.active_progress.iter().map(|(t, p)| (t.clone(), p.clone())).collect();
+            for (token, progress) in active_progress {
+                self.send_request_to::<lsp_types::WorkDoneProgressCreateRequest>(
+                    client_id,
+                    lsp_types::WorkDoneProgressCreateParams { token: token.clone() },
+                    |_, _, _| (),
+                );
+                self.send_notification_to::<lsp_types::ProgressNotification>(
+                    client_id,
+                    lsp_types::ProgressParams {
+                        token,
+                        value: serde_json::to_value(lsp_types::WorkDoneProgressBegin {
+                            title: progress.title,
+                            cancellable: Some(progress.cancellable),
+                            message: progress.message,
+                            percentage: progress.percentage,
+                        })
+                        .unwrap(),
+                    },
+                );
+            }
+        }
+        self.replay_diagnostics_to(client_id);
+    }
+
+    fn next_event(&mut self, inbox: &Inbox) -> Result<Option<Event>, crossbeam_channel::RecvError> {
         // Make sure we reply to formatting requests ASAP so the editor doesn't block
         if let Ok(task) = self.fmt_pool.receiver.try_recv() {
             return Ok(Some(Event::Task(task)));
         }
 
+        let (single, multi) = match inbox {
+            Inbox::Single(inbox) => (Some(inbox), None),
+            Inbox::Multi(inbox) => (None, Some(inbox)),
+        };
+
         select! {
-            recv(inbox) -> msg =>
-                return Ok(msg.ok().map(Event::Lsp)),
+            recv(single.unwrap_or(&never())) -> msg =>
+                return Ok(msg.ok().map(|msg| Event::Lsp(ClientId::DEFAULT, msg))),
+
+            recv(multi.unwrap_or(&never())) -> event =>
+                return Ok(event.ok().map(|event| match event {
+                    ClientEvent::Register { client_id, sender, position_encoding } => {
+                        Event::RegisterClient(client_id, sender, position_encoding)
+                    }
+                    ClientEvent::Disconnected(client_id) => Event::ClientDisconnected(client_id),
+                    ClientEvent::Message(client_id, msg) => Event::Lsp(client_id, msg),
+                })),
 
             recv(self.task_pool.receiver) -> task =>
                 task.map(Event::Task),
@@ -323,10 +515,28 @@ impl GlobalState {
 
         let mut cancellation_time = None;
         match event {
-            Event::Lsp(msg) => match msg {
-                lsp_server::Message::Request(req) => self.on_new_request(loop_start, req),
-                lsp_server::Message::Notification(not) => self.on_notification(not),
-                lsp_server::Message::Response(resp) => self.complete_request(resp),
+            Event::RegisterClient(client_id, sender, position_encoding) => {
+                if self.shutdown_requested {
+                    tracing::warn!("Rejecting client registration: server is shutting down");
+                    return;
+                }
+                let is_pre_initialized = position_encoding.is_some();
+                let encoding =
+                    position_encoding.unwrap_or_else(|| self.config.caps().negotiated_encoding());
+                self.register_client_with_id(client_id, sender, encoding);
+                if is_pre_initialized {
+                    self.replay_client_registrations(client_id);
+                }
+            }
+            Event::ClientDisconnected(client_id) => {
+                self.unregister_client(client_id);
+            }
+            Event::Lsp(client_id, msg) => match msg {
+                lsp_server::Message::Request(req) => {
+                    self.on_new_request(client_id, loop_start, req)
+                }
+                lsp_server::Message::Notification(not) => self.on_notification(client_id, not),
+                lsp_server::Message::Response(resp) => self.complete_request(client_id, resp),
             },
             Event::DeferredTask(task) => {
                 let _p = tracing::info_span!("GlobalState::handle_event/queued_task").entered();
@@ -470,7 +680,21 @@ impl GlobalState {
                     self.handle_flycheck_msg(message, &mut cargo_finished);
                 }
                 if cargo_finished {
-                    self.send_request::<lsp_types::DiagnosticRefreshRequest>((), |_, _| ());
+                    let client_ids: Vec<ClientId> = self
+                        .clients
+                        .iter()
+                        .filter_map(|(&cid, c)| {
+                            let caps = &c.caps;
+                            caps.diagnostics_refresh().then_some(cid)
+                        })
+                        .collect();
+                    for cid in client_ids {
+                        self.send_request_to::<lsp_types::DiagnosticRefreshRequest>(
+                            cid,
+                            (),
+                            |_, _, _| (),
+                        );
+                    }
                 }
             }
             Event::TestResult(message) => {
@@ -544,30 +768,60 @@ impl GlobalState {
 
             let client_refresh = became_quiescent || state_changed;
             if client_refresh {
-                // Refresh semantic tokens if the client supports it.
-                if self.config.semantic_tokens_refresh() {
-                    self.send_request::<lsp_types::SemanticTokensRefreshRequest>((), |_, _| ());
-                }
-
-                // Refresh code lens if the client supports it.
-                if self.config.code_lens_refresh() {
-                    self.send_request::<lsp_types::CodeLensRefreshRequest>((), |_, _| ());
-                }
-
-                // Refresh inlay hints if the client supports it.
-                if self.config.inlay_hints_refresh() {
-                    self.send_request::<lsp_types::InlayHintRefreshRequest>((), |_, _| ());
-                }
-
-                if self.config.diagnostics_refresh() {
-                    self.send_request::<lsp_types::DiagnosticRefreshRequest>((), |_, _| ());
+                let refresh_requests: Vec<(ClientId, bool, bool, bool, bool)> = self
+                    .clients
+                    .iter()
+                    .map(|(&cid, c)| {
+                        let caps = &c.caps;
+                        (
+                            cid,
+                            caps.semantic_tokens_refresh(),
+                            caps.code_lens_refresh(),
+                            caps.inlay_hints_refresh(),
+                            caps.diagnostics_refresh(),
+                        )
+                    })
+                    .collect();
+                for (cid, sem, code, inlay, diag) in refresh_requests {
+                    if sem {
+                        self.send_request_to::<lsp_types::SemanticTokensRefreshRequest>(
+                            cid,
+                            (),
+                            |_, _, _| (),
+                        );
+                    }
+                    if code {
+                        self.send_request_to::<lsp_types::CodeLensRefreshRequest>(
+                            cid,
+                            (),
+                            |_, _, _| (),
+                        );
+                    }
+                    if inlay {
+                        self.send_request_to::<lsp_types::InlayHintRefreshRequest>(
+                            cid,
+                            (),
+                            |_, _, _| (),
+                        );
+                    }
+                    if diag {
+                        self.send_request_to::<lsp_types::DiagnosticRefreshRequest>(
+                            cid,
+                            (),
+                            |_, _, _| (),
+                        );
+                    }
                 }
             }
 
             let project_or_mem_docs_changed =
                 became_quiescent || state_changed || memdocs_added_or_removed;
+            let any_client_needs_push = self.clients.values().any(|c| {
+                let caps = &c.caps;
+                !caps.text_document_diagnostic()
+            });
             if project_or_mem_docs_changed
-                && !self.config.text_document_diagnostic()
+                && any_client_needs_push
                 && self.config.publish_diagnostics(None)
             {
                 self.update_diagnostics();
@@ -593,14 +847,11 @@ impl GlobalState {
 
         if let Some(diagnostic_changes) = self.diagnostics.take_changes() {
             for file_id in diagnostic_changes {
+                self.diagnostics_forced_files.remove(&file_id);
                 let uri = file_id_to_url(&self.vfs.read().0, file_id);
-                let version = from_proto::vfs_path(&uri)
-                    .ok()
-                    .and_then(|path| self.mem_docs.get(&path).map(|it| it.version));
-
                 let diagnostics =
                     self.diagnostics.diagnostics_for(file_id).cloned().collect::<Vec<_>>();
-                self.publish_diagnostics(uri, version, diagnostics);
+                self.publish_diagnostics(uri, diagnostics);
             }
         }
 
@@ -854,12 +1105,25 @@ impl GlobalState {
     ) -> Option<Duration> {
         let mut cancellation_time = None;
         match task {
-            Task::Response(response) => self.respond(response),
+            Task::Response(client_id, response) => self.respond(client_id, response),
             // Only retry requests that haven't been cancelled. Otherwise we do unnecessary work.
-            Task::Retry(req) if !self.is_completed(&req) => self.on_request(req),
-            Task::Retry(_) => (),
+            Task::Retry(client_id, req) if !self.is_completed(client_id, &req) => {
+                self.on_request(client_id, req)
+            }
+            Task::Retry(..) => (),
             Task::Diagnostics(kind) => {
+                let diags_files: Vec<vfs::FileId> = match &kind {
+                    DiagnosticsTaskKind::Syntax(_, diags)
+                    | DiagnosticsTaskKind::Semantic(_, diags) => {
+                        diags.iter().map(|&(file_id, _)| file_id).collect()
+                    }
+                };
                 self.diagnostics.set_native_diagnostics(kind);
+                for file_id in diags_files {
+                    if self.diagnostics_forced_files.contains(&file_id) {
+                        self.diagnostics.force_publish(file_id);
+                    }
+                }
             }
             Task::PrimeCaches(progress) => match progress {
                 PrimeCachesProgress::Begin => prime_caches_progress.push(progress),
@@ -1005,6 +1269,9 @@ impl GlobalState {
                     // them disk is always the source of truth.
                     let is_library = self.source_root_config.path_is_library(&path);
                     let client_is_authoritative = !is_library && self.mem_docs.contains(&path);
+                    if client_is_authoritative {
+                        self.mem_docs.set_disk_contents(&path, contents.as_deref());
+                    }
                     if !client_is_authoritative
                         && (is_changed || is_library || vfs.file_id(&path).is_none())
                     {
@@ -1177,6 +1444,10 @@ impl GlobalState {
     }
 
     fn handle_cargo_test_msg(&mut self, message: CargoTestMessage) {
+        if message.session_id != self.test_run_session_id {
+            return;
+        }
+        let client_id = self.test_run_client;
         match message.output {
             CargoTestOutput::Test { name, state } => {
                 let state = match state {
@@ -1189,20 +1460,29 @@ impl GlobalState {
                 // The notification requires the namespace form (with underscores) of the target
                 let test_id = format!("{}::{name}", message.target.target.replace('-', "_"));
 
-                self.send_notification::<lsp_ext::ChangeTestStateNotification>(
-                    lsp_ext::ChangeTestStateParams { test_id, state },
-                );
+                if let Some(client_id) = client_id {
+                    self.send_notification_to::<lsp_ext::ChangeTestStateNotification>(
+                        client_id,
+                        lsp_ext::ChangeTestStateParams { test_id, state },
+                    );
+                }
             }
             CargoTestOutput::Suite => (),
             CargoTestOutput::Finished => {
                 self.test_run_remaining_jobs = self.test_run_remaining_jobs.saturating_sub(1);
                 if self.test_run_remaining_jobs == 0 {
-                    self.send_notification::<lsp_ext::EndRunTestNotification>(());
+                    if let Some(client_id) = self.test_run_client.take() {
+                        self.send_notification_to::<lsp_ext::EndRunTestNotification>(client_id, ());
+                    }
                     self.test_run_session = None;
                 }
             }
             CargoTestOutput::Custom { text } => {
-                self.send_notification::<lsp_ext::AppendOutputToRunTestNotification>(text);
+                if let Some(client_id) = client_id {
+                    self.send_notification_to::<lsp_ext::AppendOutputToRunTestNotification>(
+                        client_id, text,
+                    );
+                }
             }
         }
     }
@@ -1313,32 +1593,63 @@ impl GlobalState {
     }
 
     /// Registers and handles a request. This should only be called once per incoming request.
-    fn on_new_request(&mut self, request_received: Instant, req: Request) {
+    fn on_new_request(&mut self, client_id: ClientId, request_received: Instant, req: Request) {
         let _p =
             span!(Level::INFO, "GlobalState::on_new_request", req.method = ?req.method).entered();
-        self.register_request(&req, request_received);
-        self.on_request(req);
+        self.register_request(client_id, &req, request_received);
+        self.on_request(client_id, req);
     }
 
     /// Handles a request.
-    fn on_request(&mut self, req: Request) {
-        let mut dispatcher = RequestDispatcher { req: Some(req), global_state: self };
-        dispatcher.on_sync_mut::<lsp_types::ShutdownRequest>(|s, ()| {
-            s.shutdown_requested = true;
-            s.proc_macro_clients =
-                std::iter::repeat_with(|| None).take(s.proc_macro_clients.len()).collect();
-            s.flycheck.iter().for_each(|handle| handle.cancel());
-            s.discover_handles.clear();
+    fn on_request(&mut self, client_id: ClientId, req: Request) {
+        let mut dispatcher = RequestDispatcher { client_id, req: Some(req), global_state: self };
+        dispatcher.on_client_sync_mut::<lsp_types::InitializeRequest>(|s, client_id, params| {
+            let client_caps =
+                crate::lsp::capabilities::ClientCapabilities::new(params.capabilities);
+            let encoding = client_caps.negotiated_encoding();
+            if let Some(client) = s.clients.get_mut(&client_id) {
+                client.position_encoding = encoding;
+                client.caps = client_caps.clone();
+            }
+            let caps = crate::lsp::capabilities::server_capabilities_for(&s.config, &client_caps);
+            Ok(lsp_types::InitializeResult {
+                capabilities: caps,
+                server_info: Some(lsp_types::ServerInfo {
+                    name: String::from("rust-analyzer"),
+                    version: Some(crate::version().to_string()),
+                }),
+            })
+        });
+        dispatcher.on_client_sync_mut::<lsp_types::ShutdownRequest>(|s, client_id, ()| {
+            if let Some(client) = s.clients.get_mut(&client_id) {
+                client.shutdown_requested = true;
+            }
+            if s.clients.values().all(|c| c.shutdown_requested) {
+                s.shutdown_requested = true;
+                s.proc_macro_clients =
+                    std::iter::repeat_with(|| None).take(s.proc_macro_clients.len()).collect();
+                s.flycheck.iter().for_each(|handle| handle.cancel());
+                s.discover_handles.clear();
+            }
             Ok(())
         });
 
+        let is_shutdown = dispatcher.global_state.shutdown_requested
+            || dispatcher
+                .global_state
+                .clients
+                .get(&client_id)
+                .is_some_and(|c| c.shutdown_requested);
         match &mut dispatcher {
-            RequestDispatcher { req: Some(req), global_state: this } if this.shutdown_requested => {
-                this.respond(lsp_server::Response::new_err(
-                    req.id.clone(),
-                    lsp_server::ErrorCode::InvalidRequest as i32,
-                    "Shutdown already requested.".to_owned(),
-                ));
+            RequestDispatcher { req: Some(req), global_state: this, .. } if is_shutdown => {
+                this.respond(
+                    client_id,
+                    lsp_server::Response::new_err(
+                        req.id.clone(),
+                        lsp_server::ErrorCode::InvalidRequest as i32,
+                        "Shutdown already requested.".to_owned(),
+                    ),
+                );
                 return;
             }
             _ => (),
@@ -1356,7 +1667,7 @@ impl GlobalState {
             .on_sync_mut::<lsp_ext::ReloadWorkspaceRequest>(handlers::handle_workspace_reload)
             .on_sync_mut::<lsp_ext::RebuildProcMacrosRequest>(handlers::handle_proc_macros_rebuild)
             .on_sync_mut::<lsp_ext::MemoryUsageRequest>(handlers::handle_memory_usage)
-            .on_sync_mut::<lsp_ext::RunTestRequest>(handlers::handle_run_test)
+            .on_client_sync_mut::<lsp_ext::RunTestRequest>(handlers::handle_run_test)
             // Request handlers which are related to the user typing
             // are run on the main thread to reduce latency:
             .on_sync::<lsp_ext::JoinLinesRequest>(handlers::handle_join_lines)
@@ -1442,29 +1753,33 @@ impl GlobalState {
     }
 
     /// Handles an incoming notification.
-    fn on_notification(&mut self, not: Notification) {
+    fn on_notification(&mut self, client_id: ClientId, not: Notification) {
         let _p =
             span!(Level::INFO, "GlobalState::on_notification", not.method = ?not.method).entered();
         use crate::handlers::notification as handlers;
 
-        NotificationDispatcher { not: Some(not), global_state: self }
-            .on_sync_mut::<lsp_types::CancelNotification>(handlers::handle_cancel)
+        NotificationDispatcher { client_id, not: Some(not), global_state: self }
+            .on_client_sync_mut::<lsp_types::InitializedNotification>(|s, cid, _| {
+                s.replay_client_registrations(cid);
+                Ok(())
+            })
+            .on_client_sync_mut::<lsp_types::CancelNotification>(handlers::handle_cancel)
             .on_sync_mut::<lsp_types::WorkDoneProgressCancelNotification>(
                 handlers::handle_work_done_progress_cancel,
             )
-            .on_sync_mut::<lsp_types::DidOpenTextDocumentNotification>(
+            .on_client_sync_mut::<lsp_types::DidOpenTextDocumentNotification>(
                 handlers::handle_did_open_text_document,
             )
-            .on_sync_mut::<lsp_types::DidChangeTextDocumentNotification>(
+            .on_client_sync_mut::<lsp_types::DidChangeTextDocumentNotification>(
                 handlers::handle_did_change_text_document,
             )
-            .on_sync_mut::<lsp_types::DidCloseTextDocumentNotification>(
+            .on_client_sync_mut::<lsp_types::DidCloseTextDocumentNotification>(
                 handlers::handle_did_close_text_document,
             )
             .on_sync_mut::<lsp_types::DidSaveTextDocumentNotification>(
                 handlers::handle_did_save_text_document,
             )
-            .on_sync_mut::<lsp_types::DidChangeConfigurationNotification>(
+            .on_client_sync_mut::<lsp_types::DidChangeConfigurationNotification>(
                 handlers::handle_did_change_configuration,
             )
             .on_sync_mut::<lsp_types::DidChangeWorkspaceFoldersNotification>(
@@ -1476,7 +1791,9 @@ impl GlobalState {
             .on_sync_mut::<lsp_ext::CancelFlycheckNotification>(handlers::handle_cancel_flycheck)
             .on_sync_mut::<lsp_ext::ClearFlycheckNotification>(handlers::handle_clear_flycheck)
             .on_sync_mut::<lsp_ext::RunFlycheckNotification>(handlers::handle_run_flycheck)
-            .on_sync_mut::<lsp_ext::AbortRunTestNotification>(handlers::handle_abort_run_test)
+            .on_client_sync_mut::<lsp_ext::AbortRunTestNotification>(
+                handlers::handle_abort_run_test,
+            )
             .finish();
     }
 }

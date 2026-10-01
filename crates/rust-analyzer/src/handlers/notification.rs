@@ -17,6 +17,7 @@ use triomphe::Arc;
 use vfs::{AbsPathBuf, ChangeKind, VfsPath};
 
 use crate::{
+    client::ClientId,
     config::{Config, ConfigChange},
     flycheck::{InvocationStrategy, PackageSpecifier, Target},
     global_state::{FetchWorkspaceRequest, GlobalState},
@@ -28,12 +29,16 @@ use crate::{
     try_default,
 };
 
-pub(crate) fn handle_cancel(state: &mut GlobalState, params: CancelParams) -> anyhow::Result<()> {
+pub(crate) fn handle_cancel(
+    state: &mut GlobalState,
+    client_id: ClientId,
+    params: CancelParams,
+) -> anyhow::Result<()> {
     let id: lsp_server::RequestId = match params.id {
         lsp_types::Id::Int(id) => id.into(),
         lsp_types::Id::String(id) => id.into(),
     };
-    state.cancel(id);
+    state.cancel(client_id, id);
     Ok(())
 }
 
@@ -57,14 +62,21 @@ pub(crate) fn handle_work_done_progress_cancel(
 
 pub(crate) fn handle_did_open_text_document(
     state: &mut GlobalState,
+    client_id: ClientId,
     params: DidOpenTextDocumentParams,
 ) -> anyhow::Result<()> {
     let _p = tracing::info_span!("handle_did_open_text_document").entered();
 
     if let Ok(path) = from_proto::vfs_path(&params.text_document.uri) {
+        let mut sync_targets = state.divergent_clients(&path);
+        if !sync_targets.contains(&client_id) {
+            sync_targets.push(client_id);
+        }
+
         let already_exists = state
             .mem_docs
             .insert(
+                client_id,
                 path.clone(),
                 DocumentData::new(
                     params.text_document.version,
@@ -73,7 +85,7 @@ pub(crate) fn handle_did_open_text_document(
             )
             .is_err();
         if already_exists {
-            tracing::error!("duplicate DidOpenTextDocument: {}", path);
+            tracing::debug!("shared/duplicate DidOpenTextDocument: {}", path);
         }
 
         if let Some(abs_path) = path.as_path()
@@ -84,12 +96,14 @@ pub(crate) fn handle_did_open_text_document(
             return Ok(());
         }
 
-        // Library files are immutable: the client never becomes authoritative over their
-        // contents, disk is the truth.
-        if !state.source_root_config.path_is_library(&path) {
-            let contents = params.text_document.text.into_bytes();
-            state.vfs.write().0.set_file_contents(path, Some(contents));
+        let contents = params.text_document.text.into_bytes();
+        let analyzed_text_changed = state.set_analyzed_contents(&path, contents, &sync_targets);
+        if !already_exists && analyzed_text_changed {
+            // What we analyzed so far was the text on disk, so the document was opened with
+            // unsaved changes.
+            state.mem_docs.set_disk_contents(&path, None);
         }
+
         if state.config.discover_workspace_config().is_some() {
             tracing::debug!("queuing task");
             let _ = state
@@ -103,56 +117,63 @@ pub(crate) fn handle_did_open_text_document(
 
 pub(crate) fn handle_did_change_text_document(
     state: &mut GlobalState,
+    client_id: ClientId,
     params: DidChangeTextDocumentParams,
 ) -> anyhow::Result<()> {
     let _p = tracing::info_span!("handle_did_change_text_document").entered();
 
     if let Ok(path) = from_proto::vfs_path(&params.text_document.text_document_identifier.uri) {
-        let Some(DocumentData { version, data }) = state.mem_docs.get_mut(&path) else {
+        let was_divergent = state.divergent_clients(&path);
+
+        let Some(data) = state.mem_docs.get_mut(client_id, &path) else {
             tracing::error!(?path, "unexpected DidChangeTextDocument");
             return Ok(());
         };
         // The version passed in DidChangeTextDocument is the version after all edits are applied
         // so we should apply it before the vfs is notified.
-        *version = params.text_document.version;
+        data.version = params.text_document.version;
+
+        let encoding = state
+            .clients
+            .get(&client_id)
+            .map(|c| c.position_encoding)
+            .unwrap_or_else(|| state.config.caps().negotiated_encoding());
 
         let new_contents = apply_document_changes(
-            state.config.negotiated_encoding(),
-            std::str::from_utf8(data).unwrap(),
+            encoding,
+            std::str::from_utf8(&data.data).unwrap(),
             params.content_changes,
         )
         .into_bytes();
-        if *data != new_contents {
-            data.clone_from(&new_contents);
-            // Library files are immutable, changes to them are ignored.
-            if !state.source_root_config.path_is_library(&path) {
-                state.vfs.write().0.set_file_contents(path, Some(new_contents));
-            }
-        }
+        data.data = new_contents.clone();
+        state.mem_docs.set_author(client_id, &path);
+
+        state.set_analyzed_contents(&path, new_contents, &was_divergent);
     }
     Ok(())
 }
 
 pub(crate) fn handle_did_close_text_document(
     state: &mut GlobalState,
+    client_id: ClientId,
     params: DidCloseTextDocumentParams,
 ) -> anyhow::Result<()> {
     let _p = tracing::info_span!("handle_did_close_text_document").entered();
 
     if let Ok(path) = from_proto::vfs_path(&params.text_document.uri) {
-        if state.mem_docs.remove(&path).is_err() {
-            tracing::error!("orphan DidCloseTextDocument: {}", path);
-        }
+        let was_divergent = state.divergent_clients(&path);
 
-        // Clear diagnostics also for excluded files, just in case.
-        if let Some((file_id, _)) = state.vfs.read().0.file_id(&path) {
-            state.diagnostics.clear_native_for(file_id);
-        }
-
-        state.semantic_tokens_cache.lock().remove(&params.text_document.uri);
-
-        if let Some(path) = path.as_path() {
-            state.loader.handle.invalidate(path.to_path_buf());
+        match state.mem_docs.remove(client_id, &path) {
+            crate::mem_docs::RemoveDocResult::CompletelyClosed => {
+                state.cleanup_closed_document(&path)
+            }
+            crate::mem_docs::RemoveDocResult::StillOpen { restored_content: Some(content) } => {
+                state.set_analyzed_contents(&path, content, &was_divergent);
+            }
+            crate::mem_docs::RemoveDocResult::StillOpen { restored_content: None } => {}
+            crate::mem_docs::RemoveDocResult::NotFound => {
+                tracing::debug!("orphan DidCloseTextDocument: {}", path)
+            }
         }
     }
     Ok(())
@@ -226,18 +247,20 @@ pub(crate) fn handle_did_save_text_document(
 
 pub(crate) fn handle_did_change_configuration(
     state: &mut GlobalState,
+    client_id: ClientId,
     _params: DidChangeConfigurationParams,
 ) -> anyhow::Result<()> {
     // As stated in https://github.com/microsoft/language-server-protocol/issues/676,
     // this notification's parameters should be ignored and the actual config queried separately.
-    state.send_request::<lsp_types::ConfigurationRequest>(
+    state.send_request_to::<lsp_types::ConfigurationRequest>(
+        client_id,
         lsp_types::ConfigurationParams {
             items: vec![lsp_types::ConfigurationItem {
                 scope_uri: None,
                 section: Some("rust-analyzer".to_owned()),
             }],
         },
-        |this, resp| {
+        |this, _client_id, resp| {
             tracing::debug!("config update response: '{:?}", resp);
             let lsp_server::Response { error, result, .. } = resp;
 
@@ -564,9 +587,14 @@ pub(crate) fn handle_run_flycheck(
     Ok(())
 }
 
-pub(crate) fn handle_abort_run_test(state: &mut GlobalState, _: ()) -> anyhow::Result<()> {
-    if state.test_run_session.take().is_some() {
-        state.send_notification::<lsp_ext::EndRunTestNotification>(());
+pub(crate) fn handle_abort_run_test(
+    state: &mut GlobalState,
+    client_id: ClientId,
+    _: (),
+) -> anyhow::Result<()> {
+    if state.test_run_client == Some(client_id) && state.test_run_session.take().is_some() {
+        state.test_run_client = None;
+        state.send_notification_to::<lsp_ext::EndRunTestNotification>(client_id, ());
     }
     Ok(())
 }

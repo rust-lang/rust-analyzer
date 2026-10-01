@@ -24,8 +24,15 @@ use crate::{
 };
 
 pub fn server_capabilities(config: &Config) -> ServerCapabilities {
+    server_capabilities_for(config, config.caps())
+}
+
+pub(crate) fn server_capabilities_for(
+    config: &Config,
+    caps: &ClientCapabilities,
+) -> ServerCapabilities {
     ServerCapabilities {
-        position_encoding: match config.caps().negotiated_encoding() {
+        position_encoding: match caps.negotiated_encoding() {
             PositionEncoding::Utf8 => Some(PositionEncodingKind::UTF8),
             PositionEncoding::Wide(wide) => match wide {
                 WideEncoding::Utf16 => Some(PositionEncodingKind::UTF16),
@@ -38,7 +45,7 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
             change: Some(TextDocumentSyncKind::Incremental),
             will_save: None,
             will_save_wait_until: None,
-            save: if config.caps().did_save_text_document_dynamic_registration() {
+            save: if caps.did_save_text_document_dynamic_registration() {
                 None
             } else {
                 Some(SaveOptions::default().into())
@@ -51,7 +58,7 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
             resolve_provider: if config.client_is_neovim() {
                 config.has_completion_item_resolve_additionalTextEdits().then_some(true)
             } else {
-                Some(config.caps().completions_resolve_provider())
+                Some(caps.completions_resolve_provider())
             },
             trigger_characters: Some(vec![
                 ":".to_owned(),
@@ -60,7 +67,7 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
                 "(".to_owned(),
             ]),
             all_commit_characters: None,
-            completion_item: config.caps().completion_item(),
+            completion_item: caps.completion_item(),
             work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
         }),
         signature_help_provider: Some(SignatureHelpOptions {
@@ -75,7 +82,7 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
         document_highlight_provider: Some(DocumentHighlightProvider::Bool(true)),
         document_symbol_provider: Some(DocumentSymbolProvider::Bool(true)),
         workspace_symbol_provider: Some(WorkspaceSymbolProvider::Bool(true)),
-        code_action_provider: Some(config.caps().code_action_capabilities()),
+        code_action_provider: Some(caps.code_action_capabilities()),
         code_lens_provider: Some(CodeLensOptions {
             resolve_provider: Some(true),
             work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
@@ -162,7 +169,7 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
         inline_value_provider: None,
         inlay_hint_provider: Some(InlayHintProvider::InlayHintOptions(InlayHintOptions {
             work_done_progress_options: Default::default(),
-            resolve_provider: Some(config.caps().inlay_hints_resolve_provider()),
+            resolve_provider: Some(caps.inlay_hints_resolve_provider()),
         })),
         diagnostic_provider: Some(lsp_types::DiagnosticProvider::DiagnosticOptions(
             lsp_types::DiagnosticOptions {

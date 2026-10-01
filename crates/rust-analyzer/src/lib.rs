@@ -58,12 +58,14 @@ pub mod tracing {
     pub mod hprof;
 }
 
+mod client;
 pub mod config;
 mod global_state;
 pub mod lsp;
 pub mod session;
 
 use self::lsp::ext as lsp_ext;
+pub use ide_db::line_index::WideEncoding;
 
 #[cfg(test)]
 mod integrated_benchmarks;
@@ -71,7 +73,11 @@ mod integrated_benchmarks;
 use serde::de::DeserializeOwned;
 
 pub use crate::{
-    lsp::capabilities::server_capabilities, main_loop::main_loop, reload::ws_to_crate_graph,
+    client::ClientId,
+    line_index::PositionEncoding,
+    lsp::capabilities::server_capabilities,
+    main_loop::{MultiClientInbox, main_loop, main_loop_multi},
+    reload::ws_to_crate_graph,
     version::version,
 };
 

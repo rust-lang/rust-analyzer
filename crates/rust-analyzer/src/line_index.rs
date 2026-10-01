@@ -9,7 +9,7 @@ use ide_db::line_index::WideEncoding;
 use memchr::memmem;
 use triomphe::Arc;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PositionEncoding {
     Utf8,
     Wide(WideEncoding),
@@ -19,6 +19,13 @@ pub(crate) struct LineIndex {
     pub(crate) index: Arc<ide::LineIndex>,
     pub(crate) endings: LineEndings,
     pub(crate) encoding: PositionEncoding,
+}
+
+impl LineIndex {
+    /// The same line index, with positions expressed in `encoding`.
+    pub(crate) fn with_encoding(&self, encoding: PositionEncoding) -> LineIndex {
+        LineIndex { index: self.index.clone(), endings: self.endings, encoding }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

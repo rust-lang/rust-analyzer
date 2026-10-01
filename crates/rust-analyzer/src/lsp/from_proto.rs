@@ -68,7 +68,15 @@ pub(crate) fn file_id(
     snap: &GlobalStateSnapshot,
     url: &lsp_types::Uri,
 ) -> anyhow::Result<Option<FileId>> {
-    snap.url_to_file_id(url)
+    let Some(file_id) = snap.url_to_file_id(url)? else {
+        return Ok(None);
+    };
+    // The positions a client sends refer to its own buffer. If that buffer is not the text we
+    // analyze, they are meaningless, so we answer as if the file was not part of the workspace.
+    if snap.is_file_divergent(file_id) {
+        return Ok(None);
+    }
+    Ok(Some(file_id))
 }
 
 /// Returns `None` if the file was excluded.

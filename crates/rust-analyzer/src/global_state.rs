@@ -34,12 +34,13 @@ use triomphe::Arc;
 use vfs::{AbsPathBuf, AnchoredPathBuf, ChangeKind, Vfs, VfsPath};
 
 use crate::{
-    config::{Config, ConfigChange, ConfigErrors, RatomlFileKind},
+    client::{Client, ClientId},
+    config::{Config, ConfigChange, ConfigErrors, FilesWatcher, RatomlFileKind},
     diagnostics::{CheckFixes, DiagnosticCollection},
     discover,
     flycheck::{FlycheckHandle, FlycheckMessage, PackageSpecifier},
-    line_index::{LineEndings, LineIndex},
-    lsp::{from_proto, to_proto::url_from_abs_path},
+    line_index::{LineEndings, LineIndex, PositionEncoding},
+    lsp::{capabilities::ClientCapabilities, from_proto, to_proto, to_proto::url_from_abs_path},
     lsp_ext,
     main_loop::Task,
     mem_docs::MemDocs,
@@ -72,8 +73,16 @@ pub(crate) struct Handle<H, C> {
     pub(crate) receiver: C,
 }
 
-pub(crate) type ReqHandler = fn(&mut GlobalState, lsp_server::Response);
-type ReqQueue = lsp_server::ReqQueue<(String, Instant), ReqHandler>;
+#[derive(Clone, Debug)]
+pub(crate) struct ActiveProgress {
+    pub(crate) title: String,
+    pub(crate) message: Option<String>,
+    pub(crate) percentage: Option<u32>,
+    pub(crate) cancellable: bool,
+}
+
+pub(crate) type ReqHandler = fn(&mut GlobalState, ClientId, lsp_server::Response);
+pub(crate) type ReqQueue = lsp_server::ReqQueue<(String, Instant), ReqHandler>;
 
 /// `GlobalState` is the primary mutable state of the language server
 ///
@@ -84,8 +93,8 @@ type ReqQueue = lsp_server::ReqQueue<(String, Instant), ReqHandler>;
 /// Note that this struct has more than one impl in various modules!
 #[doc(alias = "GlobalMess")]
 pub(crate) struct GlobalState {
-    sender: Sender<lsp_server::Message>,
-    req_queue: ReqQueue,
+    pub(crate) clients: FxHashMap<ClientId, Client>,
+    pub(crate) active_progress: FxHashMap<lsp_types::ProgressToken, ActiveProgress>,
 
     pub(crate) task_pool: Handle<TaskPool<Task>, Receiver<Task>>,
     pub(crate) fmt_pool: Handle<TaskPool<Task>, Receiver<Task>>,
@@ -95,6 +104,7 @@ pub(crate) struct GlobalState {
     pub(crate) config_errors: Option<ConfigErrors>,
     pub(crate) analysis_host: AnalysisHost,
     pub(crate) diagnostics: DiagnosticCollection,
+    pub(crate) diagnostics_forced_files: FxHashSet<FileId>,
     pub(crate) mem_docs: MemDocs,
     pub(crate) source_root_config: SourceRootConfig,
     /// A mapping that maps a local source root's `SourceRootId` to it parent's `SourceRootId`, if it has one.
@@ -122,7 +132,9 @@ pub(crate) struct GlobalState {
     pub(crate) flycheck_formatted_commands: Vec<String>,
 
     // Test explorer
+    pub(crate) test_run_session_id: usize,
     pub(crate) test_run_session: Option<Vec<CargoTestHandle>>,
+    pub(crate) test_run_client: Option<ClientId>,
     pub(crate) test_run_sender: Sender<CargoTestMessage>,
     pub(crate) test_run_receiver: Receiver<CargoTestMessage>,
     pub(crate) test_run_remaining_jobs: usize,
@@ -142,6 +154,8 @@ pub(crate) struct GlobalState {
     pub(crate) loader: Handle<Box<dyn vfs::loader::Handle>, Receiver<vfs::loader::Message>>,
     pub(crate) vfs: Arc<RwLock<(vfs::Vfs, FxHashMap<FileId, LineEndings>)>>,
     pub(crate) vfs_config_version: u32,
+    /// Whether the last VFS config left file watching to the clients.
+    pub(crate) files_watched_by_client: bool,
     pub(crate) vfs_progress_config_version: u32,
     pub(crate) vfs_done: bool,
     // used to track how long VFS loading takes. this can't be on `vfs::loader::Handle`,
@@ -212,6 +226,9 @@ pub(crate) struct MiniCoreRustAnalyzerInternalOnly {
 
 /// An immutable snapshot of the world's state at a point in time.
 pub(crate) struct GlobalStateSnapshot {
+    pub(crate) client_id: Option<ClientId>,
+    pub(crate) position_encoding: PositionEncoding,
+    pub(crate) caps: Option<ClientCapabilities>,
     pub(crate) config: Arc<Config>,
     pub(crate) analysis: Analysis,
     pub(crate) check_fixes: CheckFixes,
@@ -231,6 +248,16 @@ impl std::panic::UnwindSafe for GlobalStateSnapshot {}
 
 impl GlobalState {
     pub(crate) fn new(sender: Sender<lsp_server::Message>, config: Config) -> GlobalState {
+        let encoding = config.caps().negotiated_encoding();
+        let mut this = Self::new_multi(config);
+        this.register_client_with_id(ClientId::DEFAULT, sender, encoding);
+        if let Some(client) = this.clients.get_mut(&ClientId::DEFAULT) {
+            client.is_initialized = true;
+        }
+        this
+    }
+
+    pub(crate) fn new_multi(config: Config) -> GlobalState {
         let loader = {
             let (sender, receiver) = unbounded::<vfs::loader::Message>();
             let handle: vfs_notify::NotifyHandle = vfs::loader::Handle::spawn(sender);
@@ -267,8 +294,8 @@ impl GlobalState {
         let last_gc_revision = analysis_host.raw_database().nonce_and_revision().1;
 
         let mut this = GlobalState {
-            sender,
-            req_queue: ReqQueue::default(),
+            clients: FxHashMap::default(),
+            active_progress: FxHashMap::default(),
             task_pool,
             fmt_pool,
             cancellation_pool,
@@ -276,6 +303,7 @@ impl GlobalState {
             config: Arc::new(config.clone()),
             analysis_host,
             diagnostics: Default::default(),
+            diagnostics_forced_files: FxHashSet::default(),
             mem_docs: MemDocs::default(),
             semantic_tokens_cache: Arc::new(Default::default()),
             shutdown_requested: false,
@@ -298,7 +326,9 @@ impl GlobalState {
             last_flycheck_error: None,
             flycheck_formatted_commands: vec![],
 
+            test_run_session_id: 0,
             test_run_session: None,
+            test_run_client: None,
             test_run_sender,
             test_run_receiver,
             test_run_remaining_jobs: 0,
@@ -312,6 +342,7 @@ impl GlobalState {
 
             vfs: Arc::new(RwLock::new((vfs::Vfs::default(), Default::default()))),
             vfs_config_version: 0,
+            files_watched_by_client: false,
             vfs_progress_config_version: 0,
             vfs_span: None,
             vfs_done: true,
@@ -572,7 +603,20 @@ impl GlobalState {
     }
 
     pub(crate) fn snapshot(&self) -> GlobalStateSnapshot {
+        self.snapshot_for(None)
+    }
+
+    pub(crate) fn snapshot_for(&self, client_id: Option<ClientId>) -> GlobalStateSnapshot {
+        let position_encoding = client_id
+            .and_then(|id| self.clients.get(&id))
+            .map(|c| c.position_encoding)
+            .unwrap_or_else(|| self.config.caps().negotiated_encoding());
+        let caps = client_id.and_then(|id| self.clients.get(&id)).map(|c| c.caps.clone());
+
         GlobalStateSnapshot {
+            client_id,
+            position_encoding,
+            caps,
             config: Arc::clone(&self.config),
             workspaces: Arc::clone(&self.workspaces),
             analysis: self.analysis_host.analysis(),
@@ -587,77 +631,414 @@ impl GlobalState {
         }
     }
 
+    pub(crate) fn register_client_with_id(
+        &mut self,
+        client_id: ClientId,
+        sender: Sender<lsp_server::Message>,
+        position_encoding: PositionEncoding,
+    ) {
+        // Until the client sends its own `initialize` request, assume the capabilities the
+        // server was configured with.
+        let caps = self.config.caps().clone();
+        self.clients.insert(client_id, Client::new(sender, position_encoding, caps));
+    }
+
+    pub(crate) fn cleanup_closed_document(&mut self, path: &VfsPath) {
+        if let Some((file_id, _)) = self.vfs.read().0.file_id(path) {
+            self.diagnostics_forced_files.remove(&file_id);
+            self.diagnostics.clear_native_for(file_id);
+        }
+
+        if let Some(abs_path) = path.as_path() {
+            let uri = url_from_abs_path(abs_path);
+            self.semantic_tokens_cache.lock().remove(&uri);
+            self.loader.handle.invalidate(abs_path.to_path_buf());
+        }
+    }
+
+    /// Clients whose open buffer for `path` differs from the text that is being analyzed.
+    pub(crate) fn divergent_clients(&self, path: &VfsPath) -> Vec<ClientId> {
+        self.clients
+            .keys()
+            .copied()
+            .filter(|&id| {
+                self.mem_docs.get(id, path).is_some()
+                    && !self.mem_docs.is_in_sync_with_vfs(id, path)
+            })
+            .collect()
+    }
+
+    /// Makes `contents` the analyzed text of `path`, and makes sure that those of `clients`
+    /// whose buffer now matches it receive the diagnostics for this text.
+    ///
+    /// Returns whether the analyzed text changed.
+    pub(crate) fn set_analyzed_contents(
+        &mut self,
+        path: &VfsPath,
+        contents: Vec<u8>,
+        clients: &[ClientId],
+    ) -> bool {
+        // Library files are immutable: the client never becomes authoritative over their
+        // contents, disk is the truth.
+        let vfs_changed = !self.source_root_config.path_is_library(path)
+            && self.vfs.write().0.set_file_contents(path.clone(), Some(contents));
+        let Some((file_id, _)) = self.vfs.read().0.file_id(path) else {
+            return vfs_changed;
+        };
+        let mut synced =
+            clients.iter().copied().filter(|&id| self.mem_docs.is_in_sync_with_vfs(id, path));
+        if vfs_changed {
+            // The diagnostics are going to be recomputed, make sure they are published even if
+            // they turn out to be the same as before.
+            if synced.next().is_some() {
+                self.diagnostics_forced_files.insert(file_id);
+            }
+        } else {
+            // Nothing is going to be recomputed, so replay what we already have.
+            for id in synced {
+                self.replay_diagnostics_for_file_to(id, file_id);
+            }
+        }
+        vfs_changed
+    }
+
+    pub(crate) fn unregister_client(&mut self, client_id: ClientId) -> Option<Client> {
+        let (closed_paths, to_restore) = self.mem_docs.remove_client(client_id);
+        for path in &closed_paths {
+            self.cleanup_closed_document(path);
+        }
+        let other_clients: Vec<ClientId> =
+            self.clients.keys().copied().filter(|&id| id != client_id).collect();
+        for (path, content) in to_restore {
+            self.set_analyzed_contents(&path, content, &other_clients);
+        }
+        if self.test_run_client == Some(client_id) {
+            self.test_run_session_id = self.test_run_session_id.wrapping_add(1);
+            self.test_run_session = None;
+            self.test_run_client = None;
+        }
+        let removed = self.clients.remove(&client_id);
+        if self.any_client_watches_files() != self.files_watched_by_client {
+            self.update_file_watching();
+        }
+        removed
+    }
+
+    /// Whether file watching is delegated to at least one of the attached clients.
+    pub(crate) fn any_client_watches_files(&self) -> bool {
+        matches!(self.config.files().watcher, FilesWatcher::Client)
+            && self
+                .clients
+                .values()
+                .any(|client| client.caps.did_change_watched_files_dynamic_registration())
+    }
+
+    pub(crate) fn replay_diagnostics_for_file_to(&self, client_id: ClientId, file_id: FileId) {
+        let client = match self.clients.get(&client_id) {
+            Some(c) => c,
+            None => return,
+        };
+        let vfs = self.vfs.read();
+        let uri = file_id_to_url(&vfs.0, file_id);
+        let mut diagnostics =
+            self.diagnostics.diagnostics_for(file_id).cloned().collect::<Vec<_>>();
+        let path = from_proto::vfs_path(&uri).ok();
+        if let Some(p) = &path
+            && self.mem_docs.get(client_id, p).is_some()
+            && !self.mem_docs.is_in_sync_with_vfs(client_id, p)
+        {
+            // Suppress diagnostics for divergent open buffers
+            return;
+        }
+        let base_encoding = self.config.caps().negotiated_encoding();
+        if client.position_encoding != base_encoding {
+            diagnostics = to_proto::reencode_diagnostics(
+                &self.snapshot(),
+                &uri,
+                base_encoding,
+                client.position_encoding,
+                diagnostics,
+            );
+        }
+        let version =
+            path.as_ref().and_then(|p| self.mem_docs.get(client_id, p).map(|d| d.version));
+        let not = lsp_server::Notification::new(
+            lsp_types::PublishDiagnosticsNotification::METHOD.into(),
+            lsp_types::PublishDiagnosticsParams { uri, diagnostics, version },
+        );
+        self.send(client_id, not.into());
+    }
+
+    pub(crate) fn replay_diagnostics_to(&self, client_id: ClientId) {
+        let files = self.diagnostics.files_with_diagnostics();
+        for file_id in files {
+            if self.diagnostics.diagnostics_for(file_id).next().is_none() {
+                continue;
+            }
+            self.replay_diagnostics_for_file_to(client_id, file_id);
+        }
+    }
+
+    pub(crate) fn watched_files_registration_for(
+        &self,
+        caps: &ClientCapabilities,
+    ) -> Option<lsp_types::Registration> {
+        if !caps.did_change_watched_files_dynamic_registration() {
+            return None;
+        }
+        if let crate::config::FilesWatcher::Client = self.config.files().watcher {
+            let filter = self
+                .workspaces
+                .iter()
+                .flat_map(|ws| ws.to_roots())
+                .filter(|it| it.is_local)
+                .map(|it| it.include);
+
+            let mut watchers: Vec<lsp_types::FileSystemWatcher> =
+                if caps.did_change_watched_files_relative_pattern_support() {
+                    // When relative patterns are supported by the client, prefer using them
+                    filter
+                        .flat_map(|include| {
+                            include.into_iter().flat_map(|base| {
+                                [
+                                    (base.clone(), "**/*.rs"),
+                                    (base.clone(), "**/Cargo.{lock,toml}"),
+                                    (base.clone(), "**/rust-analyzer.toml"),
+                                    (base, "**/*.md"),
+                                ]
+                            })
+                        })
+                        .map(|(base, pat)| lsp_types::FileSystemWatcher {
+                            glob_pattern: lsp_types::GlobPattern::RelativePattern(
+                                lsp_types::RelativePattern {
+                                    base_uri: lsp_types::BaseUri::Uri(
+                                        lsp_types::Uri::from_file_path(base).unwrap(),
+                                    ),
+                                    pattern: pat.to_owned(),
+                                },
+                            ),
+                            kind: None,
+                        })
+                        .collect()
+                } else {
+                    // When they're not, integrate the base to make them into absolute patterns
+                    filter
+                        .flat_map(|include| {
+                            include.into_iter().flat_map(|base| {
+                                [
+                                    format!("{base}/**/*.rs"),
+                                    format!("{base}/**/Cargo.{{toml,lock}}"),
+                                    format!("{base}/**/rust-analyzer.toml"),
+                                    format!("{base}/**/*.md"),
+                                ]
+                            })
+                        })
+                        .map(|glob_pattern| lsp_types::FileSystemWatcher {
+                            glob_pattern: lsp_types::GlobPattern::Pattern(glob_pattern),
+                            kind: None,
+                        })
+                        .collect()
+                };
+
+            // Also explicitly watch any build files configured in JSON project files.
+            for ws in self.workspaces.iter() {
+                if let ProjectWorkspaceKind::Json(project_json) = &ws.kind {
+                    for (_, krate) in project_json.crates() {
+                        let Some(build) = &krate.build else {
+                            continue;
+                        };
+                        watchers.push(lsp_types::FileSystemWatcher {
+                            glob_pattern: lsp_types::GlobPattern::Pattern(
+                                build.build_file.to_string(),
+                            ),
+                            kind: None,
+                        });
+                    }
+                }
+            }
+
+            watchers.extend(
+                std::iter::once(Config::user_config_dir_path().as_deref())
+                    .chain(self.workspaces.iter().map(|ws| ws.manifest().map(ManifestPath::as_ref)))
+                    .flatten()
+                    .map(|glob_pattern| lsp_types::FileSystemWatcher {
+                        glob_pattern: lsp_types::GlobPattern::Pattern(glob_pattern.to_string()),
+                        kind: None,
+                    }),
+            );
+
+            let registration_options =
+                lsp_types::DidChangeWatchedFilesRegistrationOptions { watchers };
+            Some(lsp_types::Registration {
+                id: "workspace/didChangeWatchedFiles".to_owned(),
+                method: "workspace/didChangeWatchedFiles".to_owned(),
+                register_options: Some(serde_json::to_value(registration_options).unwrap()),
+            })
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn send_request<R: lsp_types::Request>(
         &mut self,
         params: R::Params,
         handler: ReqHandler,
-    ) {
-        let request = self.req_queue.outgoing.register(R::METHOD.into(), params, handler);
-        self.send(request.into());
+    ) where
+        R::Params: Clone,
+    {
+        self.send_request_all::<R>(params, handler);
     }
 
-    pub(crate) fn complete_request(&mut self, response: lsp_server::Response) {
+    pub(crate) fn send_request_all<R: lsp_types::Request>(
+        &mut self,
+        params: R::Params,
+        handler: ReqHandler,
+    ) where
+        R::Params: Clone,
+    {
+        let client_ids: Vec<_> =
+            self.clients.iter().filter_map(|(&id, c)| c.is_initialized.then_some(id)).collect();
+        for client_id in client_ids {
+            self.send_request_to::<R>(client_id, params.clone(), handler);
+        }
+    }
+
+    pub(crate) fn send_request_to<R: lsp_types::Request>(
+        &mut self,
+        client_id: ClientId,
+        params: R::Params,
+        handler: ReqHandler,
+    ) {
+        if let Some(client) = self.clients.get_mut(&client_id) {
+            let request = client.req_queue.outgoing.register(R::METHOD.into(), params, handler);
+            let _ = client.sender.send(request.into());
+        }
+    }
+
+    pub(crate) fn complete_request(&mut self, client_id: ClientId, response: lsp_server::Response) {
         let handler = self
-            .req_queue
-            .outgoing
-            .complete(response.id.clone())
-            .expect("received response for unknown request");
-        handler(self, response)
+            .clients
+            .get_mut(&client_id)
+            .and_then(|client| client.req_queue.outgoing.complete(response.id.clone()));
+        if let Some(handler) = handler {
+            handler(self, client_id, response);
+        }
     }
 
     pub(crate) fn send_notification<N: lsp_types::Notification>(&self, params: N::Params) {
         let not = lsp_server::Notification::new(N::METHOD.into(), params);
-        self.send(not.into());
+        self.broadcast(not.into());
+    }
+
+    pub(crate) fn send_notification_to<N: lsp_types::Notification>(
+        &self,
+        client_id: ClientId,
+        params: N::Params,
+    ) {
+        let not = lsp_server::Notification::new(N::METHOD.into(), params);
+        self.send(client_id, not.into());
     }
 
     pub(crate) fn register_request(
         &mut self,
+        client_id: ClientId,
         request: &lsp_server::Request,
         request_received: Instant,
     ) {
-        self.req_queue
-            .incoming
-            .register(request.id.clone(), (request.method.clone(), request_received));
+        if let Some(client) = self.clients.get_mut(&client_id) {
+            client
+                .req_queue
+                .incoming
+                .register(request.id.clone(), (request.method.clone(), request_received));
+        }
     }
 
-    pub(crate) fn respond(&mut self, response: lsp_server::Response) {
-        if let Some((method, start)) = self.req_queue.incoming.complete(&response.id) {
-            if let Some(err) = &response.error
-                && err.message.starts_with("server panicked")
-            {
-                self.poke_rust_analyzer_developer(format!("{}, check the log", err.message));
+    pub(crate) fn respond(&mut self, client_id: ClientId, response: lsp_server::Response) {
+        let info = self.clients.get_mut(&client_id).and_then(|client| {
+            client
+                .req_queue
+                .incoming
+                .complete(&response.id)
+                .map(|(method, start)| (client.sender.clone(), method, start))
+        });
+        let Some((sender, method, start)) = info else {
+            return;
+        };
+        if let Some(err) = &response.error
+            && err.message.starts_with("server panicked")
+        {
+            self.poke_rust_analyzer_developer(format!("{}, check the log", err.message));
+        }
+
+        let duration = start.elapsed();
+        tracing::debug!(name: "message response", method, %response.id, duration = format_args!("{:0.2?}", duration));
+        let _ = sender.send(response.into());
+    }
+
+    pub(crate) fn cancel(&mut self, client_id: ClientId, request_id: lsp_server::RequestId) {
+        if let Some(client) = self.clients.get_mut(&client_id)
+            && let Some(response) = client.req_queue.incoming.cancel(request_id)
+        {
+            let _ = client.sender.send(response.into());
+        }
+    }
+
+    pub(crate) fn is_completed(&self, client_id: ClientId, request: &lsp_server::Request) -> bool {
+        let Some(client) = self.clients.get(&client_id) else {
+            return true;
+        };
+        client.req_queue.incoming.is_completed(&request.id)
+    }
+
+    pub(crate) fn send(&self, client_id: ClientId, message: lsp_server::Message) {
+        if let Some(client) = self.clients.get(&client_id) {
+            let _ = client.sender.send(message);
+        }
+    }
+
+    pub(crate) fn broadcast(&self, message: lsp_server::Message) {
+        for client in self.clients.values() {
+            if client.is_initialized {
+                let _ = client.sender.send(message.clone());
             }
-
-            let duration = start.elapsed();
-            tracing::debug!(name: "message response", method, %response.id, duration = format_args!("{:0.2?}", duration));
-            self.send(response.into());
         }
-    }
-
-    pub(crate) fn cancel(&mut self, request_id: lsp_server::RequestId) {
-        if let Some(response) = self.req_queue.incoming.cancel(request_id) {
-            self.send(response.into());
-        }
-    }
-
-    pub(crate) fn is_completed(&self, request: &lsp_server::Request) -> bool {
-        self.req_queue.incoming.is_completed(&request.id)
-    }
-
-    #[track_caller]
-    fn send(&self, message: lsp_server::Message) {
-        self.sender.send(message).unwrap();
     }
 
     pub(crate) fn publish_diagnostics(
         &mut self,
         uri: Uri,
-        version: Option<i32>,
         mut diagnostics: Vec<lsp_types::Diagnostic>,
     ) {
+        let base_encoding = self.config.caps().negotiated_encoding();
+        let path = from_proto::vfs_path(&uri).ok();
+        let clients: Vec<(Sender<lsp_server::Message>, PositionEncoding, Option<i32>)> = {
+            self.clients
+                .iter()
+                .filter_map(|(&id, c)| {
+                    if !c.is_initialized {
+                        return None;
+                    }
+                    if let Some(p) = &path
+                        && self.mem_docs.get(id, p).is_some()
+                        && !self.mem_docs.is_in_sync_with_vfs(id, p)
+                    {
+                        // Suppress diagnostics for divergent open buffers
+                        return None;
+                    }
+                    let version =
+                        path.as_ref().and_then(|p| self.mem_docs.get(id, p).map(|d| d.version));
+                    Some((c.sender.clone(), c.position_encoding, version))
+                })
+                .collect()
+        };
+        if clients.is_empty() {
+            return;
+        }
+        // Positions are computed in the server-wide encoding; a snapshot is only needed to
+        // re-encode them for clients that negotiated a different one.
+        let snap = clients.iter().any(|&(_, enc, _)| enc != base_encoding).then(|| self.snapshot());
         // We put this on a separate thread to avoid blocking the main thread with serialization work
         self.task_pool.handle.spawn_with_sender(stdx::thread::ThreadIntent::Worker, {
-            let sender = self.sender.clone();
             move |_| {
                 // VSCode assumes diagnostic messages to be non-empty strings, so we need to patch
                 // empty diagnostics. Neither the docs of VSCode nor the LSP spec say whether
@@ -694,11 +1075,29 @@ impl GlobalState {
                     }
                 }
 
-                let not = lsp_server::Notification::new(
-                    lsp_types::PublishDiagnosticsNotification::METHOD.into(),
-                    lsp_types::PublishDiagnosticsParams { uri, diagnostics, version },
-                );
-                _ = sender.send(not.into());
+                for (sender, enc, version) in clients {
+                    let client_diagnostics = match &snap {
+                        Some(snap) if enc != base_encoding => to_proto::reencode_diagnostics(
+                            snap,
+                            &uri,
+                            base_encoding,
+                            enc,
+                            diagnostics.clone(),
+                        ),
+                        _ => diagnostics.clone(),
+                    };
+
+                    let not = lsp_server::Notification::new(
+                        lsp_types::PublishDiagnosticsNotification::METHOD.into(),
+                        lsp_types::PublishDiagnosticsParams {
+                            uri: uri.clone(),
+                            diagnostics: client_diagnostics,
+                            version,
+                        },
+                    );
+                    let msg: lsp_server::Message = not.into();
+                    _ = sender.send(msg);
+                }
             }
         });
     }
@@ -823,6 +1222,37 @@ impl Drop for GlobalState {
 }
 
 impl GlobalStateSnapshot {
+    pub(crate) fn caps(&self) -> &ClientCapabilities {
+        self.caps.as_ref().unwrap_or_else(|| self.config.caps())
+    }
+
+    pub(crate) fn completion_config<'a>(
+        &'a self,
+        source_root: Option<ide_db::base_db::SourceRootId>,
+    ) -> ide_completion::CompletionConfig<'a> {
+        let mut cfg = self.config.completion(source_root, self.minicore());
+        let caps = self.caps();
+        if !caps.completion_snippet() {
+            cfg.snippet_cap = None;
+        }
+        let client_capability_fields = caps.completion_resolve_support_properties();
+        cfg.fields_to_resolve = if self.config.client_is_neovim() {
+            ide_completion::CompletionFieldsToResolve::empty()
+        } else {
+            ide_completion::CompletionFieldsToResolve::from_client_capabilities(
+                &client_capability_fields,
+            )
+        };
+        cfg
+    }
+
+    pub(crate) fn inlay_hints_config(&self) -> ide::InlayHintsConfig<'_> {
+        let mut cfg = self.config.inlay_hints(self.minicore());
+        let properties = self.caps().inlay_hint_resolve_support_properties();
+        cfg.fields_to_resolve = ide::InlayFieldsToResolve::from_client_capabilities(&properties);
+        cfg
+    }
+
     fn vfs_read(&self) -> MappedRwLockReadGuard<'_, vfs::Vfs> {
         RwLockReadGuard::map(self.vfs.read(), |(it, _)| it)
     }
@@ -842,19 +1272,78 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn file_line_index(&self, file_id: FileId) -> Cancellable<LineIndex> {
-        let endings = self.vfs.read().1[&file_id];
+        let endings = match self.vfs.read().1.get(&file_id) {
+            Some(&endings) => endings,
+            None => return Err(ide_db::base_db::salsa::Cancelled::PendingWrite),
+        };
         let index = self.analysis.file_line_index(file_id)?;
-        let res = LineIndex { index, endings, encoding: self.config.caps().negotiated_encoding() };
+        let res = LineIndex { index, endings, encoding: self.position_encoding };
         Ok(res)
     }
 
     pub(crate) fn file_version(&self, file_id: FileId) -> Option<i32> {
-        Some(self.mem_docs.get(self.vfs_read().file_path(file_id))?.version)
+        let vfs = self.vfs_read();
+        let path = vfs.file_path(file_id);
+        match self.client_id {
+            Some(client_id) if self.mem_docs.is_in_sync_with_vfs(client_id, path) => {
+                self.mem_docs.get(client_id, path).map(|d| d.version)
+            }
+            Some(_) => None,
+            None => self.mem_docs.get_any(path).map(|d| d.version),
+        }
     }
 
     pub(crate) fn url_file_version(&self, url: &Uri) -> Option<i32> {
         let path = from_proto::vfs_path(url).ok()?;
-        Some(self.mem_docs.get(&path)?.version)
+        match self.client_id {
+            Some(client_id) if self.mem_docs.is_in_sync_with_vfs(client_id, &path) => {
+                self.mem_docs.get(client_id, &path).map(|d| d.version)
+            }
+            Some(_) => None,
+            None => self.mem_docs.get_any(&path).map(|d| d.version),
+        }
+    }
+
+    pub(crate) fn file_mem_data(&self, path: &VfsPath) -> Option<Vec<u8>> {
+        let client_id = self.client_id?;
+        self.mem_docs.get(client_id, path).map(|d| d.data.clone())
+    }
+
+    pub(crate) fn is_file_divergent(&self, file_id: FileId) -> bool {
+        let vfs = self.vfs_read();
+        let path = vfs.file_path(file_id);
+        self.is_path_divergent(path)
+    }
+
+    pub(crate) fn is_path_divergent(&self, path: &VfsPath) -> bool {
+        if let Some(client_id) = self.client_id {
+            if self.mem_docs.get(client_id, path).is_some() {
+                // The client has the document open; it will edit its in-memory buffer.
+                // It is divergent if its buffer does not match VFS.
+                return !self.mem_docs.is_in_sync_with_vfs(client_id, path);
+            }
+            // The client does not have the document open, so it refers to the text on disk,
+            // which is not what we analyze if another client has unsaved changes.
+            if self.mem_docs.contains(path) {
+                return !self.mem_docs.matches_disk(path);
+            }
+        }
+        false
+    }
+
+    pub(crate) fn is_dir_divergent(&self, dir_path: &VfsPath) -> bool {
+        let dir_abs = dir_path.as_path();
+        let dir_str = dir_path.to_string();
+        for path in self.mem_docs.iter() {
+            let is_child = match (dir_abs, path.as_path()) {
+                (Some(dir), Some(p)) => p.starts_with(dir),
+                _ => path.to_string().starts_with(&dir_str),
+            };
+            if is_child && self.is_path_divergent(path) {
+                return true;
+            }
+        }
+        false
     }
 
     pub(crate) fn anchored_path(&self, path: &AnchoredPathBuf) -> Uri {

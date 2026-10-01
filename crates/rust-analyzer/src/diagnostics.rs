@@ -250,11 +250,27 @@ impl DiagnosticCollection {
         native_syntax.chain(native_semantic).chain(check)
     }
 
+    pub(crate) fn files_with_diagnostics(&self) -> FxHashSet<FileId> {
+        let mut files = FxHashSet::default();
+        files.extend(self.native_syntax.keys().copied());
+        files.extend(self.native_semantic.keys().copied());
+        for ws in &self.check {
+            for pkg in ws.per_package.values() {
+                files.extend(pkg.per_file.keys().copied());
+            }
+        }
+        files
+    }
+
     pub(crate) fn take_changes(&mut self) -> Option<FxHashSet<FileId>> {
         if self.changes.is_empty() {
             return None;
         }
         Some(mem::take(&mut self.changes))
+    }
+
+    pub(crate) fn force_publish(&mut self, file_id: FileId) {
+        self.changes.insert(file_id);
     }
 
     pub(crate) fn next_generation(&mut self) -> usize {
