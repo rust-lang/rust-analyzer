@@ -1222,6 +1222,10 @@ pub(crate) fn handle_completion_resolve(
 
     let file_id = from_proto::file_id(&snap, &resolve_data.position.text_document.uri)?
         .expect("we never provide completions for excluded files");
+    if resolve_data.version != snap.file_version(file_id) {
+        tracing::warn!("Completion resolve data is outdated");
+        return Ok(original_completion);
+    }
     let line_index = snap.file_line_index(file_id)?;
     // FIXME: We should fix up the position when retrying the cancelled request instead
     let Ok(offset) = from_proto::offset(&line_index, resolve_data.position.position) else {
