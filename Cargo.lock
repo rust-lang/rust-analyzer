@@ -1409,6 +1409,7 @@ dependencies = [
  "crossbeam-channel",
  "hir",
  "hir-expand",
+ "ide",
  "ide-db",
  "intern",
  "itertools 0.15.0",

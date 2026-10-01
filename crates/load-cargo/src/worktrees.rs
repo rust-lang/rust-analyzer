@@ -211,6 +211,45 @@ impl Worktrees {
         }
     }
 
+    /// Gives back the memory of what was computed for crates that are not there anymore.
+    ///
+    /// Whatever was computed for a crate stays in the database when the crate goes away: when a
+    /// worktree is removed, or when its package is the same as in the base checkout again. It
+    /// is used again should the same crate come back, and it is never freed. In a process that
+    /// runs for long, with worktrees that come and go, that adds up to the most that was ever
+    /// there at once.
+    ///
+    /// The only way to free it is a new database: this replaces `db` by one with the same
+    /// files, texts set with [`Worktrees::set_file_text`] included, and the same crates. Nothing
+    /// is read from disk and no workspace is loaded. Everything that was computed is forgotten
+    /// with it, also for the crates that are there, so what is asked for next is computed
+    /// anew: call this when the memory is worth more than that, not after every removal.
+    ///
+    /// Types are kept outside of the database, for all databases of the process together:
+    /// they are only freed by `hir::collect_ty_garbage`, which the embedder has to call
+    /// afterwards, at a time when no database of the process computes anything.
+    ///
+    /// The identities of crates change, files keep theirs. What the embedder has configured on
+    /// `db` itself has to be configured again.
+    pub fn collect_garbage(&mut self, db: &mut RootDatabase, vfs: &mut Vfs) {
+        let lru_cap = std::env::var("RA_LRU_CAP").ok().and_then(|it| it.parse::<u16>().ok());
+        let mut fresh = RootDatabase::new(lru_cap);
+        fresh.enable_proc_attr_macros();
+
+        let mut change = ChangeWithProcMacros::default();
+        for (file, _) in vfs.iter() {
+            let text = ide_db::base_db::SourceDatabase::file_text(db, file).text(db);
+            change.change_file(file, Some(text.to_string()));
+        }
+        change.set_roots(self.source_root_config.partition(vfs));
+        let loads_more = self.set_crate_graph(vfs, &mut change);
+        fresh.apply_change(change);
+        *db = fresh;
+        if loads_more {
+            self.reload(db, vfs);
+        }
+    }
+
     /// Sets the text of the file at `path`, `None` if there is no such file anymore. From now on
     /// the file on disk is not looked at, until [`Worktrees::reload_file`].
     ///
@@ -1846,6 +1885,10 @@ mod tests {
                     }
                 }
                 (7, _) => checkouts.worktrees.unload_shared(&mut checkouts.db, &mut checkouts.vfs),
+                // Nothing changes with a new database but the memory
+                (8, _) => {
+                    checkouts.worktrees.collect_garbage(&mut checkouts.db, &mut checkouts.vfs)
+                }
                 _ => continue,
             }
 

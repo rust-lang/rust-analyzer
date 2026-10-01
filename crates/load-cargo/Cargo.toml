@@ -35,6 +35,7 @@ rustc-hash.workspace = true
 
 [dev-dependencies]
 hir.workspace = true
+ide.workspace = true
 
 [features]
 in-rust-tree = ["hir-expand/in-rust-tree", "proc-macro-api/in-rust-tree"]
