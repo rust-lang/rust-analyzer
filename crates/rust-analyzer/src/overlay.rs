@@ -6,10 +6,10 @@
 //! as well, is replaced by the crate of the base checkout when the crate graph is built. Only the
 //! packages that differ, and whatever depends on them, are analyzed for the worktree.
 
-use std::fs;
+use std::{cell::RefCell, fs};
 
 use ide_db::{
-    FxHashMap,
+    FxHashMap, FxHashSet,
     base_db::{CrateBuilder, CrateBuilderId, CrateGraphBuilder, SourceRoot},
 };
 use load_cargo::SourceRootConfig;
@@ -154,7 +154,7 @@ pub(crate) enum PulledInFile {
 /// Comparing two packages file by file only covers them if they are part of the package.
 pub(crate) fn pulled_in_files(text: &str) -> Vec<PulledInFile> {
     // Lexing every file is wasteful, most do not even come close.
-    if !(text.contains("#[path") || text.contains("include")) {
+    if !(text.contains("path") || text.contains("include")) {
         return Vec::new();
     }
     let lexed = LexedStr::new(Edition::CURRENT, text);
@@ -171,15 +171,36 @@ pub(crate) fn pulled_in_files(text: &str) -> Vec<PulledInFile> {
         Some(PulledInFile::Relative(path.to_owned()))
     };
     let mut res = Vec::new();
+    let mut brace_depth = 0u32;
+    // How deep in brackets we are inside of an attribute, 0 outside of attributes.
+    let mut attr_depth = 0u32;
     for (idx, &(kind, text)) in tokens.iter().enumerate() {
+        match kind {
+            SyntaxKind::L_CURLY => brace_depth += 1,
+            SyntaxKind::R_CURLY => brace_depth = brace_depth.saturating_sub(1),
+            SyntaxKind::L_BRACK if attr_depth > 0 => attr_depth += 1,
+            SyntaxKind::L_BRACK => {
+                let before = |n: usize| idx.checked_sub(n).map(|idx| tokens[idx].0);
+                let is_attr = before(1) == Some(SyntaxKind::POUND)
+                    || (before(1) == Some(SyntaxKind::BANG)
+                        && before(2) == Some(SyntaxKind::POUND));
+                attr_depth = is_attr as u32;
+            }
+            SyntaxKind::R_BRACK => attr_depth = attr_depth.saturating_sub(1),
+            _ => (),
+        }
         if kind != SyntaxKind::IDENT {
             continue;
         }
         let before = |n: usize| idx.checked_sub(n).map(|idx| tokens[idx].0);
         let after = |n: usize| tokens.get(idx + n).copied();
+        // `#[path = ".."]`, or `#[cfg_attr(unix, path = "..")]`
         let is_path_attr = text == "path"
-            && before(1) == Some(SyntaxKind::L_BRACK)
-            && before(2) == Some(SyntaxKind::POUND)
+            && attr_depth > 0
+            && matches!(
+                before(1),
+                Some(SyntaxKind::L_BRACK | SyntaxKind::COMMA | SyntaxKind::L_PAREN)
+            )
             && after(1).map(|it| it.0) == Some(SyntaxKind::EQ);
         let is_include = matches!(text, "include" | "include_str" | "include_bytes")
             && after(1).map(|it| it.0) == Some(SyntaxKind::BANG);
@@ -187,6 +208,11 @@ pub(crate) fn pulled_in_files(text: &str) -> Vec<PulledInFile> {
             continue;
         }
         res.push(match after(2) {
+            // Inside of an inline module the path is relative to a directory named after it,
+            // which we do not track.
+            Some((SyntaxKind::STRING, _)) if is_path_attr && brace_depth > 0 => {
+                PulledInFile::Unknown
+            }
             Some((SyntaxKind::STRING, text)) => literal(text).unwrap_or(PulledInFile::Unknown),
             // `include!("path")` has the delimiter first
             _ => match after(3) {
@@ -204,33 +230,119 @@ pub(crate) fn pulled_in_files(text: &str) -> Vec<PulledInFile> {
     res
 }
 
-/// Whether the files at the two paths have the same contents, or neither exists.
-fn same_file(vfs: &Vfs, path: &AbsPath, other: &AbsPath) -> bool {
-    let hash = |path: &AbsPath| {
-        let (file, _) = vfs.file_id(&VfsPath::from(path.to_path_buf()))?;
-        vfs.content_hash(file)
-    };
-    match (hash(path), hash(other)) {
-        (Some(hash), Some(other_hash)) => hash == other_hash,
-        // Not every file is loaded, for example the ones that are not Rust sources.
-        _ => match (fs::read(path), fs::read(other)) {
-            (Ok(contents), Ok(other_contents)) => contents == other_contents,
-            (Err(_), Err(_)) => true,
-            _ => false,
-        },
+/// Whether two files that are not loaded have the same contents, by the paths of both.
+///
+/// Such files are not watched, so this is only as fresh as the crate graph.
+pub(crate) type DiskCache = FxHashMap<(AbsPathBuf, AbsPathBuf), bool>;
+
+/// What is needed to compare the sources of a crate of a worktree with those of its base.
+pub(crate) struct Sources<'a> {
+    pub(crate) vfs: &'a Vfs,
+    pub(crate) roots: &'a SourceRoots,
+    pub(crate) pulled_in_files: &'a FxHashMap<FileId, Vec<PulledInFile>>,
+    pub(crate) disk_cache: &'a RefCell<DiskCache>,
+}
+
+impl Sources<'_> {
+    /// Whether the files at the two paths have the same contents, or neither exists, and so
+    /// for the files that they pull in.
+    fn same_file(
+        &self,
+        overlay: &Overlay,
+        path: &AbsPath,
+        base_path: &AbsPath,
+        visited: &mut FxHashSet<FileId>,
+    ) -> bool {
+        let loaded = |path: &AbsPath| {
+            let (file, _) = self.vfs.file_id(&VfsPath::from(path.to_path_buf()))?;
+            Some((file, self.vfs.content_hash(file)?))
+        };
+        match (loaded(path), loaded(base_path)) {
+            (Some((file, hash)), Some((_, base_hash))) => {
+                hash == base_hash
+                    && (!visited.insert(file)
+                        || self.pulls_in_the_same(overlay, file, path, visited))
+            }
+            // Not every file is loaded, for example the ones that are not Rust sources.
+            _ => {
+                let key = (path.to_path_buf(), base_path.to_path_buf());
+                if let Some(&same) = self.disk_cache.borrow().get(&key) {
+                    return same;
+                }
+                // Guards against files that pull in each other.
+                self.disk_cache.borrow_mut().insert(key.clone(), true);
+                let same = match (fs::read(path), fs::read(base_path)) {
+                    (Ok(contents), Ok(base_contents)) => {
+                        contents == base_contents
+                            && (path.extension() != Some("rs")
+                                || str::from_utf8(&contents).is_ok_and(|text| {
+                                    self.all_the_same(
+                                        overlay,
+                                        &pulled_in_files(text),
+                                        path,
+                                        visited,
+                                    )
+                                }))
+                    }
+                    (Err(_), Err(_)) => true,
+                    _ => false,
+                };
+                self.disk_cache.borrow_mut().insert(key, same);
+                same
+            }
+        }
+    }
+
+    /// Whether the files that the worktree's file at `path` pulls in, `pulled_in`, are the same
+    /// as what its counterpart in the base checkout pulls in.
+    fn all_the_same(
+        &self,
+        overlay: &Overlay,
+        pulled_in: &[PulledInFile],
+        path: &AbsPath,
+        visited: &mut FxHashSet<FileId>,
+    ) -> bool {
+        pulled_in.iter().all(|pulled_in| match pulled_in {
+            PulledInFile::Relative(relative) => {
+                let Some(pulled_in) = path.parent().map(|dir| dir.absolutize(relative)) else {
+                    return false;
+                };
+                // A file outside of the worktree is the same file for both, but then the two
+                // crates are not at the same place relative to it, so they see other files.
+                let Some(base_pulled_in) = overlay.to_base(&pulled_in) else {
+                    return false;
+                };
+                self.same_file(overlay, &pulled_in, &base_pulled_in, visited)
+            }
+            PulledInFile::Unknown => false,
+        })
+    }
+
+    /// Whether the files that the worktree's `file` at `path` pulls in by path are the same as
+    /// what its counterpart in the base checkout pulls in.
+    fn pulls_in_the_same(
+        &self,
+        overlay: &Overlay,
+        file: FileId,
+        path: &AbsPath,
+        visited: &mut FxHashSet<FileId>,
+    ) -> bool {
+        match self.pulled_in_files.get(&file) {
+            Some(pulled_in) => self.all_the_same(overlay, pulled_in, path, visited),
+            None => true,
+        }
     }
 }
 
 /// Whether the source root of `worktree_file` has the same files with the same contents as the
 /// source root of `base_file`, and so do the files they pull in by path.
 pub(crate) fn same_sources(
-    vfs: &Vfs,
-    roots: &SourceRoots,
-    pulled_in_files: &FxHashMap<FileId, Vec<PulledInFile>>,
+    sources: &Sources<'_>,
     overlay: &Overlay,
     worktree_file: FileId,
     base_file: FileId,
 ) -> bool {
+    let Sources { vfs, roots, .. } = sources;
     let (Some(worktree_root), Some(base_root)) = (roots.of(worktree_file), roots.of(base_file))
     else {
         return false;
@@ -245,22 +357,8 @@ pub(crate) fn same_sources(
         let base_file = overlay
             .to_base(path)
             .and_then(|path| base_root.file_for_path(&VfsPath::from(path)).copied());
-        let pulls_in_the_same = || {
-            pulled_in_files.get(&file).into_iter().flatten().all(|pulled_in| match pulled_in {
-                PulledInFile::Relative(relative) => path
-                    .parent()
-                    .map(|dir| dir.absolutize(relative))
-                    // A file outside of the worktree is the same file for both, but then the
-                    // crates are not at the same place relative to it, so they see other files.
-                    .and_then(|pulled_in| Some((overlay.to_base(&pulled_in)?, pulled_in)))
-                    .is_some_and(|(base_pulled_in, pulled_in)| {
-                        same_file(vfs, &pulled_in, &base_pulled_in)
-                    }),
-                PulledInFile::Unknown => false,
-            })
-        };
         base_file.is_some_and(|base_file| vfs.content_hash(file) == vfs.content_hash(base_file))
-            && pulls_in_the_same()
+            && sources.pulls_in_the_same(overlay, file, path, &mut FxHashSet::from_iter([file]))
     })
 }
 
@@ -308,20 +406,18 @@ fn same_build_script_output(krate: &CrateBuilder, base_crate: &CrateBuilder) -> 
 
 /// Picks the crate of the base checkout that can stand in for the worktree's `krate`.
 pub(crate) fn base_crate(
-    vfs: &Vfs,
-    roots: &SourceRoots,
-    pulled_in_files: &FxHashMap<FileId, Vec<PulledInFile>>,
+    sources: &Sources<'_>,
     overlay: &Overlay,
     overlay_crates: &mut OverlayCrates,
     graph: &CrateGraphBuilder,
     krate: &CrateBuilder,
 ) -> Option<CrateBuilderId> {
+    let vfs = sources.vfs;
     let worktree_file = krate.basic.root_file_id;
     let base_file = match overlay.to_base(vfs.file_path(worktree_file).as_path()?) {
         Some(base_path) => {
             let (base_file, _) = vfs.file_id(&VfsPath::from(base_path))?;
-            let same_sources =
-                same_sources(vfs, roots, pulled_in_files, overlay, worktree_file, base_file);
+            let same_sources = same_sources(sources, overlay, worktree_file, base_file);
             overlay_crates
                 .insert((worktree_file, base_file), OverlayCrate { same_sources, shared: false });
             if !same_sources {
@@ -416,6 +512,16 @@ mod tests {
         );
         // What a build script generated is compared separately
         assert_eq!(pulled_in_files("include!(concat!(env!(\"OUT_DIR\"), \"/x.rs\"));"), vec![]);
+        assert_eq!(
+            pulled_in_files("#[cfg_attr(unix, path = \"unix.rs\")]\nmod imp;"),
+            relative("unix.rs")
+        );
+        // Inside of an inline module the path is relative to another directory
+        assert_eq!(
+            pulled_in_files("mod inline {\n    #[path = \"../a.rs\"]\n    mod a;\n}"),
+            vec![PulledInFile::Unknown]
+        );
+        assert_eq!(pulled_in_files("fn f() { include!(\"gen.rs\"); }"), relative("gen.rs"));
         // Prose and unrelated code do not count
         assert_eq!(pulled_in_files("// include the `../../shared.rs` file\nmod a;"), vec![]);
         assert_eq!(
@@ -423,5 +529,6 @@ mod tests {
             vec![]
         );
         assert_eq!(pulled_in_files("let include = path.join(\"../x\");"), vec![]);
+        assert_eq!(pulled_in_files("fn f() { format!(\"{path}\", path = \"../x\"); }"), vec![]);
     }
 }

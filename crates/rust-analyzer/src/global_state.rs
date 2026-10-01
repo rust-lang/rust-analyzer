@@ -4,6 +4,7 @@
 //! Each tick provides an immutable snapshot of the state as `WorldSnapshot`.
 
 use std::{
+    cell::RefCell,
     ops::Not as _,
     panic::AssertUnwindSafe,
     sync::OnceLock,
@@ -46,7 +47,7 @@ use crate::{
     main_loop::Task,
     mem_docs::MemDocs,
     op_queue::{Cause, OpQueue},
-    overlay::{self, Overlay, OverlayCrates, PulledInFile, SourceRoots},
+    overlay::{self, DiskCache, Overlay, OverlayCrates, PulledInFile, SourceRoots},
     priming_scope, reload,
     target_spec::{CargoTargetSpec, ProjectJsonTargetSpec, TargetSpec},
     task_pool::{DeferredTaskQueue, TaskPool},
@@ -224,6 +225,9 @@ pub(crate) struct GlobalState {
     pub(crate) overlay_source_roots: Option<Arc<SourceRoots>>,
     /// The files that source files pull in by path, which may be outside of their package.
     pub(crate) pulled_in_files: FxHashMap<FileId, Vec<PulledInFile>>,
+    /// Comparisons of the files that are pulled in but not loaded, as of the last time the crate
+    /// graph was built.
+    pub(crate) overlay_disk_cache: RefCell<DiskCache>,
 
     pub(crate) minicore: MiniCoreRustAnalyzerInternalOnly,
     pub(crate) last_gc_revision: Revision,
@@ -382,6 +386,7 @@ impl GlobalState {
             overlay_crates: Arc::default(),
             overlay_source_roots: None,
             pulled_in_files: FxHashMap::default(),
+            overlay_disk_cache: RefCell::default(),
 
             minicore: MiniCoreRustAnalyzerInternalOnly::default(),
             last_gc_revision,

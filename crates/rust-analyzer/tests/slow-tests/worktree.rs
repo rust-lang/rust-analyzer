@@ -577,3 +577,23 @@ fn diagnostics_of_a_shared_crate_reach_an_open_worktree_document() {
     assert_eq!(diagnostics.uri, doc_id.uri);
     assert_eq!(diagnostics.version, Some(1));
 }
+
+#[test]
+fn crate_pulling_in_a_file_that_pulls_in_a_file_that_differs_is_not_shared() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    // `shared.rs` is the same in both, but what it includes is not
+    let fixture = pulling_in_fixture("include!(\"nested.rs\");", "include!(\"nested.rs\");")
+        + "//- /base/nested.rs\npub fn nested() {}\n\n//- /wt/nested.rs\npub fn nested() -> u8 { 1 }\n\n";
+    let server = Project::with_fixture(&fixture)
+        .with_config(share_worktrees())
+        .root("base")
+        .root("wt")
+        .server()
+        .wait_until_workspace_is_loaded();
+
+    wait_for_crate_count(&server, "core_lib", 1);
+    wait_for_crate_count(&server, "app", 2);
+}

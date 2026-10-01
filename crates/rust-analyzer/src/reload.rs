@@ -42,7 +42,7 @@ use crate::{
     lsp_ext,
     main_loop::{DiscoverProjectParam, Task},
     op_queue::Cause,
-    overlay::{self, Overlay, OverlayCrates, SourceRoots},
+    overlay::{self, Overlay, OverlayCrates, SourceRoots, Sources},
 };
 use tracing::{debug, info};
 
@@ -716,10 +716,14 @@ impl GlobalState {
                         })
                 })
                 .filter_map(|(&(worktree_file, base_file), krate)| {
-                    let same_sources = overlay::same_sources(
+                    let sources = Sources {
                         vfs,
                         roots,
-                        &self.pulled_in_files,
+                        pulled_in_files: &self.pulled_in_files,
+                        disk_cache: &self.overlay_disk_cache,
+                    };
+                    let same_sources = overlay::same_sources(
+                        &sources,
                         overlay_of(worktree_file)?,
                         worktree_file,
                         base_file,
@@ -774,6 +778,8 @@ impl GlobalState {
             Vec::new()
         };
         let mut overlay_crates = OverlayCrates::default();
+        // The files that are not loaded are compared anew each time the crate graph is built.
+        self.overlay_disk_cache.borrow_mut().clear();
         let (crate_graph, proc_macro_paths) = {
             // Create crate graph from all the workspaces
             let vfs = &self.vfs.read().0;
@@ -797,15 +803,13 @@ impl GlobalState {
                 load,
                 &overlays,
                 |overlay, graph, krate| {
-                    overlay::base_crate(
+                    let sources = Sources {
                         vfs,
-                        source_roots.as_ref()?,
-                        &self.pulled_in_files,
-                        overlay,
-                        &mut overlay_crates,
-                        graph,
-                        krate,
-                    )
+                        roots: source_roots.as_ref()?,
+                        pulled_in_files: &self.pulled_in_files,
+                        disk_cache: &self.overlay_disk_cache,
+                    };
+                    overlay::base_crate(&sources, overlay, &mut overlay_crates, graph, krate)
                 },
             );
             self.overlay_source_roots = source_roots.map(Arc::new);
