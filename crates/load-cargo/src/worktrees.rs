@@ -9,7 +9,7 @@
 //!
 //! A worktree need not be a git worktree: any directory with a copy of the base checkout will do.
 
-use std::{cell::RefCell, fs, sync::Arc};
+use std::{cell::RefCell, fs, sync::Arc, time::SystemTime};
 
 use crossbeam_channel::{Receiver, unbounded};
 use hir_expand::proc_macro::{ProcMacroLoadResult, ProcMacrosBuilder};
@@ -55,8 +55,9 @@ pub struct Worktrees {
     /// matter for them.
     files_in_memory: FxHashSet<VfsPath>,
     proc_macro_server: Option<Result<ProcMacroClient, ProcMacroLoadingError>>,
-    /// The proc macros loaded so far, by the path of their dylib.
-    proc_macros: FxHashMap<AbsPathBuf, ProcMacroLoadResult>,
+    /// The proc macros of the crates in the crate graph, by the path of their dylib, with the
+    /// time the dylib was modified at when they were loaded.
+    proc_macros: FxHashMap<AbsPathBuf, (Option<SystemTime>, ProcMacroLoadResult)>,
     loader: Box<vfs_notify::NotifyHandle>,
     receiver: Receiver<vfs::loader::Message>,
     loader_config_version: u32,
@@ -167,9 +168,41 @@ impl Worktrees {
     pub fn set_base(&mut self, db: &mut RootDatabase, vfs: &mut Vfs, base: ProjectWorkspace) {
         self.workspaces[0] = base;
         // The crates of the worktrees are compared with other crates now. Their files that are
-        // not loaded cannot be compared with anything, so load them all.
+        // not loaded cannot be compared with anything, so load them all first.
         self.not_loaded.iter_mut().for_each(FxHashSet::clear);
         self.reload(db, vfs);
+        self.unload_shared(db, vfs);
+    }
+
+    /// Drops the files of the packages of the worktrees that are loaded although they are the
+    /// same as in the base checkout, as happens when an edit is undone.
+    ///
+    /// This compares the worktrees with the base checkout on disk, as adding them does.
+    pub fn unload_shared(&mut self, db: &mut RootDatabase, vfs: &mut Vfs) {
+        let mut unloads = false;
+        for idx in 0..self.workspaces.len() {
+            let Some(overlay) = self.overlays[idx].clone() else { continue };
+            let same = self.same_packages(vfs, &self.workspaces[idx], &overlay);
+            let unloaded: Vec<&AbsPathBuf> =
+                same.iter().filter(|dir| !self.not_loaded[idx].contains(*dir)).collect();
+            let files: Vec<VfsPath> = vfs
+                .iter()
+                .map(|(_, path)| path)
+                .filter(|path| {
+                    path.as_path()
+                        .is_some_and(|path| unloaded.iter().any(|dir| path.starts_with(dir)))
+                })
+                .cloned()
+                .collect();
+            for path in files {
+                vfs.set_file_contents(path, None);
+            }
+            unloads |= !unloaded.is_empty();
+            self.not_loaded[idx] = same;
+        }
+        if unloads {
+            self.reload(db, vfs);
+        }
     }
 
     /// Sets the text of the file at `path`, `None` if there is no such file anymore. From now on
@@ -405,9 +438,23 @@ impl Worktrees {
             let Some(&base_file) = base_files.get(path) else {
                 return false;
             };
+            // A change to a file that the package pulls in from elsewhere would not tell us to
+            // load the package, so such a package is loaded, and compared file by file.
+            let pulls_in_from_elsewhere = || {
+                sources.pulled_in_files.get(&base_file).into_iter().flatten().any(
+                    |pulled_in| match (pulled_in, path.parent()) {
+                        (PulledInFile::Relative(relative), Some(dir)) => {
+                            let pulled_in = dir.absolutize(relative);
+                            !dirs.include.iter().any(|dir| pulled_in.starts_with(dir))
+                        }
+                        _ => true,
+                    },
+                )
+            };
             fs::read(path).is_ok_and(|contents| {
                 Some(hash_once::<FxHasher>(&*contents)) == sources.vfs.content_hash(base_file)
-            }) && sources.pulls_in_the_same(overlay, base_file, path, &mut FxHashSet::default())
+            }) && !pulls_in_from_elsewhere()
+                && sources.pulls_in_the_same(overlay, base_file, path, &mut FxHashSet::default())
         };
         // A directory outside of the worktree, such as the output of a build script taken over
         // from the base checkout, is the very same directory for both.
@@ -632,21 +679,29 @@ impl Worktrees {
                 "proc-macro-srv is not running, workspace is missing a sysroot".into(),
             )),
         };
-        let loaded = &mut self.proc_macros;
-        proc_macro_paths
+        // A dylib that was built anew is loaded again, and the ones that no crate uses anymore
+        // are forgotten.
+        let modified = |path: &AbsPath| fs::metadata(path).and_then(|it| it.modified()).ok();
+        let mut loaded = FxHashMap::default();
+        let proc_macros = proc_macro_paths
             .into_iter()
             .flatten()
             .map(|(crate_id, path)| {
                 let macros = path.and_then(|(_, path)| {
                     let server = server.as_ref().map_err(Clone::clone)?;
-                    loaded
-                        .entry(path)
-                        .or_insert_with_key(|path| load_proc_macro(server, path, &[]))
-                        .clone()
+                    let modified = modified(&path);
+                    let macros = match self.proc_macros.get(&path) {
+                        Some((loaded_at, macros)) if *loaded_at == modified => macros.clone(),
+                        _ => load_proc_macro(server, &path, &[]),
+                    };
+                    loaded.insert(path, (modified, macros.clone()));
+                    macros
                 });
                 (crate_id, macros)
             })
-            .collect()
+            .collect();
+        self.proc_macros = loaded;
+        proc_macros
     }
 }
 
@@ -1043,6 +1098,19 @@ mod tests {
         // Undoing the edit shares it again
         checkouts.set_file_text("wt/core_lib/src/lib.rs", CORE_LIB);
         assert_eq!(checkouts.crates(), 2);
+
+        // The files stay loaded until the worktree is saved and compared on disk again
+        assert!(checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+        let path = checkouts.path("wt/core_lib/src/lib.rs");
+        checkouts.worktrees.reload_file(&mut checkouts.db, &mut checkouts.vfs, &path);
+        checkouts.worktrees.unload_shared(&mut checkouts.db, &mut checkouts.vfs);
+        assert!(!checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+        assert!(!checkouts.is_loaded("wt/app/src/lib.rs"));
+        assert_eq!(checkouts.crates(), 2);
+        assert_eq!(
+            checkouts.analyzed_file("wt/core_lib/src/lib.rs"),
+            checkouts.file("base/core_lib/src/lib.rs")
+        );
     }
 
     #[test]
@@ -1140,8 +1208,9 @@ mod tests {
 
         let base = load_workspace(&checkouts.dir.join("base"));
         checkouts.worktrees.set_base(&mut checkouts.db, &mut checkouts.vfs, base);
-        // Everything is loaded now, and compared file by file
-        assert!(checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+        // What the worktree shares with the new base is not loaded
+        assert!(!checkouts.is_loaded("wt/core_lib/src/lib.rs"));
+        assert!(checkouts.is_loaded("wt/app/src/lib.rs"));
         assert_eq!(checkouts.crates(), 3);
         assert_eq!(
             checkouts.analyzed_file("wt/core_lib/src/lib.rs"),
@@ -1215,8 +1284,22 @@ mod tests {
             load_workspace(&checkouts.dir.join("same")),
             overlay,
         );
+        // The crate is shared, but its package is loaded: a change to the file it pulls in from
+        // elsewhere has to be noticed
         assert_eq!(checkouts.crates(), 3);
-        assert!(!checkouts.is_loaded("same/app/src/lib.rs"));
+        assert!(checkouts.is_loaded("same/app/src/lib.rs"));
+        assert!(!checkouts.is_loaded("same/core_lib/src/lib.rs"));
+        assert_eq!(
+            checkouts.analyzed_file("same/app/src/lib.rs"),
+            checkouts.file("base/app/src/lib.rs")
+        );
+
+        checkouts.set_file_text("same/shared.rs", "pub fn shared() -> u16 { 2 }\n");
+        assert_eq!(checkouts.crates(), 4);
+        assert_eq!(
+            checkouts.analyzed_file("same/app/src/lib.rs"),
+            checkouts.file("same/app/src/lib.rs")
+        );
     }
 
     #[test]
