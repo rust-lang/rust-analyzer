@@ -31,7 +31,7 @@ use project_model::{
 };
 use stdx::{format_to, thread::ThreadIntent};
 use triomphe::Arc;
-use vfs::{AbsPath, AbsPathBuf, ChangeKind};
+use vfs::{AbsPath, AbsPathBuf, ChangeKind, FileId};
 
 use crate::{
     config::{Config, LinkedProject},
@@ -42,7 +42,7 @@ use crate::{
     lsp_ext,
     main_loop::{DiscoverProjectParam, Task},
     op_queue::Cause,
-    overlay::{self, Overlay, SharedCrates, SourceRoots},
+    overlay::{self, Overlay, OverlayCrates, SourceRoots},
 };
 use tracing::{debug, info};
 
@@ -678,6 +678,43 @@ impl GlobalState {
         cancellation_time
     }
 
+    /// Rebuilds the crate graph if a change to `changed_files` made the sources of a crate of a
+    /// worktree differ from, or become the same as, those of its base checkout.
+    pub(crate) fn recheck_overlays(&mut self, changed_files: &[FileId], created_or_deleted: bool) {
+        if self.overlays.is_empty() || !self.vfs_done {
+            return;
+        }
+        let stale = {
+            let vfs = &self.vfs.read().0;
+            let overlay_of = |file: FileId| {
+                let path = vfs.file_path(file).as_path()?;
+                self.overlays.iter().find(|it| {
+                    path.starts_with(&it.worktree_root) || path.starts_with(&it.base_root)
+                })
+            };
+            if !changed_files.iter().any(|&file| overlay_of(file).is_some()) {
+                return;
+            }
+            if created_or_deleted || self.overlay_source_roots.is_none() {
+                self.overlay_source_roots = Some(SourceRoots::new(&self.source_root_config, vfs));
+            }
+            let roots = self.overlay_source_roots.as_ref().unwrap();
+            self.overlay_crates.iter().any(|(&(worktree_file, base_file), &same_sources)| {
+                let touched = changed_files.iter().any(|&file| {
+                    roots.in_same_root(file, worktree_file) || roots.in_same_root(file, base_file)
+                });
+                touched
+                    && overlay_of(worktree_file).is_some_and(|overlay| {
+                        overlay::same_sources(vfs, roots, overlay, worktree_file, base_file)
+                            != same_sources
+                    })
+            })
+        };
+        if stale {
+            self.recreate_crate_graph("worktree changed relative to its base".to_owned(), false);
+        }
+    }
+
     fn recreate_crate_graph(&mut self, cause: String, initial_build: bool) -> Option<Duration> {
         info!(?cause, "Building Crate Graph");
         let mut cancellation_time = None;
@@ -703,7 +740,7 @@ impl GlobalState {
 
         self.incomplete_crate_graph = false;
         let overlays = overlay::find_overlays(&self.workspaces);
-        let mut shared_crates = SharedCrates::default();
+        let mut overlay_crates = OverlayCrates::default();
         let (crate_graph, proc_macro_paths) = {
             // Create crate graph from all the workspaces
             let vfs = &self.vfs.read().0;
@@ -721,22 +758,27 @@ impl GlobalState {
                 })
             };
 
-            ws_to_crate_graph_with_overlays(
+            let graph = ws_to_crate_graph_with_overlays(
                 &self.workspaces,
                 self.config.extra_env(None),
                 load,
                 &overlays,
                 |overlay, graph, krate| {
-                    let (base_crate, worktree_file, base_file) =
-                        overlay::base_crate(vfs, source_roots.as_ref()?, overlay, graph, krate)?;
-                    shared_crates.insert(worktree_file, base_file);
-                    Some(base_crate)
+                    overlay::base_crate(
+                        vfs,
+                        source_roots.as_ref()?,
+                        overlay,
+                        &mut overlay_crates,
+                        graph,
+                        krate,
+                    )
                 },
-            )
+            );
+            self.overlay_source_roots = source_roots;
+            graph
         };
-        info!(shared = shared_crates.len(), "crates of worktrees shared with their base checkout");
-        self.overlays = overlays.into_iter().flatten().unique().collect();
-        self.shared_crates = shared_crates;
+        self.overlays = Arc::new(overlays.into_iter().flatten().unique().collect());
+        self.overlay_crates = overlay_crates;
         let mut change = ChangeWithProcMacros::default();
         if initial_build || !self.config.expand_proc_macros() {
             if self.config.expand_proc_macros() {

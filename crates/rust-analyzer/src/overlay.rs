@@ -89,6 +89,14 @@ impl SourceRoots {
     fn of(&self, file: FileId) -> Option<&SourceRoot> {
         Some(&self.roots[*self.root_of.get(&file)?])
     }
+
+    /// Whether the two files are in the same source root.
+    pub(crate) fn in_same_root(&self, file: FileId, other: FileId) -> bool {
+        match (self.root_of.get(&file), self.root_of.get(&other)) {
+            (Some(root), Some(other_root)) => root == other_root,
+            _ => false,
+        }
+    }
 }
 
 /// Whether the source root of `worktree_file` has the same files with the same contents as the
@@ -117,28 +125,27 @@ pub(crate) fn same_sources(
 }
 
 /// Picks the crate of the base checkout that can stand in for the worktree's `krate`.
-///
-/// On success also returns the root files of the two crates, the worktree's first.
 pub(crate) fn base_crate(
     vfs: &Vfs,
     roots: &SourceRoots,
     overlay: &Overlay,
+    overlay_crates: &mut OverlayCrates,
     graph: &CrateGraphBuilder,
     krate: &CrateBuilder,
-) -> Option<(CrateBuilderId, FileId, FileId)> {
+) -> Option<CrateBuilderId> {
     let worktree_file = krate.basic.root_file_id;
     let base_path = overlay.to_base(vfs.file_path(worktree_file).as_path()?)?;
     let (base_file, _) = vfs.file_id(&VfsPath::from(base_path))?;
-    let base_crate = graph.iter().find(|&id| {
+    let same_sources = same_sources(vfs, roots, overlay, worktree_file, base_file);
+    overlay_crates.insert((worktree_file, base_file), same_sources);
+    if !same_sources {
+        return None;
+    }
+    graph.iter().find(|&id| {
         graph[id].basic.root_file_id == base_file && graph[id].eq_modulo_location(krate)
-    })?;
-    same_sources(vfs, roots, overlay, worktree_file, base_file).then_some((
-        base_crate,
-        worktree_file,
-        base_file,
-    ))
+    })
 }
 
-/// The crates of worktrees that were replaced by crates of their base checkout, as the root
-/// files of both.
-pub(crate) type SharedCrates = FxHashMap<FileId, FileId>;
+/// For the crates of worktrees that have a counterpart in the base checkout, as the root files
+/// of both, whether the sources of the two were the same when the crate graph was built.
+pub(crate) type OverlayCrates = FxHashMap<(FileId, FileId), bool>;

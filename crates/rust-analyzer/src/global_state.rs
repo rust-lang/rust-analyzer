@@ -6,6 +6,7 @@
 use std::{
     ops::Not as _,
     panic::AssertUnwindSafe,
+    sync::OnceLock,
     time::{Duration, Instant},
 };
 
@@ -45,7 +46,7 @@ use crate::{
     main_loop::Task,
     mem_docs::MemDocs,
     op_queue::{Cause, OpQueue},
-    overlay::{Overlay, SharedCrates},
+    overlay::{Overlay, OverlayCrates, SourceRoots},
     priming_scope, reload,
     target_spec::{CargoTargetSpec, ProjectJsonTargetSpec, TargetSpec},
     task_pool::{DeferredTaskQueue, TaskPool},
@@ -215,9 +216,12 @@ pub(crate) struct GlobalState {
     /// which will usually end up causing a bunch of incorrect diagnostics on startup.
     pub(crate) incomplete_crate_graph: bool,
     /// The loaded workspaces that live in a git worktree of another loaded workspace.
-    pub(crate) overlays: Vec<Overlay>,
-    /// The crates of those workspaces that the crates of their base checkout stand in for.
-    pub(crate) shared_crates: SharedCrates,
+    pub(crate) overlays: Arc<Vec<Overlay>>,
+    /// For the crates of those workspaces, whether their sources were the same as in the base
+    /// checkout when the crate graph was built.
+    pub(crate) overlay_crates: OverlayCrates,
+    /// The partition of the files into source roots, kept while there are overlays.
+    pub(crate) overlay_source_roots: Option<SourceRoots>,
 
     pub(crate) minicore: MiniCoreRustAnalyzerInternalOnly,
     pub(crate) last_gc_revision: Revision,
@@ -247,6 +251,10 @@ pub(crate) struct GlobalStateSnapshot {
     pub(crate) proc_macros_loaded: bool,
     pub(crate) flycheck: Arc<[FlycheckHandle]>,
     minicore: MiniCoreRustAnalyzerInternalOnly,
+    overlays: Arc<Vec<Overlay>>,
+    /// The overlay that the files named by the request belong to. Paths in the response are
+    /// those of its worktree.
+    request_overlay: OnceLock<usize>,
 }
 
 impl std::panic::UnwindSafe for GlobalStateSnapshot {}
@@ -364,8 +372,9 @@ impl GlobalState {
 
             deferred_task_queue,
             incomplete_crate_graph: false,
-            overlays: Vec::new(),
-            shared_crates: SharedCrates::default(),
+            overlays: Arc::default(),
+            overlay_crates: OverlayCrates::default(),
+            overlay_source_roots: None,
 
             minicore: MiniCoreRustAnalyzerInternalOnly::default(),
             last_gc_revision,
@@ -390,6 +399,9 @@ impl GlobalState {
         if changed_files.is_empty() {
             return (false, None);
         }
+        let changed_file_ids: Vec<FileId> = changed_files.keys().copied().collect();
+        let files_created_or_deleted =
+            changed_files.values().any(|file| file.is_created_or_deleted());
 
         let (change, modified_rust_files, workspace_structure_change) =
             self.cancellation_pool.scoped(|s| {
@@ -606,6 +618,8 @@ impl GlobalState {
             }
         }
 
+        self.recheck_overlays(&changed_file_ids, files_created_or_deleted);
+
         (true, Some(cancellation_time))
     }
 
@@ -635,6 +649,8 @@ impl GlobalState {
             proc_macros_loaded: !self.config.expand_proc_macros()
                 || self.fetch_proc_macros_queue.last_op_result().copied().unwrap_or(false),
             flycheck: self.flycheck.clone(),
+            overlays: Arc::clone(&self.overlays),
+            request_overlay: OnceLock::new(),
         }
     }
 
@@ -1266,11 +1282,56 @@ impl GlobalStateSnapshot {
 
     /// Returns `None` if the file was excluded.
     pub(crate) fn url_to_file_id(&self, url: &Uri) -> anyhow::Result<Option<FileId>> {
-        url_to_file_id(&self.vfs_read(), url)
+        let Some(file_id) = url_to_file_id(&self.vfs_read(), url)? else {
+            return Ok(None);
+        };
+        Ok(Some(self.analyzed_file(file_id)?))
+    }
+
+    /// The file that is analyzed for `file_id`: a file of a worktree that is not part of any
+    /// crate stands for the same file of the base checkout, as its crate is shared with it.
+    fn analyzed_file(&self, file_id: FileId) -> Cancellable<FileId> {
+        if self.overlays.is_empty() {
+            return Ok(file_id);
+        }
+        let base_file = {
+            let vfs = self.vfs_read();
+            let Some(path) = vfs.file_path(file_id).as_path() else {
+                return Ok(file_id);
+            };
+            let Some(idx) = self.overlays.iter().position(|it| path.starts_with(&it.worktree_root))
+            else {
+                return Ok(file_id);
+            };
+            _ = self.request_overlay.set(idx);
+            self.overlays[idx]
+                .to_base(path)
+                .and_then(|path| vfs.file_id(&VfsPath::from(path)))
+                .and_then(|(file_id, excluded)| {
+                    (excluded == vfs::FileExcluded::No).then_some(file_id)
+                })
+        };
+        match base_file {
+            Some(base_file) if self.analysis.crates_for(file_id)?.is_empty() => Ok(base_file),
+            _ => Ok(file_id),
+        }
+    }
+
+    /// The path under which the client that sent the request knows the file.
+    fn client_path(&self, vfs: &vfs::Vfs, file_id: FileId) -> VfsPath {
+        let path = vfs.file_path(file_id);
+        let worktree_path = self
+            .request_overlay
+            .get()
+            .and_then(|&idx| self.overlays[idx].to_worktree(path.as_path()?))
+            .map(VfsPath::from)
+            .filter(|path| vfs.file_id(path).is_some());
+        worktree_path.unwrap_or_else(|| path.clone())
     }
 
     pub(crate) fn file_id_to_url(&self, id: FileId) -> Uri {
-        file_id_to_url(&self.vfs_read(), id)
+        let path = self.client_path(&self.vfs_read(), id);
+        url_from_abs_path(path.as_path().unwrap())
     }
 
     /// Returns `None` if the file was excluded.
@@ -1289,8 +1350,7 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn file_version(&self, file_id: FileId) -> Option<i32> {
-        let vfs = self.vfs_read();
-        let path = vfs.file_path(file_id);
+        let path = &self.client_path(&self.vfs_read(), file_id);
         match self.client_id {
             Some(client_id) if self.mem_docs.is_in_sync_with_vfs(client_id, path) => {
                 self.mem_docs.get(client_id, path).map(|d| d.version)
@@ -1317,9 +1377,8 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn is_file_divergent(&self, file_id: FileId) -> bool {
-        let vfs = self.vfs_read();
-        let path = vfs.file_path(file_id);
-        self.is_path_divergent(path)
+        let path = self.client_path(&self.vfs_read(), file_id);
+        self.is_path_divergent(&path)
     }
 
     pub(crate) fn is_path_divergent(&self, path: &VfsPath) -> bool {
@@ -1354,7 +1413,7 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn anchored_path(&self, path: &AnchoredPathBuf) -> Uri {
-        let mut base = self.vfs_read().file_path(path.anchor).clone();
+        let mut base = self.client_path(&self.vfs_read(), path.anchor);
         base.pop();
         let path = base.join(&path.path).unwrap();
         let path = path.as_path().unwrap();

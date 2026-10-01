@@ -1,7 +1,14 @@
+use lsp_types::{
+    DefinitionParams, DefinitionRequest, DidChangeTextDocumentNotification,
+    DidChangeTextDocumentParams, DidOpenTextDocumentNotification, DidOpenTextDocumentParams,
+    HoverParams, HoverRequest, LanguageKind, Position, TextDocumentContentChangeEvent,
+    TextDocumentContentChangeWholeDocument, TextDocumentItem, TextDocumentPositionParams,
+    VersionedTextDocumentIdentifier,
+};
 use rust_analyzer::lsp::ext::{ViewCrateGraphParams, ViewCrateGraphRequest};
 use test_utils::skip_slow_tests;
 
-use crate::support::Project;
+use crate::support::{Project, Server};
 
 /// A checkout with two packages, and a git worktree of it at `/wt` in which `$APP` is the
 /// contents of `app/src/lib.rs`.
@@ -131,4 +138,128 @@ fn worktree_with_changed_dependency_shares_nothing_that_depends_on_it() {
     // `app` is unchanged, but it depends on the changed `core_lib`
     assert_eq!(crate_count(crate_graph, "core_lib"), 2, "{crate_graph}");
     assert_eq!(crate_count(crate_graph, "app"), 2, "{crate_graph}");
+}
+
+fn worktree_server(app: &str) -> Server {
+    let fixture = CHECKOUT_AND_WORKTREE.replace("$APP", app);
+    Project::with_fixture(&fixture)
+        .root("base")
+        .root("wt")
+        .server()
+        .wait_until_workspace_is_loaded()
+}
+
+fn position(server: &Server, path: &str, line: u32, character: u32) -> TextDocumentPositionParams {
+    TextDocumentPositionParams {
+        text_document: server.doc_id(path),
+        position: Position { line, character },
+    }
+}
+
+fn wait_for_crate_count(server: &Server, name: &str, count: usize) {
+    let mut attempts = 0;
+    loop {
+        let crate_graph =
+            server.send_request::<ViewCrateGraphRequest>(ViewCrateGraphParams { full: true });
+        let crate_graph = crate_graph.as_str().unwrap();
+        if crate_count(crate_graph, name) == count {
+            break;
+        }
+        attempts += 1;
+        assert!(attempts < 500, "expected {count} `{name}` crates: {crate_graph}");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn worktree_file_of_shared_crate_is_served_under_its_own_path() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = worktree_server("pub fn run() -> u32 { core_lib::answer() + 1 }");
+
+    // `core_lib` of the worktree is not analyzed on its own, yet its files answer requests
+    let hover = server.send_request::<HoverRequest>(HoverParams {
+        text_document_position_params: position(&server, "wt/core_lib/src/lib.rs", 0, 8),
+        work_done_progress_params: Default::default(),
+    });
+    assert!(hover.to_string().contains("pub fn answer() -> u32"), "{hover}");
+
+    // Going from the worktree's own crate into the shared one stays in the worktree
+    let definition = server.send_request::<DefinitionRequest>(DefinitionParams {
+        text_document_position_params: position(&server, "wt/app/src/lib.rs", 0, 34),
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+    });
+    let definition = definition.to_string();
+    assert!(definition.contains("/wt/core_lib/src/lib.rs"), "{definition}");
+    assert!(!definition.contains("/base/"), "{definition}");
+
+    // While the base checkout is answered with its own paths
+    let definition = server.send_request::<DefinitionRequest>(DefinitionParams {
+        text_document_position_params: position(&server, "base/app/src/lib.rs", 0, 34),
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+    });
+    let definition = definition.to_string();
+    assert!(definition.contains("/base/core_lib/src/lib.rs"), "{definition}");
+    assert!(!definition.contains("/wt/"), "{definition}");
+}
+
+#[test]
+fn editing_a_shared_crate_in_the_worktree_stops_sharing_it() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = worktree_server("pub fn run() -> u32 { core_lib::answer() }");
+    wait_for_crate_count(&server, "core_lib", 1);
+    wait_for_crate_count(&server, "app", 1);
+
+    let doc_id = server.doc_id("wt/core_lib/src/lib.rs");
+    let text_on_disk = std::fs::read_to_string(doc_id.uri.to_file_path().unwrap()).unwrap();
+    server.notification::<DidOpenTextDocumentNotification>(DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: doc_id.uri.clone(),
+            language_id: LanguageKind::Rust,
+            version: 1,
+            text: text_on_disk.clone(),
+        },
+    });
+    let change = |version: i32, text: &str| DidChangeTextDocumentParams {
+        text_document: VersionedTextDocumentIdentifier {
+            text_document_identifier: doc_id.clone(),
+            version,
+        },
+        content_changes: vec![
+            TextDocumentContentChangeEvent::TextDocumentContentChangeWholeDocument(
+                TextDocumentContentChangeWholeDocument { text: text.to_owned() },
+            ),
+        ],
+    };
+
+    // The worktree gets its own `core_lib`, and its own `app` as that depends on it
+    server.notification::<DidChangeTextDocumentNotification>(change(
+        2,
+        "pub fn answer() -> u64 { 42 }\n",
+    ));
+    wait_for_crate_count(&server, "core_lib", 2);
+    wait_for_crate_count(&server, "app", 2);
+    let hover = |path: &str| {
+        server
+            .send_request::<HoverRequest>(HoverParams {
+                text_document_position_params: position(&server, path, 0, 8),
+                work_done_progress_params: Default::default(),
+            })
+            .to_string()
+    };
+    assert!(hover("wt/core_lib/src/lib.rs").contains("pub fn answer() -> u64"));
+    assert!(hover("base/core_lib/src/lib.rs").contains("pub fn answer() -> u32"));
+
+    // Undoing the edit shares them again
+    server.notification::<DidChangeTextDocumentNotification>(change(3, &text_on_disk));
+    wait_for_crate_count(&server, "core_lib", 1);
+    wait_for_crate_count(&server, "app", 1);
+    assert!(hover("wt/core_lib/src/lib.rs").contains("pub fn answer() -> u32"));
 }
