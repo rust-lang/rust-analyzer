@@ -708,6 +708,25 @@ impl ProjectWorkspace {
             .collect()
     }
 
+    /// Takes over the outputs of the build scripts of `base`, which this workspace is a copy of
+    /// at another place, instead of running them once more.
+    ///
+    /// For a package whose sources differ from `base`, what is taken over is what the build
+    /// script of the other version generated, until the build scripts are run for real.
+    pub fn inherit_build_scripts(&mut self, base: &ProjectWorkspace) {
+        if let (
+            ProjectWorkspaceKind::Cargo {
+                cargo: base_cargo,
+                build_scripts: base_build_scripts,
+                ..
+            },
+            ProjectWorkspaceKind::Cargo { cargo, build_scripts, .. },
+        ) = (&base.kind, &mut self.kind)
+        {
+            *build_scripts = base_build_scripts.for_copy(base_cargo, cargo);
+        }
+    }
+
     pub fn set_build_scripts(&mut self, bs: WorkspaceBuildScripts) {
         match &mut self.kind {
             ProjectWorkspaceKind::Cargo { build_scripts, .. }

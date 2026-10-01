@@ -226,6 +226,12 @@ impl Worktrees {
         }
     }
 
+    /// The workspace of the base checkout, for example for a worktree to
+    /// [inherit](ProjectWorkspace::inherit_build_scripts) the outputs of its build scripts.
+    pub fn base(&self) -> &ProjectWorkspace {
+        &self.workspaces[0]
+    }
+
     /// The worktrees that are loaded.
     pub fn overlays(&self) -> impl Iterator<Item = &Overlay> {
         self.overlays.iter().flatten()
@@ -366,7 +372,9 @@ impl Worktrees {
         };
         same.values()
             .filter(|dirs| packages_of(dirs).iter().all(|pkg| same.contains_key(pkg)))
-            .flat_map(|dirs| dirs.include.iter().cloned())
+            .flat_map(|dirs| dirs.include.iter())
+            .filter(|dir| dir.starts_with(&overlay.worktree_root))
+            .cloned()
             .collect()
     }
 
@@ -401,8 +409,11 @@ impl Worktrees {
                 Some(hash_once::<FxHasher>(&*contents)) == sources.vfs.content_hash(base_file)
             }) && sources.pulls_in_the_same(overlay, base_file, path, &mut FxHashSet::default())
         };
-        dirs.include.iter().all(|dir| walk(dirs, dir, &mut same_file))
-            && n_files == base_files.len()
+        // A directory outside of the worktree, such as the output of a build script taken over
+        // from the base checkout, is the very same directory for both.
+        let mut in_worktree =
+            dirs.include.iter().filter(|dir| dir.starts_with(&overlay.worktree_root));
+        in_worktree.all(|dir| walk(dirs, dir, &mut same_file)) && n_files == base_files.len()
     }
 
     /// Loads the files of all workspaces and builds the crate graph.
@@ -410,16 +421,26 @@ impl Worktrees {
         let mut change = ChangeWithProcMacros::default();
         loop {
             let project_folders = ProjectFolders::new(&self.workspaces, &[], None);
-            let not_loaded = |entry: &Entry| match entry {
-                Entry::Directories(dirs) => dirs
-                    .include
-                    .iter()
-                    .all(|dir| self.not_loaded.iter().any(|not_loaded| not_loaded.contains(dir))),
-                Entry::Files(_) => false,
+            // The same directory can be loaded for several packages, for example the output of
+            // a build script that a worktree took over from the base checkout, so leave out the
+            // directories rather than what is loaded for a package as a whole.
+            let is_not_loaded = |dir: &AbsPathBuf| {
+                self.not_loaded.iter().any(|not_loaded| not_loaded.contains(dir))
             };
+            let load = project_folders
+                .load
+                .into_iter()
+                .filter_map(|entry| match entry {
+                    Entry::Directories(mut dirs) => {
+                        dirs.include.retain(|dir| !is_not_loaded(dir));
+                        (!dirs.include.is_empty()).then_some(Entry::Directories(dirs))
+                    }
+                    entry @ Entry::Files(_) => Some(entry),
+                })
+                .collect();
             self.loader_config_version += 1;
             self.loader.set_config(vfs::loader::Config {
-                load: project_folders.load.into_iter().filter(|it| !not_loaded(it)).collect(),
+                load,
                 watch: vec![],
                 version: self.loader_config_version,
             });
@@ -1196,5 +1217,60 @@ mod tests {
         );
         assert_eq!(checkouts.crates(), 3);
         assert!(!checkouts.is_loaded("same/app/src/lib.rs"));
+    }
+
+    #[test]
+    fn worktree_inherits_what_the_build_scripts_of_the_base_generated() {
+        // Runs `cargo check`.
+        if std::env::var("RUN_SLOW_TESTS").is_err() {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("ra-worktrees-build-{}", std::process::id()));
+        _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let dir = fs::canonicalize(dir).unwrap();
+        let with_build_script = |root: &std::path::Path| {
+            write_checkout(root, "#[cfg(has_flag)]\npub fn answer() -> u32 { 42 }\n", APP);
+            fs::write(
+                root.join("core_lib/build.rs"),
+                "fn main() { println!(\"cargo:rustc-cfg=has_flag\"); }\n",
+            )
+            .unwrap();
+        };
+        with_build_script(&dir.join("base"));
+        with_build_script(&dir.join("wt"));
+
+        let cargo_config = CargoConfig::default();
+        let mut base = load_workspace(&dir.join("base"));
+        let build_scripts = base.run_build_scripts(&cargo_config, &|_| {}).unwrap();
+        assert_eq!(build_scripts.error(), None);
+        base.set_build_scripts(build_scripts);
+        let (worktrees, db, vfs) = Worktrees::load(
+            base,
+            &FxHashMap::default(),
+            &LoadCargoConfig {
+                load_out_dirs_from_check: true,
+                with_proc_macro_server: ProcMacroServerChoice::None,
+                prefill_caches: false,
+                num_worker_threads: 1,
+                proc_macro_processes: 1,
+            },
+        )
+        .unwrap();
+        let mut checkouts = Checkouts { dir, worktrees, db, vfs };
+        let base_crates = checkouts.crates();
+
+        // Running the build scripts wrote the lock file, which a worktree would have as well
+        if let Ok(lock) = fs::read(checkouts.dir.join("base/Cargo.lock")) {
+            fs::write(checkouts.dir.join("wt/Cargo.lock"), lock).unwrap();
+        }
+
+        // Without the outputs of the build scripts the crates of the worktree are not the same
+        let overlay = checkouts.overlay("wt");
+        let mut worktree = load_workspace(&checkouts.dir.join("wt"));
+        worktree.inherit_build_scripts(checkouts.worktrees.base());
+        checkouts.worktrees.add(&mut checkouts.db, &mut checkouts.vfs, worktree, overlay);
+        assert_eq!(checkouts.crates(), base_crates);
+        assert!(!checkouts.is_loaded("wt/core_lib/src/lib.rs"));
     }
 }

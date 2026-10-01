@@ -171,6 +171,39 @@ impl WorkspaceBuildScripts {
         Ok(res)
     }
 
+    /// The outputs of the build scripts of `workspace`, for the packages that `copy`, a copy of
+    /// that workspace at another place, has as well.
+    ///
+    /// This spares running the build scripts of the copy. For a package whose sources are not
+    /// the same in the two, it is what the build script of the other one generated.
+    pub(crate) fn for_copy(
+        &self,
+        workspace: &CargoWorkspace,
+        copy: &CargoWorkspace,
+    ) -> WorkspaceBuildScripts {
+        // A package of the workspace is at the same place in the copy, a library is at the same
+        // place for both.
+        let key = |ws: &CargoWorkspace, pkg: Package| {
+            let manifest: &AbsPath = &ws[pkg].manifest;
+            let place = match manifest.strip_prefix(ws.workspace_root()) {
+                Some(in_workspace) => in_workspace.as_str().to_owned(),
+                None => manifest.as_str().to_owned(),
+            };
+            (ws[pkg].name.clone(), ws[pkg].version.clone(), place)
+        };
+        let by_key: FxHashMap<_, &BuildScriptOutput> = workspace
+            .packages()
+            .filter_map(|pkg| Some((key(workspace, pkg), self.outputs.get(pkg)?)))
+            .collect();
+        let mut outputs = ArenaMap::default();
+        for pkg in copy.packages() {
+            if let Some(&output) = by_key.get(&key(copy, pkg)) {
+                outputs.insert(pkg, output.clone());
+            }
+        }
+        WorkspaceBuildScripts { outputs, error: self.error.clone() }
+    }
+
     pub fn error(&self) -> Option<&str> {
         self.error.as_deref()
     }
