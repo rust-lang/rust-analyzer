@@ -819,12 +819,18 @@ mod tests {
     }
 
     #[track_caller]
-    fn check_function_relevance(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
-        let actual: Vec<_> =
-            do_completion(ra_fixture, CompletionItemKind::SymbolKind(SymbolKind::Method))
-                .into_iter()
-                .map(|item| (item.detail.unwrap_or_default(), item.relevance.function))
-                .collect();
+    fn check_function_relevance(
+        #[rust_analyzer::rust_fixture] ra_fixture: &str,
+        kinds: &[CompletionItemKind],
+        expect: Expect,
+    ) {
+        let actual: Vec<_> = kinds
+            .iter()
+            .flat_map(|&kind| do_completion(ra_fixture, kind))
+            .map(|item| {
+                (item.label.primary, item.detail.unwrap_or_default(), item.relevance.function)
+            })
+            .collect();
 
         expect.assert_debug_eq(&actual);
     }
@@ -3690,6 +3696,8 @@ impl T for (){
 
     #[test]
     fn constructor_order_kind() {
+        // FIXME: Why do these functions have `&self` instead of like `constructor_order_relevance`?
+        // Because the old `check_function_relevance` can only check methods?
         check_function_relevance(
             r#"
 struct Foo;
@@ -3712,9 +3720,11 @@ fn test() {
     let a = self::Foo::$0;
 }
 "#,
+            &[CompletionItemKind::SymbolKind(SymbolKind::Method)],
             expect![[r#"
                 [
                     (
+                        "fn_another(…)",
                         "fn(&self, u32) -> Bar",
                         Some(
                             CompletionRelevanceFn {
@@ -3725,6 +3735,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_another_unit(…)",
                         "fn(&self)",
                         Some(
                             CompletionRelevanceFn {
@@ -3735,6 +3746,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr(…)",
                         "fn(&self) -> Foo",
                         Some(
                             CompletionRelevanceFn {
@@ -3745,6 +3757,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr_with_args(…)",
                         "fn(&self, u32) -> Foo",
                         Some(
                             CompletionRelevanceFn {
@@ -3755,6 +3768,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr_wrapped(…)",
                         "fn(&self) -> Option<Foo>",
                         Some(
                             CompletionRelevanceFn {
@@ -3765,6 +3779,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr_wrapped_2(…)",
                         "fn(&self) -> Result<Foo, Bar>",
                         Some(
                             CompletionRelevanceFn {
@@ -3775,6 +3790,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr_wrapped_3(…)",
                         "fn(&self) -> Result<Bar, Foo>",
                         Some(
                             CompletionRelevanceFn {
@@ -3785,6 +3801,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr_wrapped_with_args(…)",
                         "fn(&self, u32) -> Option<Foo>",
                         Some(
                             CompletionRelevanceFn {
