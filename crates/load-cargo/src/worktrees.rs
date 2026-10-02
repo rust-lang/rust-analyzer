@@ -1017,6 +1017,37 @@ impl Views {
         }
     }
 
+    /// The file at `path` for who works in `view`. Returns `None` if `path` belongs to
+    /// another worktree or is overridden by `view`.
+    pub fn file_in_view(
+        &self,
+        vfs: &Vfs,
+        view: Option<&Overlay>,
+        path: &AbsPath,
+        is_in_a_crate: impl FnOnce(FileId) -> bool,
+    ) -> Option<FileId> {
+        let worktree_of_path = self.overlay_of(path);
+        match view {
+            None => {
+                if worktree_of_path.is_some() {
+                    return None;
+                }
+            }
+            Some(v) => {
+                if let Some(wt) = worktree_of_path {
+                    if wt != v {
+                        return None;
+                    }
+                }
+            }
+        }
+        let file_id = self.file(vfs, path)?;
+        if !self.in_view(vfs, view, file_id, is_in_a_crate) {
+            return None;
+        }
+        Some(file_id)
+    }
+
     /// The file to analyze for `file`: a file of a crate that a worktree shares with its base
     /// checkout stands for the same file of the base checkout.
     ///
@@ -1217,6 +1248,12 @@ mod tests {
             let file = self.file(path);
             self.worktrees.views().in_view(&self.vfs, view, file, |file| self.is_in_a_crate(file))
         }
+
+        fn file_in_view(&self, view: Option<&Overlay>, path: &str) -> Option<FileId> {
+            self.worktrees
+                .views()
+                .file_in_view(&self.vfs, view, &self.path(path), |file| self.is_in_a_crate(file))
+        }
     }
 
     impl Drop for Checkouts {
@@ -1247,6 +1284,30 @@ mod tests {
         let manifest = AbsPathBuf::assert_utf8(root.join("Cargo.toml"));
         let manifest = ProjectManifest::from_manifest_file(manifest).unwrap();
         ProjectWorkspace::load(manifest, &CargoConfig::default(), &|_| {}).unwrap()
+    }
+
+    #[test]
+    fn file_in_view_rejects_paths_from_other_worktrees() {
+        let mut checkouts = Checkouts::new();
+        checkouts.add_worktree("wt1", CORE_LIB, APP);
+        checkouts.add_worktree("wt2", CORE_LIB, APP);
+        let view1 = checkouts.overlay("wt1");
+        let view2 = checkouts.overlay("wt2");
+
+        // Base file is visible in all views
+        assert!(checkouts.file_in_view(None, "base/core_lib/src/lib.rs").is_some());
+        assert!(checkouts.file_in_view(Some(&view1), "base/core_lib/src/lib.rs").is_some());
+        assert!(checkouts.file_in_view(Some(&view2), "base/core_lib/src/lib.rs").is_some());
+
+        // A file requested at wt1's path is visible in wt1's view, but None in base and wt2 views
+        assert!(checkouts.file_in_view(Some(&view1), "wt1/core_lib/src/lib.rs").is_some());
+        assert!(checkouts.file_in_view(None, "wt1/core_lib/src/lib.rs").is_none());
+        assert!(checkouts.file_in_view(Some(&view2), "wt1/core_lib/src/lib.rs").is_none());
+
+        // A file requested at wt2's path is visible in wt2's view, but None in base and wt1 views
+        assert!(checkouts.file_in_view(Some(&view2), "wt2/app/src/lib.rs").is_some());
+        assert!(checkouts.file_in_view(None, "wt2/app/src/lib.rs").is_none());
+        assert!(checkouts.file_in_view(Some(&view1), "wt2/app/src/lib.rs").is_none());
     }
 
     #[test]
