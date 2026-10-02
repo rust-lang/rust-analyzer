@@ -1187,6 +1187,12 @@ mod tests {
     use crate::ProcMacroServerChoice;
 
     /// A directory with a base checkout at `base` and copies of it next to it.
+    /// Without the symbolic links that the directory for temporary files has on macOS. Not on
+    /// Windows, where what we would get is not the path that cargo tells of.
+    fn canonical(dir: PathBuf) -> PathBuf {
+        if cfg!(windows) { dir } else { fs::canonicalize(dir).unwrap() }
+    }
+
     struct Checkouts {
         dir: PathBuf,
         worktrees: Worktrees,
@@ -1205,11 +1211,8 @@ mod tests {
                 std::process::id(),
                 COUNTER.fetch_add(1, Ordering::Relaxed)
             ));
-            let dir = fs::canonicalize({
-                fs::create_dir_all(&dir).unwrap();
-                dir
-            })
-            .unwrap();
+            fs::create_dir_all(&dir).unwrap();
+            let dir = canonical(dir);
             write_checkout(&dir.join("base"), CORE_LIB, APP);
             let (worktrees, db, vfs) = Worktrees::load(
                 load_workspace(&dir.join("base")),
@@ -1596,7 +1599,7 @@ mod tests {
         let pulling_in = "#[path = \"../../shared.rs\"]\nmod shared;\npub fn run() -> u32 { 1 }\n";
         let dir = std::env::temp_dir().join(format!("ra-worktrees-pull-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
-        let dir = fs::canonicalize(dir).unwrap();
+        let dir = canonical(dir);
         write_checkout(&dir.join("base"), CORE_LIB, pulling_in);
         fs::write(dir.join("base/shared.rs"), "pub fn shared() {}\n").unwrap();
         let (worktrees, db, vfs) = Worktrees::load(
@@ -1664,7 +1667,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ra-worktrees-build-{}", std::process::id()));
         _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        let dir = fs::canonicalize(dir).unwrap();
+        let dir = canonical(dir);
         let with_build_script = |root: &std::path::Path| {
             write_checkout(root, "#[cfg(has_flag)]\npub fn answer() -> u32 { 42 }\n", APP);
             fs::write(
@@ -1751,7 +1754,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ra-worktrees-feat-{}", std::process::id()));
         _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        let dir = fs::canonicalize(dir).unwrap();
+        let dir = canonical(dir);
         with_feature(&dir.join("base"), false);
         let (worktrees, db, vfs) = Worktrees::load(
             load_workspace(&dir.join("base")),
@@ -1857,7 +1860,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ra-worktrees-out-{}", std::process::id()));
         _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        let dir = fs::canonicalize(dir).unwrap();
+        let dir = canonical(dir);
         // A sibling of the checkout whose name starts like it, which `app` depends on
         let outside = dir.join("base-utils");
         fs::create_dir_all(outside.join("src")).unwrap();

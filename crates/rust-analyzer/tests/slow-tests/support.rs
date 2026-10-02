@@ -635,6 +635,20 @@ pub(crate) struct ClientHandle {
     _forwarder: stdx::thread::JoinHandle,
 }
 
+/// Whether the two are the same but for the case of the letter of the drive, which the server
+/// sends in lower case whatever the client sent.
+pub(crate) fn same_uri(a: &Uri, b: &Uri) -> bool {
+    fn drive(uri: &str) -> Option<(char, &str)> {
+        let mut rest = uri.strip_prefix("file:///")?.chars();
+        let drive = rest.next().filter(char::is_ascii_alphabetic)?;
+        Some((drive.to_ascii_lowercase(), rest.as_str().strip_prefix(':')?))
+    }
+    match (drive(a.as_str()), drive(b.as_str())) {
+        (Some(a), Some(b)) => a == b,
+        _ => a == b,
+    }
+}
+
 impl ClientHandle {
     pub(crate) fn doc_id(&self, rel_path: &str) -> TextDocumentIdentifier {
         let path = self.dir_path.join(rel_path);
@@ -812,7 +826,7 @@ impl ClientHandle {
             {
                 let params: PublishDiagnosticsParams =
                     serde_json::from_value(n.params.clone()).unwrap();
-                if params.uri == *uri
+                if same_uri(&params.uri, uri)
                     && params.version == Some(version)
                     && !params.diagnostics.is_empty()
                 {
@@ -832,7 +846,7 @@ impl ClientHandle {
             {
                 let params: PublishDiagnosticsParams =
                     serde_json::from_value(n.params.clone()).unwrap();
-                if params.uri == *uri
+                if same_uri(&params.uri, uri)
                     && params.version == Some(version)
                     && !params.diagnostics.is_empty()
                 {

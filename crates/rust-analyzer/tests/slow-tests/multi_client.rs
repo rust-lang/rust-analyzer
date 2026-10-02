@@ -756,7 +756,7 @@ pub fn foo() {
 
     // Client 1 receives the diagnostic
     let diag1 = client1.wait_for_diagnostics();
-    assert_eq!(diag1.uri, doc_id.uri);
+    assert!(crate::support::same_uri(&diag1.uri, &doc_id.uri), "{:?}", diag1.uri);
     assert!(!diag1.diagnostics.is_empty());
 
     // Client 2 opens src/lib.rs with an unsaved divergent edit
@@ -789,7 +789,7 @@ pub fn foo() {
 
     // Because Client 2 transitioned from divergent -> in sync, diagnostics must be replayed to Client 2!
     let diag2 = client2.wait_for_diagnostics_with_version(&doc_id.uri, 2);
-    assert_eq!(diag2.uri, doc_id.uri);
+    assert!(crate::support::same_uri(&diag2.uri, &doc_id.uri), "{:?}", diag2.uri);
     assert_eq!(diag2.version, Some(2));
     assert!(!diag2.diagnostics.is_empty());
 
@@ -837,7 +837,7 @@ pub fn foo() {
 
     // Client 1 receives the diagnostic
     let diag1 = client1.wait_for_diagnostics_with_version(&doc_id.uri, 1);
-    assert_eq!(diag1.uri, doc_id.uri);
+    assert!(crate::support::same_uri(&diag1.uri, &doc_id.uri), "{:?}", diag1.uri);
     assert_eq!(diag1.version, Some(1));
     assert!(!diag1.diagnostics.is_empty());
 
@@ -872,7 +872,7 @@ pub fn foo() {
 
     // Client 2 must receive the diagnostic even though diagnostic contents are identical to cached!
     let diag2 = client2.wait_for_diagnostics_with_version(&doc_id.uri, 2);
-    assert_eq!(diag2.uri, doc_id.uri);
+    assert!(crate::support::same_uri(&diag2.uri, &doc_id.uri), "{:?}", diag2.uri);
     assert_eq!(diag2.version, Some(2));
     assert!(!diag2.diagnostics.is_empty());
 

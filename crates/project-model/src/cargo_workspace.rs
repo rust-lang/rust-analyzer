@@ -539,7 +539,17 @@ impl CargoWorkspace {
         let manifest = |manifest: &ManifestPath| {
             ManifestPath::try_from(path(manifest)).unwrap_or_else(|_| manifest.clone())
         };
-        let text = |text: &str| move_paths_in_text(text, from.as_str(), to.as_str());
+        // On Windows, cargo writes the paths in package ids with `/`.
+        let (from_in_url, to_in_url) =
+            (from.as_str().replace('\\', "/"), to.as_str().replace('\\', "/"));
+        let text = |text: &str| {
+            let text = move_paths_in_text(text, from.as_str(), to.as_str());
+            if from_in_url == from.as_str() {
+                text
+            } else {
+                move_paths_in_text(&text, &from_in_url, &to_in_url)
+            }
+        };
         let utf8_path = |path: &Utf8PathBuf| match path.strip_prefix(from) {
             Ok(in_workspace) => Utf8PathBuf::from(to.join(in_workspace)),
             Err(_) => path.clone(),
@@ -925,6 +935,13 @@ mod tests {
         // A sibling whose name starts the same
         assert_eq!(moved("/work/repo-utils/helper"), "/work/repo-utils/helper");
         assert_eq!(moved("/work/repository"), "/work/repository");
+        // A drive, and the separators of Windows
+        let moved = |text: &str| move_paths_in_text(text, r"C:\work\repo", r"C:\copy");
+        assert_eq!(moved(r"C:\work\repo\app"), r"C:\copy\app");
+        assert_eq!(moved(r"C:\work\repo-utils"), r"C:\work\repo-utils");
+        let moved = |text: &str| move_paths_in_text(text, "C:/work/repo", "C:/copy");
+        assert_eq!(moved("path+file:///C:/work/repo/app#0.1.0"), "path+file:///C:/copy/app#0.1.0");
+        let moved = |text: &str| move_paths_in_text(text, "/work/repo", "/copy");
         // The same components in the middle of another path
         assert_eq!(moved("/deps/work/repo/helper"), "/deps/work/repo/helper");
         assert_eq!(moved("path+file:///deps/work/repo#0.1.0"), "path+file:///deps/work/repo#0.1.0");

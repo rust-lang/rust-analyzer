@@ -501,7 +501,7 @@ fn diagnostics_of_a_shared_crate_reach_the_worktree_client_under_its_path() {
     });
 
     let diagnostics = worktree_client.wait_for_diagnostics();
-    assert_eq!(diagnostics.uri, doc_id.uri);
+    assert!(crate::support::same_uri(&diagnostics.uri, &doc_id.uri), "{:?}", diagnostics.uri);
     assert_eq!(diagnostics.version, Some(1));
 
     base_client.shutdown_and_exit();
@@ -574,7 +574,7 @@ fn diagnostics_of_a_shared_crate_reach_an_open_worktree_document() {
     });
 
     let diagnostics = server.wait_for_diagnostics();
-    assert_eq!(diagnostics.uri, doc_id.uri);
+    assert!(crate::support::same_uri(&diagnostics.uri, &doc_id.uri), "{:?}", diagnostics.uri);
     assert_eq!(diagnostics.version, Some(1));
 }
 

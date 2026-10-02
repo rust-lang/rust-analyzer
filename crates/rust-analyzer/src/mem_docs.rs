@@ -241,7 +241,9 @@ mod tests {
     use super::*;
 
     fn test_path(s: &str) -> VfsPath {
-        VfsPath::new_real_path(s.to_owned())
+        // An absolute path needs a drive on Windows.
+        let s = if cfg!(windows) { format!("C:{s}") } else { s.to_owned() };
+        VfsPath::new_real_path(s)
     }
 
     #[test]
