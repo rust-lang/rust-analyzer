@@ -3817,7 +3817,7 @@ fn test() {
     }
 
     #[test]
-    fn constructor_order_generic() {
+    fn constructor_order_kind_with_generic() {
         check_function_relevance(
             r#"
 //- minicore: option, result
@@ -4026,7 +4026,6 @@ fn test() {
 
     #[test]
     fn function_relevance_generic_3() {
-        // Generic 2
         check_relevance(
             r#"
 //- minicore: option, result
