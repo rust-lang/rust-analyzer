@@ -3871,7 +3871,7 @@ fn test() {
                             CompletionRelevanceFn {
                                 has_params: true,
                                 has_self_param: true,
-                                return_type: Constructor,
+                                return_type: Other,
                             },
                         ),
                     ),
@@ -3893,7 +3893,7 @@ fn test() {
                             CompletionRelevanceFn {
                                 has_params: true,
                                 has_self_param: true,
-                                return_type: Constructor,
+                                return_type: Other,
                             },
                         ),
                     ),
@@ -4048,10 +4048,10 @@ fn test() {
             expect![[r#"
                 fn new() fn() -> Vec<{unknown}> []
                 me split_off(…) fn(&mut self, usize) -> Vec<{unknown}> []
-                me pop(…) fn(&mut self) -> Option<{unknown}> []
-                me push_within_capacity(…) fn(&mut self, {unknown}) -> Result<&mut {unknown}, {unknown}> []
                 fn try_with_capacity(…) fn(usize) -> Result<Vec<{unknown}>, ()> []
+                me pop(…) fn(&mut self) -> Option<{unknown}> []
                 me push(…) fn(&mut self, {unknown}) []
+                me push_within_capacity(…) fn(&mut self, {unknown}) -> Result<&mut {unknown}, {unknown}> []
             "#]],
         );
     }
