@@ -8,6 +8,22 @@
 //! checkout are not even loaded.
 //!
 //! A worktree need not be a git worktree: any directory with a copy of the base checkout will do.
+//!
+//! # Queries and changes at the same time
+//!
+//! There is one database for all checkouts, so a change to a file of any of them is a change
+//! for all of them. Everything that changes something here takes `&mut RootDatabase`, and
+//! getting that
+//!
+//! - cancels the queries that run on snapshots of the database, in every checkout, not only in
+//!   the one that changes: they end with [`Cancelled`];
+//! - waits until all those snapshots are dropped. A snapshot that is kept, say between two
+//!   queries, holds up every change.
+//!
+//! So whoever asks has to expect [`Cancelled`] from any query at any time, has to drop the
+//! snapshot it asked, and ask again with a new one: [`retry_cancelled`] does that. Changes that
+//! come one by one cancel once each; applying what has piled up in one go costs the readers
+//! less.
 
 use std::{cell::RefCell, fs, sync::Arc, time::SystemTime};
 
@@ -35,6 +51,33 @@ use crate::{
         pulled_in_files, same_sources,
     },
 };
+
+pub use ide_db::base_db::salsa::Cancelled;
+
+/// Asks `query` of a snapshot, again with a new snapshot each time a change cancels it, at most
+/// `attempts` times.
+///
+/// The cancelled snapshot is dropped before the next one is taken: the change that cancelled
+/// the query waits for that. `snapshot` therefore has to wait for the change in turn, as taking
+/// a snapshot from behind the lock that guards the database does.
+///
+/// A query that was cancelled for another reason than a change is not asked again. With changes
+/// that keep coming a query may never finish, hence `attempts`: the last cancellation is
+/// returned then.
+pub fn retry_cancelled<S, T>(
+    attempts: usize,
+    mut snapshot: impl FnMut() -> S,
+    mut query: impl FnMut(&S) -> Result<T, Cancelled>,
+) -> Result<T, Cancelled> {
+    let mut attempt = 1;
+    loop {
+        let asked = snapshot();
+        match query(&asked) {
+            Err(Cancelled::PendingWrite) if attempt < attempts => attempt += 1,
+            res => return res,
+        }
+    }
+}
 
 /// The workspaces loaded into a database: a base checkout, and worktrees of it that share with
 /// it the crates they have in common.
@@ -1034,10 +1077,8 @@ impl Views {
                 }
             }
             Some(v) => {
-                if let Some(wt) = worktree_of_path {
-                    if wt != v {
-                        return None;
-                    }
+                if worktree_of_path.is_some_and(|wt| wt != v) {
+                    return None;
                 }
             }
         }
@@ -1862,6 +1903,44 @@ mod tests {
 
         checkouts.worktrees.add(&mut checkouts.db, &mut checkouts.vfs, loaded, overlay);
         assert_eq!(checkouts.crates(), base_crates);
+    }
+
+    #[test]
+    fn cancelled_query_is_asked_again_of_a_new_snapshot() {
+        use std::cell::Cell;
+
+        // Counts the snapshots that are alive
+        struct Snapshot<'a>(&'a Cell<usize>, usize);
+        impl Drop for Snapshot<'_> {
+            fn drop(&mut self) {
+                self.0.set(self.0.get() - 1);
+            }
+        }
+        let (alive, taken) = (Cell::new(0), Cell::new(0));
+        let snapshot = || {
+            // The one that was cancelled is gone: a change waits for that
+            assert_eq!(alive.get(), 0);
+            alive.set(1);
+            taken.set(taken.get() + 1);
+            Snapshot(&alive, taken.get())
+        };
+
+        let res = retry_cancelled(5, snapshot, |snapshot: &Snapshot<'_>| {
+            if snapshot.1 < 3 { Err(Cancelled::PendingWrite) } else { Ok(snapshot.1) }
+        });
+        assert_eq!((res.ok(), alive.get()), (Some(3), 0));
+
+        // Changes that keep coming do not keep us forever
+        taken.set(0);
+        let res = retry_cancelled(4, snapshot, |_| Err::<(), _>(Cancelled::PendingWrite));
+        assert!(matches!(res, Err(Cancelled::PendingWrite)));
+        assert_eq!(taken.get(), 4);
+
+        // What a change did not cancel is not asked again
+        taken.set(0);
+        let res = retry_cancelled(4, snapshot, |_| Err::<(), _>(Cancelled::PropagatedPanic));
+        assert!(matches!(res, Err(Cancelled::PropagatedPanic)));
+        assert_eq!(taken.get(), 1);
     }
 
     /// Many worktrees and many changes in no particular order: after each of them, what is
