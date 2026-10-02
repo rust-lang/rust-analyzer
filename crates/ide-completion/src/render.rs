@@ -3817,6 +3817,103 @@ fn test() {
     }
 
     #[test]
+    fn constructor_order_generic() {
+        check_function_relevance(
+            r#"
+//- minicore: option, result
+struct Vec<T>(T);
+
+impl Vec<T> {
+    fn new() -> Self { loop {} }
+    fn try_with_capacity(capacity: usize) -> Result<Self, ()> { loop {} }
+    fn push(&mut self, value: T) { loop {} }
+    fn pop(&mut self) -> Option<T> { loop {} }
+    fn split_off(&mut self, at: usize) -> Self { loop {} }
+    fn push_within_capacity(&mut self, value: T) -> Result<&mut T, T> { loop {} }
+}
+
+fn test() {
+    Vec::$0
+}
+"#,
+            &[
+                CompletionItemKind::SymbolKind(SymbolKind::Function),
+                CompletionItemKind::SymbolKind(SymbolKind::Method),
+            ],
+            expect![[r#"
+                [
+                    (
+                        "new()",
+                        "fn() -> Vec<{unknown}>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: false,
+                                has_self_param: false,
+                                return_type: DirectConstructor,
+                            },
+                        ),
+                    ),
+                    (
+                        "try_with_capacity(…)",
+                        "fn(usize) -> Result<Vec<{unknown}>, ()>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: false,
+                                return_type: Constructor,
+                            },
+                        ),
+                    ),
+                    (
+                        "pop(…)",
+                        "fn(&mut self) -> Option<{unknown}>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: true,
+                                return_type: Constructor,
+                            },
+                        ),
+                    ),
+                    (
+                        "push(…)",
+                        "fn(&mut self, {unknown})",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: true,
+                                return_type: Other,
+                            },
+                        ),
+                    ),
+                    (
+                        "push_within_capacity(…)",
+                        "fn(&mut self, {unknown}) -> Result<&mut {unknown}, {unknown}>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: true,
+                                return_type: Constructor,
+                            },
+                        ),
+                    ),
+                    (
+                        "split_off(…)",
+                        "fn(&mut self, usize) -> Vec<{unknown}>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: true,
+                                return_type: DirectConstructor,
+                            },
+                        ),
+                    ),
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
     fn constructor_order_relevance() {
         check_relevance(
             r#"
@@ -3923,6 +4020,38 @@ fn test() {
                 fn fn_ctr2() fn() -> Result<Foo<T>, u32> []
                 me fn_no_ret(…) fn(&self) []
                 fn fn_other() fn() -> Option<u32> []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn function_relevance_generic_3() {
+        // Generic 2
+        check_relevance(
+            r#"
+//- minicore: option, result
+struct Vec<T>(T);
+
+impl Vec<T> {
+    fn new() -> Self { loop {} }
+    fn try_with_capacity(capacity: usize) -> Result<Self, ()> { loop {} }
+    fn push(&mut self, value: T) { loop {} }
+    fn pop(&mut self) -> Option<T> { loop {} }
+    fn split_off(&mut self, at: usize) -> Self { loop {} }
+    fn push_within_capacity(&mut self, value: T) -> Result<&mut T, T> { loop {} }
+}
+
+fn test() {
+    Vec::$0
+}
+                "#,
+            expect![[r#"
+                fn new() fn() -> Vec<{unknown}> []
+                me split_off(…) fn(&mut self, usize) -> Vec<{unknown}> []
+                me pop(…) fn(&mut self) -> Option<{unknown}> []
+                me push_within_capacity(…) fn(&mut self, {unknown}) -> Result<&mut {unknown}, {unknown}> []
+                fn try_with_capacity(…) fn(usize) -> Result<Vec<{unknown}>, ()> []
+                me push(…) fn(&mut self, {unknown}) []
             "#]],
         );
     }
