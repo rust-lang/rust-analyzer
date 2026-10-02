@@ -1,6 +1,7 @@
 {
   "name": "wasmtime-github-release",
   "version": "0.0.0",
+  "type":"module",
   "main": "main.js",
   "dependencies": {
     "@actions/core": "^3.0.1",
