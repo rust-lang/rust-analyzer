@@ -704,10 +704,22 @@ impl FetchMetadata {
         if cargo_toml.is_rust_manifest() {
             other_options.push("-Zscript".to_owned());
         } else if let Some(v) = config.toolchain_version.as_ref() {
-            lockfile_copy = make_lockfile_copy(
-                v,
-                &<_ as AsRef<Utf8Path>>::as_ref(cargo_toml).with_extension("lock"),
-            );
+            // Search the manifest's directory and its ancestors for the lockfile. The
+            // manifest may be an entry point into a larger source distribution whose
+            // lockfile lives higher up. Notably, the `rustc-dev` component ships
+            // `rustc-src/rust/compiler/rustc/Cargo.toml` without a sibling lockfile or a
+            // workspace root manifest; its lockfile is at `rustc-src/rust/Cargo.lock`. Without
+            // it, `cargo metadata` tries to write a fresh lockfile next to the manifest, which
+            // fails in read-only toolchain installations and degrades us to `--no-deps`
+            // metadata, losing all dependency crates (e.g. `rustc_middle`).
+            let lockfile_path = <_ as AsRef<Utf8Path>>::as_ref(cargo_toml)
+                .ancestors()
+                .skip(1)
+                .map(|dir| dir.join("Cargo.lock"))
+                .find(|lock| lock.as_std_path().is_file());
+            if let Some(lockfile_path) = lockfile_path {
+                lockfile_copy = make_lockfile_copy(v, &lockfile_path);
+            }
         }
 
         if !config.targets.is_empty() {
