@@ -125,6 +125,7 @@ fn render(
         function,
         trait_: trait_info,
         is_skipping_completion: matches!(func_kind, FuncKind::Method(_, Some(_))),
+        is_async_in_sync: matches!(func_kind, FuncKind::Method(dot_access, Some(ref str)) if !dot_access.ctx.is_async && str == "await"),
         ..ctx.completion_relevance()
     });
 

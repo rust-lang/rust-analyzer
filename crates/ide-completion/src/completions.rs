@@ -540,10 +540,12 @@ impl Completions {
         receiver: Option<SmolStr>,
         field: usize,
         ty: &hir::Type<'_>,
+        is_async_in_sync: bool,
     ) {
         // Only used for (unnamed) tuples, whose all fields *are* stable. No need to check
         // stability here.
-        let item = render_tuple_field(RenderContext::new(ctx), receiver, field, ty);
+        let item =
+            render_tuple_field(RenderContext::new(ctx), receiver, field, ty, is_async_in_sync);
         self.add(item);
     }
 

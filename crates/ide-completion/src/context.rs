@@ -189,6 +189,7 @@ pub(crate) struct PathExprCtx<'db> {
     /// Whether this expression occurs in match arm guard position: before the
     /// fat arrow token
     pub(crate) in_match_guard: bool,
+    pub(crate) is_async: bool,
 }
 
 /// Original file ast nodes
@@ -443,6 +444,7 @@ pub(crate) enum DotAccessKind {
 pub(crate) struct DotAccessExprCtx {
     pub(crate) in_block_expr: bool,
     pub(crate) in_breakable: Option<BreakableKind>,
+    pub(crate) is_async: bool,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
