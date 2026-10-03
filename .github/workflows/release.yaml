@@ -256,6 +256,7 @@ jobs:
         include:
           - cmd: vsce
             # Visual Studio Marketplace currently lacks the UI to create the trusted policy
+            # authentication: --oidc
             authentication: --pat "$PUBLISH_PAT"
           - cmd: ovsx
             authentication: --trusted-publishing
