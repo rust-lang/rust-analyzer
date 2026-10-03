@@ -14,9 +14,10 @@ use lsp_types::{
 use parking_lot::{Mutex, MutexGuard};
 use paths::{Utf8Path, Utf8PathBuf};
 use rust_analyzer::{
+    ClientId, MultiClientInbox,
     cli::flags,
     config::{Config, ConfigChange, ConfigErrors},
-    lsp, main_loop,
+    lsp, main_loop, main_loop_multi,
 };
 use serde::Serialize;
 use serde_json::{Value, json, to_string_pretty};
@@ -141,7 +142,10 @@ impl Project<'_> {
     /// if there is a path to config dir in the test fixture. However, in certain cases we create a
     /// file in the config dir after server is run, something where our naive approach comes short.
     /// Using a `prelock` allows us to force a lock when we know we need it.
-    pub(crate) fn server_with_lock(self, config_lock: bool) -> Server {
+    fn prepare_config(
+        self,
+        config_lock: bool,
+    ) -> (Option<(MutexGuard<'static, ()>, TestDir)>, TestDir, Config) {
         static CONFIG_DIR_LOCK: Mutex<()> = Mutex::new(());
 
         let config_dir_guard = if config_lock {
@@ -282,12 +286,26 @@ impl Project<'_> {
 
         config.rediscover_workspaces();
 
+        (config_dir_guard, tmp_dir, config)
+    }
+
+    pub(crate) fn server_with_lock(self, config_lock: bool) -> Server {
+        let (config_dir_guard, tmp_dir, config) = self.prepare_config(config_lock);
         Server::new(config_dir_guard, tmp_dir.keep(), config)
+    }
+
+    pub(crate) fn multi_server(self) -> MultiServer {
+        let (config_dir_guard, tmp_dir, config) = self.prepare_config(false);
+        MultiServer::new(config_dir_guard, tmp_dir.keep(), config)
     }
 }
 
 pub(crate) fn project(fixture: &str) -> Server {
     Project::with_fixture(fixture).server()
+}
+
+pub(crate) fn multi_project(fixture: &str) -> MultiServer {
+    Project::with_fixture(fixture).multi_server()
 }
 
 pub(crate) struct Server {
@@ -532,6 +550,363 @@ impl Drop for Server {
     }
 }
 
+pub(crate) struct MultiServer {
+    dir: TestDir,
+    inbox: MultiClientInbox,
+    thread: Option<stdx::thread::JoinHandle>,
+    _config_dir_guard: Option<(MutexGuard<'static, ()>, TestDir)>,
+}
+
+impl MultiServer {
+    fn new(
+        config_dir_guard: Option<(MutexGuard<'static, ()>, TestDir)>,
+        dir: TestDir,
+        config: Config,
+    ) -> MultiServer {
+        let inbox = MultiClientInbox::new();
+        let inbox_clone = inbox.clone();
+
+        let thread =
+            stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker, "test multi server")
+                .spawn(move || main_loop_multi(config, inbox_clone).unwrap())
+                .expect("failed to spawn multi server thread");
+
+        MultiServer { dir, inbox, thread: Some(thread), _config_dir_guard: config_dir_guard }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn path(&self) -> &Utf8Path {
+        self.dir.path()
+    }
+
+    pub(crate) fn connect(&self, client_id: ClientId) -> ClientHandle {
+        self.connect_with_encoding(
+            client_id,
+            Some(rust_analyzer::PositionEncoding::Wide(rust_analyzer::WideEncoding::Utf16)),
+        )
+    }
+
+    pub(crate) fn connect_with_encoding(
+        &self,
+        client_id: ClientId,
+        position_encoding: Option<rust_analyzer::PositionEncoding>,
+    ) -> ClientHandle {
+        let (server_conn, client_conn) = Connection::memory();
+        let forwarder = self.inbox.register_client_with_encoding(
+            client_id,
+            server_conn.sender,
+            server_conn.receiver,
+            position_encoding,
+        );
+        ClientHandle {
+            client_id,
+            dir_path: self.dir.path().to_path_buf(),
+            req_id: Cell::new(1),
+            messages: Default::default(),
+            client: client_conn,
+            _forwarder: forwarder,
+        }
+    }
+
+    pub(crate) fn wait_for_shutdown(mut self) {
+        if let Some(thread) = self.thread.take() {
+            #[allow(clippy::let_unit_value)]
+            let _ = thread.join();
+        }
+    }
+}
+
+impl Drop for MultiServer {
+    fn drop(&mut self) {
+        if let Some(thread) = self.thread.take() {
+            #[allow(clippy::let_unit_value)]
+            let _ = thread.join();
+        }
+    }
+}
+
+pub(crate) struct ClientHandle {
+    #[allow(dead_code)]
+    pub(crate) client_id: ClientId,
+    pub(crate) dir_path: Utf8PathBuf,
+    req_id: Cell<i32>,
+    messages: RefCell<Vec<Message>>,
+    client: Connection,
+    _forwarder: stdx::thread::JoinHandle,
+}
+
+/// Whether the two are the same but for the case of the letter of the drive, which the server
+/// sends in lower case whatever the client sent.
+pub(crate) fn same_uri(a: &Uri, b: &Uri) -> bool {
+    fn drive(uri: &str) -> Option<(char, &str)> {
+        let mut rest = uri.strip_prefix("file:///")?.chars();
+        let drive = rest.next().filter(char::is_ascii_alphabetic)?;
+        Some((drive.to_ascii_lowercase(), rest.as_str().strip_prefix(':')?))
+    }
+    match (drive(a.as_str()), drive(b.as_str())) {
+        (Some(a), Some(b)) => a == b,
+        _ => a == b,
+    }
+}
+
+impl ClientHandle {
+    pub(crate) fn doc_id(&self, rel_path: &str) -> TextDocumentIdentifier {
+        let path = self.dir_path.join(rel_path);
+        TextDocumentIdentifier { uri: Uri::from_file_path(path).unwrap() }
+    }
+
+    pub(crate) fn notification<N>(&self, params: N::Params)
+    where
+        N: lsp_types::Notification,
+        N::Params: Serialize,
+    {
+        let r = Notification::new(N::METHOD.into(), params);
+        self.client.sender.send(Message::Notification(r)).unwrap();
+        // Messages of different clients are not ordered relative to each other, so wait until
+        // the server has seen the document change before another client acts on it.
+        if N::METHOD.as_str().starts_with("textDocument/") {
+            self.sync();
+        }
+    }
+
+    /// Blocks until the server has processed every message sent by this client so far.
+    #[track_caller]
+    pub(crate) fn sync(&self) {
+        let id = self.req_id.get();
+        self.req_id.set(id.wrapping_add(1));
+        let r = Request::new(id.into(), "rust-analyzer/analyzerStatus".to_owned(), json!({}));
+        self.send_request_(r);
+    }
+
+    #[track_caller]
+    pub(crate) fn send_request<R>(&self, params: R::Params) -> Value
+    where
+        R: lsp_types::Request,
+        R::Params: Serialize,
+    {
+        let id = self.req_id.get();
+        self.req_id.set(id.wrapping_add(1));
+        self.send_request_with_id::<R>(id, params)
+    }
+
+    #[track_caller]
+    pub(crate) fn send_request_with_id<R>(&self, id: i32, params: R::Params) -> Value
+    where
+        R: lsp_types::Request,
+        R::Params: Serialize,
+    {
+        let r = Request::new(id.into(), R::METHOD.into(), params);
+        self.send_request_(r)
+    }
+
+    #[track_caller]
+    pub(crate) fn send_request_fallible<R>(
+        &self,
+        params: R::Params,
+    ) -> Result<Value, lsp_server::ResponseError>
+    where
+        R: lsp_types::Request,
+        R::Params: Serialize,
+    {
+        let id = self.req_id.get();
+        self.req_id.set(id.wrapping_add(1));
+        let r = Request::new(id.into(), R::METHOD.into(), params);
+        self.send_request_fallible_(r)
+    }
+
+    #[track_caller]
+    fn send_request_(&self, r: Request) -> Value {
+        match self.send_request_fallible_(r) {
+            Ok(v) => v,
+            Err(err) => panic!("error response: {err:#?}"),
+        }
+    }
+
+    #[track_caller]
+    fn send_request_fallible_(&self, r: Request) -> Result<Value, lsp_server::ResponseError> {
+        let id = r.id.clone();
+        self.client.sender.send(r.clone().into()).unwrap();
+        while let Some(msg) = self.recv().unwrap_or_else(|Timeout| panic!("timeout: {r:?}")) {
+            match msg {
+                Message::Request(req) => {
+                    if req.method == "client/registerCapability" {
+                        let params = req.params.to_string();
+                        if ["workspace/didChangeWatchedFiles", "textDocument/didSave"]
+                            .into_iter()
+                            .any(|it| params.contains(it))
+                        {
+                            continue;
+                        }
+                    } else if !matches!(
+                        req.method.as_str(),
+                        "workspace/diagnostic/refresh" | "workspace/semanticTokens/refresh"
+                    ) {
+                        panic!("unexpected request: {req:?}")
+                    }
+                }
+                Message::Notification(_) => (),
+                Message::Response(res) => {
+                    assert_eq!(res.id, id);
+                    if let Some(err) = res.error {
+                        if err.code == lsp_server::ErrorCode::ContentModified as i32 {
+                            std::thread::sleep(std::time::Duration::from_millis(20));
+                            return self.send_request_fallible_(r);
+                        }
+                        return Err(err);
+                    }
+                    return Ok(res.result.unwrap());
+                }
+            }
+        }
+        panic!("no response for {r:?}");
+    }
+
+    fn recv(&self) -> Result<Option<Message>, Timeout> {
+        let msg = recv_timeout(&self.client.receiver)?;
+        let msg = msg.inspect(|msg| {
+            self.messages.borrow_mut().push(msg.clone());
+        });
+        Ok(msg)
+    }
+
+    pub(crate) fn wait_until_workspace_is_loaded(&self) {
+        self.wait_for_message_cond(1, &|msg: &Message| match msg {
+            Message::Notification(n) if n.method == "experimental/serverStatus" => {
+                let status = n
+                    .clone()
+                    .extract::<lsp::ext::ServerStatusParams>("experimental/serverStatus")
+                    .unwrap();
+                if status.health != lsp::ext::Health::Ok {
+                    panic!("server errored/warned while loading workspace: {:?}", status.message);
+                }
+                status.quiescent
+            }
+            _ => false,
+        })
+        .unwrap_or_else(|Timeout| panic!("timeout while waiting for ws to load"));
+    }
+
+    pub(crate) fn wait_for_diagnostics(&self) -> PublishDiagnosticsParams {
+        for msg in self.messages.borrow().iter() {
+            if let Message::Notification(n) = msg
+                && n.method == "textDocument/publishDiagnostics"
+            {
+                let params: PublishDiagnosticsParams =
+                    serde_json::from_value(n.params.clone()).unwrap();
+                if !params.diagnostics.is_empty() {
+                    return params;
+                }
+            }
+        }
+        loop {
+            let msg = self
+                .recv()
+                .unwrap_or_else(|Timeout| panic!("timeout while waiting for diagnostics"))
+                .expect("connection closed while waiting for diagnostics");
+            if let Message::Notification(n) = &msg
+                && n.method == "textDocument/publishDiagnostics"
+            {
+                let params: PublishDiagnosticsParams =
+                    serde_json::from_value(n.params.clone()).unwrap();
+                if !params.diagnostics.is_empty() {
+                    return params;
+                }
+            }
+        }
+    }
+
+    pub(crate) fn wait_for_diagnostics_with_version(
+        &self,
+        uri: &lsp_types::Uri,
+        version: i32,
+    ) -> PublishDiagnosticsParams {
+        for msg in self.messages.borrow().iter() {
+            if let Message::Notification(n) = msg
+                && n.method == "textDocument/publishDiagnostics"
+            {
+                let params: PublishDiagnosticsParams =
+                    serde_json::from_value(n.params.clone()).unwrap();
+                if same_uri(&params.uri, uri)
+                    && params.version == Some(version)
+                    && !params.diagnostics.is_empty()
+                {
+                    return params;
+                }
+            }
+        }
+        loop {
+            let msg = self
+                .recv()
+                .unwrap_or_else(|Timeout| {
+                    panic!("timeout while waiting for diagnostics for {uri} version {version}")
+                })
+                .expect("connection closed while waiting for diagnostics");
+            if let Message::Notification(n) = &msg
+                && n.method == "textDocument/publishDiagnostics"
+            {
+                let params: PublishDiagnosticsParams =
+                    serde_json::from_value(n.params.clone()).unwrap();
+                if same_uri(&params.uri, uri)
+                    && params.version == Some(version)
+                    && !params.diagnostics.is_empty()
+                {
+                    return params;
+                }
+            }
+        }
+    }
+
+    fn wait_for_message_cond(
+        &self,
+        n: usize,
+        cond: &dyn Fn(&Message) -> bool,
+    ) -> Result<(), Timeout> {
+        let mut total = 0;
+        for msg in self.messages.borrow().iter() {
+            if cond(msg) {
+                total += 1
+            }
+        }
+        while total < n {
+            let msg = self.recv()?.expect("no response");
+            if cond(&msg) {
+                total += 1;
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn shutdown_and_exit(&self) {
+        let _ = self.send_request::<ShutdownRequest>(());
+        self.notification::<ExitNotification>(());
+    }
+
+    pub(crate) fn respond(&self, resp: lsp_server::Response) {
+        self.client.sender.send(Message::Response(resp)).unwrap();
+    }
+
+    pub(crate) fn wait_for_request(&self, method: &str) -> Request {
+        for msg in self.messages.borrow().iter() {
+            if let Message::Request(req) = msg
+                && req.method == method
+            {
+                return req.clone();
+            }
+        }
+        while let Some(msg) =
+            self.recv().unwrap_or_else(|Timeout| panic!("timeout waiting for request {method}"))
+        {
+            if let Message::Request(req) = msg
+                && req.method == method
+            {
+                return req;
+            }
+        }
+        panic!("request {method} not found");
+    }
+}
+
+#[derive(Debug)]
 struct Timeout;
 
 fn recv_timeout(receiver: &Receiver<Message>) -> Result<Option<Message>, Timeout> {

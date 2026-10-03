@@ -22,7 +22,6 @@ use ide_db::{
 };
 use itertools::Itertools;
 use load_cargo::{ProjectFolders, load_proc_macro};
-use lsp_types::FileSystemWatcher;
 use paths::Utf8Path;
 use proc_macro_api::ProcMacroClient;
 use project_model::{
@@ -30,10 +29,10 @@ use project_model::{
 };
 use stdx::{format_to, thread::ThreadIntent};
 use triomphe::Arc;
-use vfs::{AbsPath, AbsPathBuf, ChangeKind};
+use vfs::{AbsPath, AbsPathBuf, ChangeKind, FileId};
 
 use crate::{
-    config::{Config, FilesWatcher, LinkedProject},
+    config::{Config, LinkedProject},
     flycheck::{FlycheckConfig, FlycheckHandle},
     global_state::{
         FetchBuildDataResponse, FetchWorkspaceRequest, FetchWorkspaceResponse, GlobalState,
@@ -41,6 +40,7 @@ use crate::{
     lsp_ext,
     main_loop::{DiscoverProjectParam, Task},
     op_queue::Cause,
+    overlay::{self, OverlayCrates, SourceRoots, Sources},
 };
 use tracing::{debug, info};
 
@@ -284,7 +284,12 @@ impl GlobalState {
         info!(%cause, "will fetch workspaces");
 
         self.task_pool.handle.spawn_with_sender(ThreadIntent::Worker, {
-            let linked_projects = self.config.linked_or_discovered_projects();
+            let mut linked_projects = self.config.linked_or_discovered_projects();
+            if self.config.share_worktrees() {
+                // The base checkouts go first, they are what the worktrees are compared with.
+                let base_checkouts = overlay::base_checkouts(&linked_projects);
+                linked_projects.splice(0..0, base_checkouts);
+            }
             let detached_files: Vec<_> = self
                 .config
                 .detached_files()
@@ -464,6 +469,25 @@ impl GlobalState {
         });
     }
 
+    pub(crate) fn update_file_watching(&mut self) {
+        let files_config = self.config.files();
+        let project_folders = ProjectFolders::new(
+            &self.workspaces,
+            &files_config.exclude,
+            Config::user_config_dir_path().as_deref(),
+        );
+        self.files_watched_by_client = self.any_client_watches_files();
+        let watch = if self.files_watched_by_client { vec![] } else { project_folders.watch };
+        self.vfs_config_version += 1;
+        self.loader.handle.set_config(vfs::loader::Config {
+            load: project_folders.load,
+            watch,
+            version: self.vfs_config_version,
+        });
+        self.source_root_config = project_folders.source_root_config;
+        self.local_roots_parent_map = Arc::new(self.source_root_config.source_root_parent_map());
+    }
+
     pub(crate) fn switch_workspaces(&mut self, cause: Cause) -> Option<Duration> {
         let _p = tracing::info_span!("GlobalState::switch_workspaces").entered();
         tracing::info!(%cause, "will switch workspaces");
@@ -558,106 +582,25 @@ impl GlobalState {
             }
         }
 
-        if let FilesWatcher::Client = self.config.files().watcher {
-            let filter = self
-                .workspaces
-                .iter()
-                .flat_map(|ws| ws.to_roots())
-                .filter(|it| it.is_local)
-                .map(|it| it.include);
-
-            let mut watchers: Vec<FileSystemWatcher> =
-                if self.config.did_change_watched_files_relative_pattern_support() {
-                    // When relative patterns are supported by the client, prefer using them
-                    filter
-                        .flat_map(|include| {
-                            include.into_iter().flat_map(|base| {
-                                [
-                                    (base.clone(), "**/*.rs"),
-                                    (base.clone(), "**/Cargo.{lock,toml}"),
-                                    (base.clone(), "**/rust-analyzer.toml"),
-                                    (base, "**/*.md"),
-                                ]
-                            })
-                        })
-                        .map(|(base, pat)| lsp_types::FileSystemWatcher {
-                            glob_pattern: lsp_types::GlobPattern::RelativePattern(
-                                lsp_types::RelativePattern {
-                                    base_uri: lsp_types::BaseUri::Uri(
-                                        lsp_types::Uri::from_file_path(base).unwrap(),
-                                    ),
-                                    pattern: pat.to_owned(),
-                                },
-                            ),
-                            kind: None,
-                        })
-                        .collect()
-                } else {
-                    // When they're not, integrate the base to make them into absolute patterns
-                    filter
-                        .flat_map(|include| {
-                            include.into_iter().flat_map(|base| {
-                                [
-                                    format!("{base}/**/*.rs"),
-                                    format!("{base}/**/Cargo.{{toml,lock}}"),
-                                    format!("{base}/**/rust-analyzer.toml"),
-                                    format!("{base}/**/*.md"),
-                                ]
-                            })
-                        })
-                        .map(|glob_pattern| lsp_types::FileSystemWatcher {
-                            glob_pattern: lsp_types::GlobPattern::Pattern(glob_pattern),
-                            kind: None,
-                        })
-                        .collect()
-                };
-
-            // Also explicitly watch any build files configured in JSON project files.
-            for ws in self.workspaces.iter() {
-                if let ProjectWorkspaceKind::Json(project_json) = &ws.kind {
-                    for (_, krate) in project_json.crates() {
-                        let Some(build) = &krate.build else {
-                            continue;
-                        };
-                        watchers.push(lsp_types::FileSystemWatcher {
-                            glob_pattern: lsp_types::GlobPattern::Pattern(
-                                build.build_file.to_string(),
-                            ),
-                            kind: None,
-                        });
-                    }
+        let registrations: Vec<_> = self
+            .clients
+            .iter()
+            .filter_map(|(&client_id, client)| {
+                if !client.is_initialized {
+                    return None;
                 }
-            }
-
-            watchers.extend(
-                iter::once(Config::user_config_dir_path().as_deref())
-                    .chain(self.workspaces.iter().map(|ws| ws.manifest().map(ManifestPath::as_ref)))
-                    .flatten()
-                    .map(|glob_pattern| lsp_types::FileSystemWatcher {
-                        glob_pattern: lsp_types::GlobPattern::Pattern(glob_pattern.to_string()),
-                        kind: None,
-                    }),
-            );
-
-            let registration_options =
-                lsp_types::DidChangeWatchedFilesRegistrationOptions { watchers };
-            let registration = lsp_types::Registration {
-                id: "workspace/didChangeWatchedFiles".to_owned(),
-                method: "workspace/didChangeWatchedFiles".to_owned(),
-                register_options: Some(serde_json::to_value(registration_options).unwrap()),
-            };
-            self.send_request::<lsp_types::RegistrationRequest>(
+                let caps = &client.caps;
+                let reg = self.watched_files_registration_for(caps)?;
+                Some((client_id, reg))
+            })
+            .collect();
+        for (client_id, registration) in registrations {
+            self.send_request_to::<lsp_types::RegistrationRequest>(
+                client_id,
                 lsp_types::RegistrationParams { registrations: vec![registration] },
-                |_, _| (),
+                |_, _, _| (),
             );
         }
-
-        let files_config = self.config.files();
-        let project_folders = ProjectFolders::new(
-            &self.workspaces,
-            &files_config.exclude,
-            Config::user_config_dir_path().as_deref(),
-        );
 
         if (self.proc_macro_clients.len() < self.workspaces.len() || !same_workspaces)
             && self.config.expand_proc_macros()
@@ -729,24 +672,80 @@ impl GlobalState {
             }))
         }
 
-        let watch = match files_config.watcher {
-            FilesWatcher::Client => vec![],
-            FilesWatcher::Server => project_folders.watch,
-        };
-        self.vfs_config_version += 1;
-        self.loader.handle.set_config(vfs::loader::Config {
-            load: project_folders.load,
-            watch,
-            version: self.vfs_config_version,
-        });
-        self.source_root_config = project_folders.source_root_config;
-        self.local_roots_parent_map = Arc::new(self.source_root_config.source_root_parent_map());
+        self.update_file_watching();
 
         info!(?cause, "recreating the crate graph");
         let cancellation_time = self.recreate_crate_graph(cause, switching_from_empty_workspace);
 
         info!("did switch workspaces");
         cancellation_time
+    }
+
+    /// Rebuilds the crate graph if a change to `changed_files` made the sources of a crate of a
+    /// worktree differ from, or become the same as, those of its base checkout.
+    pub(crate) fn recheck_overlays(&mut self, changed_files: &[FileId], created_or_deleted: bool) {
+        if self.overlays.is_empty() || !self.vfs_done {
+            return;
+        }
+        let flipped: Vec<((FileId, FileId), bool)> = {
+            let vfs = &self.vfs.read().0;
+            let overlay_of = |file: FileId| {
+                let path = vfs.file_path(file).as_path()?;
+                self.overlays.iter().find(|it| {
+                    path.starts_with(&it.worktree_root) || path.starts_with(&it.base_root)
+                })
+            };
+            if !changed_files.iter().any(|&file| overlay_of(file).is_some()) {
+                return;
+            }
+            if created_or_deleted || self.overlay_source_roots.is_none() {
+                self.overlay_source_roots =
+                    Some(Arc::new(SourceRoots::new(&self.source_root_config, vfs)));
+            }
+            let roots = self.overlay_source_roots.as_ref().unwrap();
+            self.overlay_crates
+                .iter()
+                .filter(|&(&(worktree_file, base_file), _)| {
+                    // The files that a crate pulls in by path can be anywhere, and a file that
+                    // is gone is in no package anymore.
+                    created_or_deleted
+                        || roots.pulls_in_files(&self.pulled_in_files, worktree_file)
+                        || changed_files.iter().any(|&file| {
+                            roots.in_same_root(file, worktree_file)
+                                || roots.in_same_root(file, base_file)
+                        })
+                })
+                .filter_map(|(&(worktree_file, base_file), krate)| {
+                    let sources = Sources {
+                        vfs,
+                        roots,
+                        pulled_in_files: &self.pulled_in_files,
+                        disk_cache: &self.overlay_disk_cache,
+                    };
+                    let same_sources = overlay::same_sources(
+                        &sources,
+                        overlay_of(worktree_file)?,
+                        worktree_file,
+                        base_file,
+                    );
+                    (same_sources != krate.same_sources)
+                        .then_some(((worktree_file, base_file), same_sources))
+                })
+                .collect()
+        };
+        if flipped.is_empty() {
+            return;
+        }
+        // The new crate graph is not in effect at once. Until it is, the files of the crates
+        // that are not the same anymore must not be answered from the base checkout.
+        let overlay_crates = Arc::make_mut(&mut self.overlay_crates);
+        for (key, same_sources) in flipped {
+            if let Some(krate) = overlay_crates.get_mut(&key) {
+                krate.same_sources = same_sources;
+                krate.shared &= same_sources;
+            }
+        }
+        self.recreate_crate_graph("worktree changed relative to its base".to_owned(), false);
     }
 
     fn recreate_crate_graph(&mut self, cause: String, initial_build: bool) -> Option<Duration> {
@@ -773,9 +772,21 @@ impl GlobalState {
             .collect();
 
         self.incomplete_crate_graph = false;
+        let overlays = if self.config.share_worktrees() {
+            overlay::find_overlays(&self.workspaces)
+        } else {
+            Vec::new()
+        };
+        let mut overlay_crates = OverlayCrates::default();
+        // The files that are not loaded are compared anew each time the crate graph is built.
+        self.overlay_disk_cache.borrow_mut().clear();
         let (crate_graph, proc_macro_paths) = {
             // Create crate graph from all the workspaces
             let vfs = &self.vfs.read().0;
+            let source_roots = overlays
+                .iter()
+                .any(Option::is_some)
+                .then(|| SourceRoots::new(&self.source_root_config, vfs));
             let load = |path: &AbsPath| {
                 let vfs_path = vfs::VfsPath::from(path.to_path_buf());
                 self.crate_graph_file_dependencies.insert(vfs_path.clone());
@@ -786,8 +797,25 @@ impl GlobalState {
                 })
             };
 
-            ws_to_crate_graph(&self.workspaces, self.config.extra_env(None), load)
+            let sources = source_roots.as_ref().map(|roots| Sources {
+                vfs,
+                roots,
+                pulled_in_files: &self.pulled_in_files,
+                disk_cache: &self.overlay_disk_cache,
+            });
+            let (crate_graph, proc_macro_paths, _) = overlay::crate_graph(
+                &self.workspaces,
+                self.config.extra_env(None),
+                load,
+                &overlays,
+                sources.as_ref(),
+                &mut overlay_crates,
+            );
+            self.overlay_source_roots = source_roots.map(Arc::new);
+            (crate_graph, proc_macro_paths)
         };
+        self.overlays = Arc::new(overlays.into_iter().flatten().unique().collect());
+        self.overlay_crates = Arc::new(overlay_crates);
         let mut change = ChangeWithProcMacros::default();
         if initial_build || !self.config.expand_proc_macros() {
             if self.config.expand_proc_macros() {
@@ -982,19 +1010,10 @@ impl GlobalState {
 pub fn ws_to_crate_graph(
     workspaces: &[ProjectWorkspace],
     extra_env: &FxHashMap<String, Option<String>>,
-    mut load: impl FnMut(&AbsPath) -> Option<vfs::FileId>,
+    load: impl FnMut(&AbsPath) -> Option<vfs::FileId>,
 ) -> (CrateGraphBuilder, Vec<ProcMacroPaths>) {
-    let mut crate_graph = CrateGraphBuilder::default();
-    let mut proc_macro_paths = Vec::default();
-    for ws in workspaces {
-        let (other, mut crate_proc_macros) = ws.to_crate_graph(&mut load, extra_env);
-
-        crate_graph.extend(other, &mut crate_proc_macros);
-        proc_macro_paths.push(crate_proc_macros);
-    }
-
-    crate_graph.shrink_to_fit();
-    proc_macro_paths.shrink_to_fit();
+    let (crate_graph, proc_macro_paths, _) =
+        overlay::crate_graph(workspaces, extra_env, load, &[], None, &mut OverlayCrates::default());
     (crate_graph, proc_macro_paths)
 }
 

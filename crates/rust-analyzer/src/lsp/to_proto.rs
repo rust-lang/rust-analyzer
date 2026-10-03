@@ -32,6 +32,7 @@ use crate::{
     lsp::{
         LspError, completion_item_hash,
         ext::ShellRunnableArgs,
+        from_proto,
         semantic_tokens::{self, standard_fallback_type},
         utils::invalid_params_error,
     },
@@ -54,6 +55,119 @@ pub(crate) fn range(line_index: &LineIndex, range: TextRange) -> lsp_types::Rang
     let start = position(line_index, range.start());
     let end = position(line_index, range.end());
     lsp_types::Range::new(start, end)
+}
+
+pub(crate) fn reencode_range(
+    from_li: &LineIndex,
+    to_li: &LineIndex,
+    range: lsp_types::Range,
+) -> lsp_types::Range {
+    if let Ok(text_range) = from_proto::text_range(from_li, range) {
+        self::range(to_li, text_range)
+    } else {
+        range
+    }
+}
+
+/// Line indices of the file at `uri` in the `from_enc` and `to_enc` position encodings.
+fn line_index_pair(
+    snap: &GlobalStateSnapshot,
+    uri: &lsp_types::Uri,
+    from_enc: PositionEncoding,
+    to_enc: PositionEncoding,
+) -> Option<(LineIndex, LineIndex)> {
+    let file_id = from_proto::file_id(snap, uri).ok()??;
+    let line_index = snap.file_line_index(file_id).ok()?;
+    Some((line_index.with_encoding(from_enc), line_index.with_encoding(to_enc)))
+}
+
+/// Re-encodes the positions of the diagnostics of the file at `uri`.
+pub(crate) fn reencode_diagnostics(
+    snap: &GlobalStateSnapshot,
+    uri: &lsp_types::Uri,
+    from_enc: PositionEncoding,
+    to_enc: PositionEncoding,
+    mut diagnostics: Vec<lsp_types::Diagnostic>,
+) -> Vec<lsp_types::Diagnostic> {
+    let Some((from_li, to_li)) = line_index_pair(snap, uri, from_enc, to_enc) else {
+        return diagnostics;
+    };
+    for diag in &mut diagnostics {
+        diag.range = reencode_range(&from_li, &to_li, diag.range);
+        for info in diag.related_information.iter_mut().flatten() {
+            if info.location.uri == *uri {
+                info.location.range = reencode_range(&from_li, &to_li, info.location.range);
+            } else if let Some((from_li, to_li)) =
+                line_index_pair(snap, &info.location.uri, from_enc, to_enc)
+            {
+                info.location.range = reencode_range(&from_li, &to_li, info.location.range);
+            }
+        }
+    }
+    diagnostics
+}
+
+pub(crate) fn reencode_snippet_workspace_edit(
+    snap: &GlobalStateSnapshot,
+    from_enc: PositionEncoding,
+    to_enc: PositionEncoding,
+    edit: &mut lsp_ext::SnippetWorkspaceEdit,
+) {
+    if from_enc == to_enc {
+        return;
+    }
+    let get_line_indexes = |uri: &lsp_types::Uri| line_index_pair(snap, uri, from_enc, to_enc);
+
+    if let Some(changes) = &mut edit.changes {
+        for (uri, edits) in changes {
+            if let Some((from_li, to_li)) = get_line_indexes(uri) {
+                for text_edit in edits {
+                    text_edit.range = reencode_range(&from_li, &to_li, text_edit.range);
+                }
+            }
+        }
+    }
+
+    if let Some(doc_changes) = &mut edit.document_changes {
+        for op in doc_changes {
+            match op {
+                lsp_ext::SnippetDocumentChangeOperation::Edit(edit) => {
+                    if let Some((from_li, to_li)) =
+                        get_line_indexes(&edit.text_document.text_document_identifier.uri)
+                    {
+                        for snippet_edit in &mut edit.edits {
+                            snippet_edit.range =
+                                reencode_range(&from_li, &to_li, snippet_edit.range);
+                        }
+                    }
+                }
+                lsp_ext::SnippetDocumentChangeOperation::Change(
+                    lsp_types::DocumentChange::TextDocumentEdit(text_edit),
+                ) => {
+                    if let Some((from_li, to_li)) =
+                        get_line_indexes(&text_edit.text_document.text_document_identifier.uri)
+                    {
+                        for edit in &mut text_edit.edits {
+                            match edit {
+                                lsp_types::Edit::TextEdit(text_edit) => {
+                                    text_edit.range =
+                                        reencode_range(&from_li, &to_li, text_edit.range);
+                                }
+                                lsp_types::Edit::AnnotatedTextEdit(annotated) => {
+                                    annotated.text_edit.range =
+                                        reencode_range(&from_li, &to_li, annotated.text_edit.range);
+                                }
+                                lsp_types::Edit::SnippetTextEdit(snippet) => {
+                                    snippet.range = reencode_range(&from_li, &to_li, snippet.range);
+                                }
+                            }
+                        }
+                    }
+                }
+                lsp_ext::SnippetDocumentChangeOperation::Change(_) => {}
+            }
+        }
+    }
 }
 
 pub(crate) fn symbol_kind(symbol_kind: SymbolKind) -> lsp_types::SymbolKind {
@@ -608,22 +722,27 @@ pub(crate) fn inlay_hint(
         )
     });
 
+    let is_divergent = snap.is_file_divergent(file_id);
     let mut something_to_resolve = false;
-    let text_edits = inlay_hint
-        .text_edit
-        .take()
-        .and_then(|it| match it {
-            LazyProperty::Computed(it) => Some(it),
-            LazyProperty::Lazy => {
-                something_to_resolve |=
-                    snap.config.visual_studio_code_version().is_none_or(|version| {
-                        VersionReq::parse(">=1.86.0").unwrap().matches(version)
-                    }) && resolve_range_and_hash.is_some()
-                        && fields_to_resolve.resolve_text_edits;
-                None
-            }
-        })
-        .map(|it| text_edit_vec(line_index, it));
+    let text_edits = if is_divergent {
+        None
+    } else {
+        inlay_hint
+            .text_edit
+            .take()
+            .and_then(|it| match it {
+                LazyProperty::Computed(it) => Some(it),
+                LazyProperty::Lazy => {
+                    something_to_resolve |=
+                        snap.config.visual_studio_code_version().is_none_or(|version| {
+                            VersionReq::parse(">=1.86.0").unwrap().matches(version)
+                        }) && resolve_range_and_hash.is_some()
+                            && fields_to_resolve.resolve_text_edits;
+                    None
+                }
+            })
+            .map(|it| text_edit_vec(line_index, it))
+    };
     let (label, tooltip) = inlay_hint_label(
         snap,
         fields_to_resolve,
@@ -1033,13 +1152,20 @@ pub(crate) fn url_from_abs_path(path: &AbsPath) -> lsp_types::Uri {
 pub(crate) fn optional_versioned_text_document_identifier(
     snap: &GlobalStateSnapshot,
     file_id: FileId,
-) -> lsp_types::OptionalVersionedTextDocumentIdentifier {
+) -> anyhow::Result<lsp_types::OptionalVersionedTextDocumentIdentifier> {
+    if snap.is_file_divergent(file_id) {
+        let path = snap.file_id_to_file_path(file_id);
+        return Err(invalid_params_error(format!(
+            "Cannot apply edit: document {path} has divergent unsaved modifications across clients"
+        ))
+        .into());
+    }
     let uri = url(snap, file_id);
     let version = snap.url_file_version(&uri);
-    lsp_types::OptionalVersionedTextDocumentIdentifier {
+    Ok(lsp_types::OptionalVersionedTextDocumentIdentifier {
         text_document_identifier: lsp_types::TextDocumentIdentifier { uri },
         version,
-    }
+    })
 }
 
 pub(crate) fn location(
@@ -1360,10 +1486,10 @@ pub(crate) fn snippet_text_document_edit(
     file_id: FileId,
     edit: TextEdit,
     snippet_edit: Option<SnippetEdit>,
-) -> Cancellable<lsp_ext::SnippetTextDocumentEdit> {
-    let text_document = optional_versioned_text_document_identifier(snap, file_id);
+) -> anyhow::Result<lsp_ext::SnippetTextDocumentEdit> {
+    let text_document = optional_versioned_text_document_identifier(snap, file_id)?;
     let line_index = snap.file_line_index(file_id)?;
-    let client_supports_annotations = snap.config.change_annotation_support();
+    let client_supports_annotations = snap.caps().change_annotation_support();
     let mut edits = if let Some(snippet_edit) = snippet_edit {
         merge_text_and_snippet_edits(&line_index, edit, snippet_edit, client_supports_annotations)
     } else {
@@ -1381,7 +1507,7 @@ pub(crate) fn snippet_text_document_edit(
             .collect()
     };
 
-    if snap.analysis.is_library_file(file_id)? && snap.config.change_annotation_support() {
+    if snap.analysis.is_library_file(file_id)? && snap.caps().change_annotation_support() {
         for edit in &mut edits {
             edit.annotation_id = Some(outside_workspace_annotation_id())
         }
@@ -1392,11 +1518,18 @@ pub(crate) fn snippet_text_document_edit(
 pub(crate) fn snippet_text_document_ops(
     snap: &GlobalStateSnapshot,
     file_system_edit: FileSystemEdit,
-) -> Cancellable<Vec<lsp_ext::SnippetDocumentChangeOperation>> {
+) -> anyhow::Result<Vec<lsp_ext::SnippetDocumentChangeOperation>> {
     let mut ops = Vec::new();
     match file_system_edit {
         FileSystemEdit::CreateFile { dst, initial_contents } => {
             let uri = snap.anchored_path(&dst);
+            let path = from_proto::vfs_path(&uri)?;
+            if snap.is_path_divergent(&path) {
+                return Err(invalid_params_error(format!(
+                    "Cannot apply edit: document {path} has divergent unsaved modifications across clients"
+                ))
+                .into());
+            }
             let create_file = lsp_types::DocumentChange::CreateFile(lsp_types::CreateFile {
                 uri: uri.clone(),
                 options: None,
@@ -1420,12 +1553,26 @@ pub(crate) fn snippet_text_document_ops(
             }
         }
         FileSystemEdit::MoveFile { src, dst } => {
+            if snap.is_file_divergent(src) {
+                let path = snap.file_id_to_file_path(src);
+                return Err(invalid_params_error(format!(
+                    "Cannot apply edit: document {path} has divergent unsaved modifications across clients"
+                ))
+                .into());
+            }
             let old_uri = snap.file_id_to_url(src);
             let new_uri = snap.anchored_path(&dst);
+            let dst_path = from_proto::vfs_path(&new_uri)?;
+            if snap.is_path_divergent(&dst_path) {
+                return Err(invalid_params_error(format!(
+                    "Cannot apply edit: document {dst_path} has divergent unsaved modifications across clients"
+                ))
+                .into());
+            }
             let mut rename_file =
                 lsp_types::RenameFile { old_uri, new_uri, options: None, annotation_id: None };
             if snap.analysis.is_library_file(src).ok() == Some(true)
-                && snap.config.change_annotation_support()
+                && snap.caps().change_annotation_support()
             {
                 rename_file.annotation_id = Some(outside_workspace_annotation_id())
             }
@@ -1434,12 +1581,33 @@ pub(crate) fn snippet_text_document_ops(
             ))
         }
         FileSystemEdit::MoveDir { src, src_id, dst } => {
+            if snap.is_file_divergent(src_id) {
+                let path = snap.file_id_to_file_path(src_id);
+                return Err(invalid_params_error(format!(
+                    "Cannot apply edit: document {path} has divergent unsaved modifications across clients"
+                ))
+                .into());
+            }
             let old_uri = snap.anchored_path(&src);
+            let src_path = from_proto::vfs_path(&old_uri)?;
+            if snap.is_dir_divergent(&src_path) {
+                return Err(invalid_params_error(format!(
+                    "Cannot apply edit: directory {src_path} contains documents with divergent unsaved modifications across clients"
+                ))
+                .into());
+            }
             let new_uri = snap.anchored_path(&dst);
+            let dst_path = from_proto::vfs_path(&new_uri)?;
+            if snap.is_dir_divergent(&dst_path) {
+                return Err(invalid_params_error(format!(
+                    "Cannot apply edit: directory {dst_path} contains documents with divergent unsaved modifications across clients"
+                ))
+                .into());
+            }
             let mut rename_file =
                 lsp_types::RenameFile { old_uri, new_uri, options: None, annotation_id: None };
             if snap.analysis.is_library_file(src_id).ok() == Some(true)
-                && snap.config.change_annotation_support()
+                && snap.caps().change_annotation_support()
             {
                 rename_file.annotation_id = Some(outside_workspace_annotation_id())
             }
@@ -1454,7 +1622,7 @@ pub(crate) fn snippet_text_document_ops(
 pub(crate) fn snippet_workspace_edit(
     snap: &GlobalStateSnapshot,
     mut source_change: SourceChange,
-) -> Cancellable<lsp_ext::SnippetWorkspaceEdit> {
+) -> anyhow::Result<lsp_ext::SnippetWorkspaceEdit> {
     let mut document_changes: Vec<lsp_ext::SnippetDocumentChangeOperation> = Vec::new();
 
     for op in &mut source_change.file_system_edits {
@@ -1469,6 +1637,11 @@ pub(crate) fn snippet_workspace_edit(
         }
     }
     for (file_id, (edit, snippet_edit)) in source_change.source_file_edits {
+        // A client working in a worktree does not edit the base checkout's copy of a crate the
+        // worktree has its own version of.
+        if !snap.in_client_view(file_id)? {
+            continue;
+        }
         let edit = snippet_text_document_edit(
             snap,
             source_change.is_snippet,
@@ -1489,7 +1662,7 @@ pub(crate) fn snippet_workspace_edit(
         document_changes: Some(document_changes),
         change_annotations: None,
     };
-    if snap.config.change_annotation_support() {
+    if snap.caps().change_annotation_support() {
         workspace_edit.change_annotations = Some(
             once((
                 outside_workspace_annotation_id(),
@@ -1520,7 +1693,7 @@ pub(crate) fn snippet_workspace_edit(
 pub(crate) fn workspace_edit(
     snap: &GlobalStateSnapshot,
     source_change: SourceChange,
-) -> Cancellable<lsp_types::WorkspaceEdit> {
+) -> anyhow::Result<lsp_types::WorkspaceEdit> {
     assert!(!source_change.is_snippet);
     snippet_workspace_edit(snap, source_change).map(|it| it.into())
 }
@@ -1602,10 +1775,11 @@ pub(crate) fn code_action(
     commands: &ClientCommandsConfig,
     assist: Assist,
     resolve_data: Option<(usize, lsp_types::CodeActionParams, Option<i32>)>,
-) -> Cancellable<lsp_ext::CodeAction> {
+) -> anyhow::Result<lsp_ext::CodeAction> {
+    let code_action_group = snap.caps().code_action_group();
     let mut res = lsp_ext::CodeAction {
         title: assist.label.to_string(),
-        group: assist.group.filter(|_| snap.config.code_action_group()).map(|gr| gr.0),
+        group: assist.group.filter(|_| code_action_group).map(|gr| gr.0),
         kind: Some(code_action_kind(assist.id.1)),
         edit: None,
         is_preferred: None,

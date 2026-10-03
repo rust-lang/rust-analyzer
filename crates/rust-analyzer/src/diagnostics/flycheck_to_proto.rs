@@ -67,7 +67,7 @@ fn location(
     let uri = url_from_abs_path(&file_name);
 
     let range = {
-        let position_encoding = snap.config.negotiated_encoding();
+        let position_encoding = snap.position_encoding;
         lsp_types::Range::new(
             position(
                 &position_encoding,

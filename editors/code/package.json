@@ -3280,6 +3280,16 @@
             {
                 "title": "Workspace",
                 "properties": {
+                    "rust-analyzer.workspace.shareWorktrees": {
+                        "markdownDescription": "Share the analysis of a git worktree with the checkout it was created from.\n\nA crate of the worktree whose package has the same sources as in the base checkout,\nand that does not depend on a package that differs, is not analyzed a second time.\nIf only the worktree is opened, its base checkout is loaded as well.\n\nThis assumes that procedural macros expand the same in both: one that reads files\nrelative to its working directory may see the files of the base checkout.",
+                        "default": false,
+                        "type": "boolean"
+                    }
+                }
+            },
+            {
+                "title": "Workspace",
+                "properties": {
                     "rust-analyzer.workspace.symbol.search.excludeImports": {
                         "markdownDescription": "Exclude all imports from workspace symbol search.\n\nIn addition to regular imports (which are always excluded),\nthis option removes public imports (better known as re-exports)\nand removes imports that rename the imported symbol.",
                         "default": false,

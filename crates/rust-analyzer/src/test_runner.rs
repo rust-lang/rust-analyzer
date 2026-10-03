@@ -28,6 +28,7 @@ pub(crate) enum TestState {
 
 #[derive(Debug)]
 pub(crate) struct CargoTestMessage {
+    pub session_id: usize,
     pub target: TestTarget,
     pub output: CargoTestOutput,
 }
@@ -48,12 +49,13 @@ pub(crate) enum CargoTestOutput {
 }
 
 pub(crate) struct CargoTestOutputParser {
+    pub session_id: usize,
     pub target: TestTarget,
 }
 
 impl CargoTestOutputParser {
-    pub(crate) fn new(test_target: &TestTarget) -> Self {
-        Self { target: test_target.clone() }
+    pub(crate) fn new(session_id: usize, test_target: &TestTarget) -> Self {
+        Self { session_id, target: test_target.clone() }
     }
 }
 
@@ -63,6 +65,7 @@ impl JsonLinesParser<CargoTestMessage> for CargoTestOutputParser {
         deserializer.disable_recursion_limit();
 
         Some(CargoTestMessage {
+            session_id: self.session_id,
             target: self.target.clone(),
             output: if let Ok(message) = CargoTestOutput::deserialize(&mut deserializer) {
                 message
@@ -74,13 +77,18 @@ impl JsonLinesParser<CargoTestMessage> for CargoTestOutputParser {
 
     fn from_stderr_line(&self, line: &str, _error: &mut String) -> Option<CargoTestMessage> {
         Some(CargoTestMessage {
+            session_id: self.session_id,
             target: self.target.clone(),
             output: CargoTestOutput::Custom { text: line.to_owned() },
         })
     }
 
     fn from_eof(&self) -> Option<CargoTestMessage> {
-        Some(CargoTestMessage { target: self.target.clone(), output: CargoTestOutput::Finished })
+        Some(CargoTestMessage {
+            session_id: self.session_id,
+            target: self.target.clone(),
+            output: CargoTestOutput::Finished,
+        })
     }
 }
 
@@ -102,6 +110,7 @@ pub(crate) struct TestTarget {
 
 impl CargoTestHandle {
     pub(crate) fn new(
+        session_id: usize,
         path: Option<&str>,
         options: CargoOptions,
         root: &AbsPath,
@@ -152,7 +161,7 @@ impl CargoTestHandle {
         Ok(Self {
             _handle: CommandHandle::spawn(
                 cmd,
-                CargoTestOutputParser::new(&test_target),
+                CargoTestOutputParser::new(session_id, &test_target),
                 sender,
                 None,
             )?,

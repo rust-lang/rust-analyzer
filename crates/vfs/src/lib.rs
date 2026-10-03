@@ -290,6 +290,14 @@ impl Vfs {
         matches!(self.get(file_id), FileState::Exists(_))
     }
 
+    /// Hash of the contents of the file, if it exists.
+    pub fn content_hash(&self, file_id: FileId) -> Option<u64> {
+        match self.get(file_id) {
+            FileState::Exists(hash) => Some(hash),
+            _ => None,
+        }
+    }
+
     /// Returns the id associated with `path`
     ///
     /// - If `path` does not exist in the `Vfs`, allocates a new id for it, associated with a

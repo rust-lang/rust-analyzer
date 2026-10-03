@@ -149,6 +149,39 @@ pub struct CrateBuilder {
     ws_data: Arc<CrateWorkspaceData>,
 }
 
+impl CrateBuilder {
+    /// Whether the two crates are analyzed in the same way, given that their sources are the
+    /// same. That is, they may only differ in where those sources are located: `other` in `root`
+    /// or in the directory of its build script's output, and `self` at the same place in
+    /// `other_root`.
+    pub fn eq_modulo_location(&self, other: &CrateBuilder, root: &str, other_root: &str) -> bool {
+        let CrateBuilder { basic, extra, cfg_options, env, ws_data } = self;
+        let CrateData {
+            root_file_id: _,
+            edition,
+            dependencies,
+            origin,
+            crate_attrs,
+            is_proc_macro,
+            proc_macro_cwd: _,
+        } = basic;
+        *edition == other.basic.edition
+            && *dependencies == other.basic.dependencies
+            && *origin == other.basic.origin
+            && *crate_attrs == other.basic.crate_attrs
+            && *is_proc_macro == other.basic.is_proc_macro
+            && *extra == other.extra
+            && *cfg_options == other.cfg_options
+            && *ws_data == other.ws_data
+            && env.entries.len() == other.env.entries.len()
+            && env.entries.iter().all(|(key, value)| {
+                other.env.entries.get(key).is_some_and(|other_value| {
+                    key == "OUT_DIR" || *value == other_value.replace(other_root, root)
+                })
+            })
+    }
+}
+
 impl fmt::Debug for CrateGraphBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map()
@@ -784,8 +817,21 @@ impl CrateGraphBuilder {
     /// Returns a map mapping `other`'s IDs to the new IDs in `self`.
     pub fn extend(
         &mut self,
+        other: CrateGraphBuilder,
+        proc_macros: &mut ProcMacroPaths,
+    ) -> FxHashMap<CrateBuilderId, CrateBuilderId> {
+        self.extend_with(other, proc_macros, |_, _| None)
+    }
+
+    /// Like [`Self::extend`], but a crate of `other` that has no equal in `self` may still be
+    /// replaced by a crate of `self` that `find_equivalent` picks.
+    ///
+    /// `find_equivalent` sees the crate with its dependencies already pointing into `self`.
+    pub fn extend_with(
+        &mut self,
         mut other: CrateGraphBuilder,
         proc_macros: &mut ProcMacroPaths,
+        mut find_equivalent: impl FnMut(&CrateGraphBuilder, &CrateBuilder) -> Option<CrateBuilderId>,
     ) -> FxHashMap<CrateBuilderId, CrateBuilderId> {
         // Sorting here is a bit pointless because the input is likely already sorted.
         // However, the overhead is small and it makes the `extend` method harder to misuse.
@@ -806,7 +852,12 @@ impl CrateGraphBuilder {
                 .for_each(|dep| dep.crate_id = id_map[&dep.crate_id]);
             crate_data.basic.dependencies.sort_by_key(|dep| dep.crate_id);
 
-            let find = self.arena.iter().take(m).find_map(|(k, v)| (v == crate_data).then_some(k));
+            let find = self
+                .arena
+                .iter()
+                .take(m)
+                .find_map(|(k, v)| (v == crate_data).then_some(k))
+                .or_else(|| find_equivalent(self, crate_data));
             let new_id = find.unwrap_or_else(|| self.arena.alloc(crate_data.clone()));
             id_map.insert(topo, new_id);
         }

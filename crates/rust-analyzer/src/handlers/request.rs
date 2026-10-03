@@ -33,9 +33,8 @@ use triomphe::Arc;
 use vfs::{AbsPath, AbsPathBuf, FileId, VfsPath};
 
 use crate::{
-    config::{
-        ClientCommandsConfig, Config, HoverActionsConfig, RustfmtConfig, WorkspaceSymbolConfig,
-    },
+    client::ClientId,
+    config::{ClientCommandsConfig, HoverActionsConfig, RustfmtConfig, WorkspaceSymbolConfig},
     diagnostics::convert_diagnostic,
     global_state::{FetchWorkspaceRequest, GlobalState, GlobalStateSnapshot},
     line_index::LineEndings,
@@ -201,6 +200,11 @@ pub(crate) fn handle_view_file_text(
     snap: GlobalStateSnapshot,
     params: lsp_types::TextDocumentIdentifier,
 ) -> anyhow::Result<String> {
+    if let Ok(path) = from_proto::vfs_path(&params.uri)
+        && let Some(data) = snap.file_mem_data(&path)
+    {
+        return Ok(String::from_utf8_lossy(&data).into_owned());
+    }
     let file_id = try_default!(from_proto::file_id(&snap, &params.uri)?);
     Ok(snap.analysis.file_text(file_id)?.to_string())
 }
@@ -249,11 +253,17 @@ fn find_test_target(namespace_root: &str, cargo: &CargoWorkspace) -> Option<Test
 
 pub(crate) fn handle_run_test(
     state: &mut GlobalState,
+    client_id: ClientId,
     params: lsp_ext::RunTestParams,
 ) -> anyhow::Result<()> {
-    if let Some(_session) = state.test_run_session.take() {
-        state.send_notification::<lsp_ext::EndRunTestNotification>(());
+    if let Some(_session) = state.test_run_session.take()
+        && let Some(prev_client) = state.test_run_client.take()
+    {
+        state.send_notification_to::<lsp_ext::EndRunTestNotification>(prev_client, ());
     }
+
+    state.test_run_session_id = state.test_run_session_id.wrapping_add(1);
+    let session_id = state.test_run_session_id;
 
     let mut handles = vec![];
     for ws in &*state.workspaces {
@@ -281,6 +291,7 @@ pub(crate) fn handle_run_test(
 
             for (target, path) in tests {
                 let handle = CargoTestHandle::new(
+                    session_id,
                     path,
                     state.config.cargo_test_options(None),
                     cargo.workspace_root(),
@@ -296,6 +307,7 @@ pub(crate) fn handle_run_test(
     // Each process send finished signal twice, once for stdout and once for stderr
     state.test_run_remaining_jobs = 2 * handles.len();
     state.test_run_session = Some(handles);
+    state.test_run_client = Some(client_id);
     Ok(())
 }
 
@@ -456,7 +468,7 @@ pub(crate) fn handle_on_enter(
         &line_index,
         true,
         edit,
-        snap.config.change_annotation_support(),
+        snap.caps().change_annotation_support(),
     );
     Ok(Some(edit))
 }
@@ -500,7 +512,7 @@ pub(crate) fn handle_on_type_formatting(
         &line_index,
         edit.is_snippet,
         text_edit,
-        snap.config.change_annotation_support(),
+        snap.caps().change_annotation_support(),
     );
     Ok(Some(change))
 }
@@ -529,7 +541,6 @@ pub(crate) fn handle_document_diagnostics(
     if !snap.analysis.is_local_source_root(source_root)? {
         return Ok(empty_diagnostic_report());
     }
-    let source_root = snap.analysis.source_root_id(file_id)?;
     let config = snap.config.diagnostics(Some(source_root));
     if !config.enabled {
         return Ok(empty_diagnostic_report());
@@ -548,7 +559,7 @@ pub(crate) fn handle_document_diagnostics(
                 let diagnostic = convert_diagnostic(&line_index, d);
                 return Some(diagnostic);
             }
-            if supports_related {
+            if supports_related && !snap.is_file_divergent(file) {
                 let (diagnostics, line_index) = related_documents
                     .entry(file)
                     .or_insert_with(|| (Vec::new(), snap.file_line_index(file).ok()));
@@ -745,6 +756,9 @@ pub(crate) fn handle_workspace_symbol(
     ) -> anyhow::Result<Vec<lsp_types::WorkspaceSymbol>> {
         let mut res = Vec::new();
         for nav in snap.analysis.symbol_search(query, limit)? {
+            if !snap.in_client_view(nav.file_id)? {
+                continue;
+            }
             let container_name = nav.container_name.as_ref().map(|v| v.to_string());
 
             let info = lsp_types::WorkspaceSymbol {
@@ -797,7 +811,7 @@ pub(crate) fn handle_will_rename_files(
                         let imitate_from_url = from_with_trailing_slash.join("mod.rs").ok()?;
                         let new_file_name = to_path.file_name()?.to_str()?;
                         Some((
-                            snap.url_to_file_id(&imitate_from_url).ok()?,
+                            from_proto::file_id(&snap, &imitate_from_url).ok()?,
                             new_file_name.to_owned(),
                         ))
                     } else {
@@ -806,7 +820,9 @@ pub(crate) fn handle_will_rename_files(
                         match (old_name, new_name) {
                             ("mod", _) => None,
                             (_, "mod") => None,
-                            _ => Some((snap.url_to_file_id(&from).ok()?, new_name.to_owned())),
+                            _ => {
+                                Some((from_proto::file_id(&snap, &from).ok()?, new_name.to_owned()))
+                            }
                         }
                     }
                 }
@@ -902,11 +918,12 @@ pub(crate) fn handle_goto_implementation(
     let _p = tracing::info_span!("handle_goto_implementation").entered();
     let position =
         try_default!(from_proto::file_position(&snap, &params.text_document_position_params)?);
-    let nav_info =
+    let mut nav_info =
         match snap.analysis.goto_implementation(&snap.config.goto_implementation(), position)? {
             None => return Ok(None),
             Some(it) => it,
         };
+    snap.retain_in_client_view(&mut nav_info.info, |nav| nav.file_id)?;
     let src = FileRange { file_id: position.file_id, range: nav_info.range };
     let res = to_proto::goto_implementation_response(&snap, Some(src), nav_info.info)?;
     Ok(Some(res))
@@ -1170,11 +1187,11 @@ pub(crate) fn handle_completion(
         context.and_then(|ctx| ctx.trigger_character).and_then(|s| s.chars().next());
 
     let source_root = snap.analysis.source_root_id(position.file_id)?;
-    let completion_config = &snap.config.completion(Some(source_root), snap.minicore());
+    let completion_config = snap.completion_config(Some(source_root));
     // FIXME: We should fix up the position when retrying the cancelled request instead
     position.offset = position.offset.min(line_index.index.len());
     let items = match snap.analysis.completions(
-        completion_config,
+        &completion_config,
         position,
         completion_trigger_character,
     )? {
@@ -1220,8 +1237,12 @@ pub(crate) fn handle_completion_resolve(
 
     let resolve_data: lsp_ext::CompletionResolveData = serde_json::from_value(data)?;
 
-    let file_id = from_proto::file_id(&snap, &resolve_data.position.text_document.uri)?
-        .expect("we never provide completions for excluded files");
+    // We never provide completions for excluded files, but the buffer of the client may have
+    // diverged from the analyzed text since the completion was requested.
+    let Some(file_id) = from_proto::file_id(&snap, &resolve_data.position.text_document.uri)?
+    else {
+        return Ok(original_completion);
+    };
     let line_index = snap.file_line_index(file_id)?;
     // FIXME: We should fix up the position when retrying the cancelled request instead
     let Ok(offset) = from_proto::offset(&line_index, resolve_data.position.position) else {
@@ -1229,8 +1250,7 @@ pub(crate) fn handle_completion_resolve(
     };
     let source_root = snap.analysis.source_root_id(file_id)?;
 
-    let mut forced_resolve_completions_config =
-        snap.config.completion(Some(source_root), snap.minicore());
+    let mut forced_resolve_completions_config = snap.completion_config(Some(source_root));
     forced_resolve_completions_config.fields_to_resolve = CompletionFieldsToResolve::empty();
 
     let position = FilePosition { file_id, offset };
@@ -1351,7 +1371,10 @@ pub(crate) fn handle_hover(
     };
     let file_range = try_default!(from_proto::file_range(&snap, &params.text_document, range)?);
 
-    let hover = snap.config.hover(snap.minicore());
+    let mut hover = snap.config.hover(snap.minicore());
+    if !snap.caps().hover_markdown_support() {
+        hover.format = ide::HoverDocFormat::PlainText;
+    }
     let info = match snap.analysis.hover(&hover, file_range)? {
         None => return Ok(None),
         Some(info) => info,
@@ -1422,7 +1445,7 @@ pub(crate) fn handle_rename(
 
     if let Some(changes) = workspace_edit.document_changes.as_ref() {
         for change in changes {
-            resource_ops_supported(&snap.config, change)?;
+            resource_ops_supported(&snap, change)?;
         }
     }
 
@@ -1472,10 +1495,17 @@ pub(crate) fn handle_references(
                 .chain(decl)
         })
         .unique()
-        .filter_map(|frange| to_proto::location(&snap, frange).ok())
-        .collect();
+        .collect::<Vec<_>>();
+    let mut res = Vec::with_capacity(locations.len());
+    for frange in locations {
+        if snap.in_client_view(frange.file_id)?
+            && let Ok(location) = to_proto::location(&snap, frange)
+        {
+            res.push(location);
+        }
+    }
 
-    Ok(Some(locations))
+    Ok(Some(res))
 }
 
 pub(crate) fn handle_formatting(
@@ -1502,7 +1532,7 @@ pub(crate) fn handle_code_action(
 ) -> anyhow::Result<Option<Vec<lsp_ext::CodeAction>>> {
     let _p = tracing::info_span!("handle_code_action").entered();
 
-    if !snap.config.code_action_literals() {
+    if !snap.caps().code_action_literals() {
         // We intentionally don't support command-based actions, as those either
         // require either custom client-code or server-initiated edits. Server
         // initiated edits break causality, so we avoid those.
@@ -1523,7 +1553,7 @@ pub(crate) fn handle_code_action(
 
     let mut res: Vec<lsp_ext::CodeAction> = Vec::new();
 
-    let code_action_resolve_cap = snap.config.code_action_resolve();
+    let code_action_resolve_cap = snap.caps().code_action_resolve();
     let resolve = if code_action_resolve_cap {
         AssistResolveStrategy::None
     } else {
@@ -1542,20 +1572,40 @@ pub(crate) fn handle_code_action(
         } else {
             None
         };
-        let code_action = to_proto::code_action(&snap, &client_commands, assist, resolve_data)?;
+        let code_action = match to_proto::code_action(&snap, &client_commands, assist, resolve_data)
+        {
+            Ok(action) => action,
+            Err(err) => {
+                if err.downcast_ref::<ide_db::base_db::salsa::Cancelled>().is_some() {
+                    return Err(err);
+                }
+                // If this assist touches a file that has divergent modifications across clients,
+                // omit this unsafe assist without failing the entire request, so unrelated safe
+                // actions are preserved.
+                tracing::debug!("skipping code action due to conversion error: {err}");
+                continue;
+            }
+        };
 
         // Check if the client supports the necessary `ResourceOperation`s.
         let changes = code_action.edit.as_ref().and_then(|it| it.document_changes.as_ref());
         if let Some(changes) = changes {
             for change in changes {
                 if let lsp_ext::SnippetDocumentChangeOperation::Change(change) = change {
-                    resource_ops_supported(&snap.config, change)?
+                    resource_ops_supported(&snap, change)?
                 }
             }
         }
 
         res.push(code_action)
     }
+
+    let base_encoding = snap.config.caps().negotiated_encoding();
+    let base_line_index = if snap.position_encoding != base_encoding {
+        Some(line_index.with_encoding(base_encoding))
+    } else {
+        None
+    };
 
     // Fixes from `cargo check`.
     for fix in snap
@@ -1567,19 +1617,89 @@ pub(crate) fn handle_code_action(
     {
         // FIXME: this mapping is awkward and shouldn't exist. Refactor
         // `snap.check_fixes` to not convert to LSP prematurely.
+        let li_for_range = base_line_index.as_ref().unwrap_or(&line_index);
         let intersect_fix_range = fix
             .ranges
             .iter()
             .copied()
-            .filter_map(|range| from_proto::text_range(&line_index, range).ok())
+            .filter_map(|range| from_proto::text_range(li_for_range, range).ok())
             .any(|fix_range| fix_range.intersect(frange.range).is_some());
 
         if intersect_fix_range {
-            res.push(fix.action.clone());
+            if let Some(edit) = &fix.action.edit
+                && is_snippet_workspace_edit_divergent(&snap, edit)
+            {
+                continue;
+            }
+            let mut action = fix.action.clone();
+            if snap.position_encoding != base_encoding
+                && let Some(edit) = &mut action.edit
+            {
+                to_proto::reencode_snippet_workspace_edit(
+                    &snap,
+                    base_encoding,
+                    snap.position_encoding,
+                    edit,
+                );
+            }
+            res.push(action);
         }
     }
 
     Ok(Some(res))
+}
+
+fn is_snippet_workspace_edit_divergent(
+    snap: &GlobalStateSnapshot,
+    edit: &lsp_ext::SnippetWorkspaceEdit,
+) -> bool {
+    let check_uri = |uri: &lsp_types::Uri| -> bool {
+        if let Ok(path) = from_proto::vfs_path(uri) { snap.is_path_divergent(&path) } else { false }
+    };
+
+    if let Some(changes) = &edit.changes {
+        for uri in changes.keys() {
+            if check_uri(uri) {
+                return true;
+            }
+        }
+    }
+
+    if let Some(doc_changes) = &edit.document_changes {
+        for op in doc_changes {
+            match op {
+                lsp_ext::SnippetDocumentChangeOperation::Edit(edit) => {
+                    if check_uri(&edit.text_document.text_document_identifier.uri) {
+                        return true;
+                    }
+                }
+                lsp_ext::SnippetDocumentChangeOperation::Change(change) => match change {
+                    lsp_types::DocumentChange::CreateFile(op) => {
+                        if check_uri(&op.uri) {
+                            return true;
+                        }
+                    }
+                    lsp_types::DocumentChange::RenameFile(op) => {
+                        if check_uri(&op.old_uri) || check_uri(&op.new_uri) {
+                            return true;
+                        }
+                    }
+                    lsp_types::DocumentChange::DeleteFile(op) => {
+                        if check_uri(&op.uri) {
+                            return true;
+                        }
+                    }
+                    lsp_types::DocumentChange::TextDocumentEdit(op) => {
+                        if check_uri(&op.text_document.text_document_identifier.uri) {
+                            return true;
+                        }
+                    }
+                },
+            }
+        }
+    }
+
+    false
 }
 
 pub(crate) fn handle_code_action_resolve(
@@ -1591,8 +1711,12 @@ pub(crate) fn handle_code_action_resolve(
         return Ok(code_action);
     };
 
-    let file_id = from_proto::file_id(&snap, &params.code_action_params.text_document.uri)?
-        .expect("we never provide code actions for excluded files");
+    // We never provide code actions for excluded files, but the buffer of the client may have
+    // diverged from the analyzed text since the code action was requested.
+    let Some(file_id) = from_proto::file_id(&snap, &params.code_action_params.text_document.uri)?
+    else {
+        return Err(invalid_params_error("stale code action".to_owned()).into());
+    };
     if snap.file_version(file_id) != params.version {
         return Err(invalid_params_error("stale code action".to_owned()).into());
     }
@@ -1653,7 +1777,7 @@ pub(crate) fn handle_code_action_resolve(
     {
         for change in changes {
             if let lsp_ext::SnippetDocumentChangeOperation::Change(change) = change {
-                resource_ops_supported(&snap.config, change)?
+                resource_ops_supported(&snap, change)?
             }
         }
     }
@@ -1800,7 +1924,7 @@ pub(crate) fn handle_ssr(
         position,
         selections,
     )??;
-    to_proto::workspace_edit(&snap, source_change).map_err(Into::into)
+    to_proto::workspace_edit(&snap, source_change)
 }
 
 pub(crate) fn handle_inlay_hints(
@@ -1820,7 +1944,7 @@ pub(crate) fn handle_inlay_hints(
         range.end().min(line_index.index.len()),
     );
 
-    let inlay_hints_config = snap.config.inlay_hints(snap.minicore());
+    let inlay_hints_config = snap.inlay_hints_config();
     Ok(Some(
         snap.analysis
             .inlay_hints(&inlay_hints_config, file_id, Some(range))?
@@ -1928,10 +2052,11 @@ pub(crate) fn handle_call_hierarchy_incoming(
     let fpos = FilePosition { file_id: frange.file_id, offset: frange.range.start() };
 
     let config = snap.config.call_hierarchy(snap.minicore());
-    let call_items = match snap.analysis.incoming_calls(&config, fpos)? {
+    let mut call_items = match snap.analysis.incoming_calls(&config, fpos)? {
         None => return Ok(None),
         Some(it) => it,
     };
+    snap.retain_in_client_view(&mut call_items, |call_item| call_item.target.file_id)?;
 
     Ok(Some(
         call_items
@@ -1968,10 +2093,11 @@ pub(crate) fn handle_call_hierarchy_outgoing(
     let line_index = snap.file_line_index(fpos.file_id)?;
 
     let config = snap.config.call_hierarchy(snap.minicore());
-    let call_items = match snap.analysis.outgoing_calls(&config, fpos)? {
+    let mut call_items = match snap.analysis.outgoing_calls(&config, fpos)? {
         None => return Ok(None),
         Some(it) => it,
     };
+    snap.retain_in_client_view(&mut call_items, |call_item| call_item.target.file_id)?;
 
     let mut res = vec![];
 
@@ -2171,7 +2297,7 @@ pub(crate) fn handle_move_item(
                 &line_index,
                 true,
                 text_edit,
-                snap.config.change_annotation_support(),
+                snap.caps().change_annotation_support(),
             ))
         }
         None => Ok(vec![]),
@@ -2707,14 +2833,14 @@ fn to_url(path: VfsPath) -> Option<Uri> {
     Uri::from_file_path(str_path).ok()
 }
 
-fn resource_ops_supported(config: &Config, kind: &DocumentChange) -> anyhow::Result<()> {
+fn resource_ops_supported(snap: &GlobalStateSnapshot, kind: &DocumentChange) -> anyhow::Result<()> {
     let op = match kind {
         lsp_types::DocumentChange::CreateFile(_) => ResourceOperationKind::Create,
         lsp_types::DocumentChange::RenameFile(_) => ResourceOperationKind::Rename,
         lsp_types::DocumentChange::DeleteFile(_) => ResourceOperationKind::Delete,
         lsp_types::DocumentChange::TextDocumentEdit(_) => return Ok(()),
     };
-    if !matches!(config.workspace_edit_resource_operations(), Some(resops) if resops.contains(&op))
+    if !matches!(snap.caps().workspace_edit_resource_operations(), Some(resops) if resops.contains(&op))
     {
         return Err(LspError::new(
             ErrorCode::RequestFailed as i32,

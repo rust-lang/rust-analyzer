@@ -4,8 +4,10 @@
 //! Each tick provides an immutable snapshot of the state as `WorldSnapshot`.
 
 use std::{
+    cell::RefCell,
     ops::Not as _,
     panic::AssertUnwindSafe,
+    sync::OnceLock,
     time::{Duration, Instant},
 };
 
@@ -34,16 +36,18 @@ use triomphe::Arc;
 use vfs::{AbsPathBuf, AnchoredPathBuf, ChangeKind, Vfs, VfsPath};
 
 use crate::{
-    config::{Config, ConfigChange, ConfigErrors, RatomlFileKind},
+    client::{Client, ClientId},
+    config::{Config, ConfigChange, ConfigErrors, FilesWatcher, RatomlFileKind},
     diagnostics::{CheckFixes, DiagnosticCollection},
     discover,
     flycheck::{FlycheckHandle, FlycheckMessage, PackageSpecifier},
-    line_index::{LineEndings, LineIndex},
-    lsp::{from_proto, to_proto::url_from_abs_path},
+    line_index::{LineEndings, LineIndex, PositionEncoding},
+    lsp::{capabilities::ClientCapabilities, from_proto, to_proto, to_proto::url_from_abs_path},
     lsp_ext,
     main_loop::Task,
     mem_docs::MemDocs,
     op_queue::{Cause, OpQueue},
+    overlay::{self, DiskCache, Overlay, OverlayCrates, PulledInFile, SourceRoots},
     priming_scope, reload,
     target_spec::{CargoTargetSpec, ProjectJsonTargetSpec, TargetSpec},
     task_pool::{DeferredTaskQueue, TaskPool},
@@ -72,8 +76,16 @@ pub(crate) struct Handle<H, C> {
     pub(crate) receiver: C,
 }
 
-pub(crate) type ReqHandler = fn(&mut GlobalState, lsp_server::Response);
-type ReqQueue = lsp_server::ReqQueue<(String, Instant), ReqHandler>;
+#[derive(Clone, Debug)]
+pub(crate) struct ActiveProgress {
+    pub(crate) title: String,
+    pub(crate) message: Option<String>,
+    pub(crate) percentage: Option<u32>,
+    pub(crate) cancellable: bool,
+}
+
+pub(crate) type ReqHandler = fn(&mut GlobalState, ClientId, lsp_server::Response);
+pub(crate) type ReqQueue = lsp_server::ReqQueue<(String, Instant), ReqHandler>;
 
 /// `GlobalState` is the primary mutable state of the language server
 ///
@@ -84,8 +96,8 @@ type ReqQueue = lsp_server::ReqQueue<(String, Instant), ReqHandler>;
 /// Note that this struct has more than one impl in various modules!
 #[doc(alias = "GlobalMess")]
 pub(crate) struct GlobalState {
-    sender: Sender<lsp_server::Message>,
-    req_queue: ReqQueue,
+    pub(crate) clients: FxHashMap<ClientId, Client>,
+    pub(crate) active_progress: FxHashMap<lsp_types::ProgressToken, ActiveProgress>,
 
     pub(crate) task_pool: Handle<TaskPool<Task>, Receiver<Task>>,
     pub(crate) fmt_pool: Handle<TaskPool<Task>, Receiver<Task>>,
@@ -95,6 +107,7 @@ pub(crate) struct GlobalState {
     pub(crate) config_errors: Option<ConfigErrors>,
     pub(crate) analysis_host: AnalysisHost,
     pub(crate) diagnostics: DiagnosticCollection,
+    pub(crate) diagnostics_forced_files: FxHashSet<FileId>,
     pub(crate) mem_docs: MemDocs,
     pub(crate) source_root_config: SourceRootConfig,
     /// A mapping that maps a local source root's `SourceRootId` to it parent's `SourceRootId`, if it has one.
@@ -122,7 +135,9 @@ pub(crate) struct GlobalState {
     pub(crate) flycheck_formatted_commands: Vec<String>,
 
     // Test explorer
+    pub(crate) test_run_session_id: usize,
     pub(crate) test_run_session: Option<Vec<CargoTestHandle>>,
+    pub(crate) test_run_client: Option<ClientId>,
     pub(crate) test_run_sender: Sender<CargoTestMessage>,
     pub(crate) test_run_receiver: Receiver<CargoTestMessage>,
     pub(crate) test_run_remaining_jobs: usize,
@@ -142,6 +157,8 @@ pub(crate) struct GlobalState {
     pub(crate) loader: Handle<Box<dyn vfs::loader::Handle>, Receiver<vfs::loader::Message>>,
     pub(crate) vfs: Arc<RwLock<(vfs::Vfs, FxHashMap<FileId, LineEndings>)>>,
     pub(crate) vfs_config_version: u32,
+    /// Whether the last VFS config left file watching to the clients.
+    pub(crate) files_watched_by_client: bool,
     pub(crate) vfs_progress_config_version: u32,
     pub(crate) vfs_done: bool,
     // used to track how long VFS loading takes. this can't be on `vfs::loader::Handle`,
@@ -199,6 +216,18 @@ pub(crate) struct GlobalState {
     /// This is marked true if we failed to load a crate root file at crate graph creation,
     /// which will usually end up causing a bunch of incorrect diagnostics on startup.
     pub(crate) incomplete_crate_graph: bool,
+    /// The loaded workspaces that live in a git worktree of another loaded workspace.
+    pub(crate) overlays: Arc<Vec<Overlay>>,
+    /// For the crates of those workspaces, whether their sources were the same as in the base
+    /// checkout when the crate graph was built.
+    pub(crate) overlay_crates: Arc<OverlayCrates>,
+    /// The partition of the files into source roots, kept while there are overlays.
+    pub(crate) overlay_source_roots: Option<Arc<SourceRoots>>,
+    /// The files that source files pull in by path, which may be outside of their package.
+    pub(crate) pulled_in_files: FxHashMap<FileId, Vec<PulledInFile>>,
+    /// Comparisons of the files that are pulled in but not loaded, as of the last time the crate
+    /// graph was built.
+    pub(crate) overlay_disk_cache: RefCell<DiskCache>,
 
     pub(crate) minicore: MiniCoreRustAnalyzerInternalOnly,
     pub(crate) last_gc_revision: Revision,
@@ -212,6 +241,9 @@ pub(crate) struct MiniCoreRustAnalyzerInternalOnly {
 
 /// An immutable snapshot of the world's state at a point in time.
 pub(crate) struct GlobalStateSnapshot {
+    pub(crate) client_id: Option<ClientId>,
+    pub(crate) position_encoding: PositionEncoding,
+    pub(crate) caps: Option<ClientCapabilities>,
     pub(crate) config: Arc<Config>,
     pub(crate) analysis: Analysis,
     pub(crate) check_fixes: CheckFixes,
@@ -225,12 +257,30 @@ pub(crate) struct GlobalStateSnapshot {
     pub(crate) proc_macros_loaded: bool,
     pub(crate) flycheck: Arc<[FlycheckHandle]>,
     minicore: MiniCoreRustAnalyzerInternalOnly,
+    overlays: Arc<Vec<Overlay>>,
+    overlay_crates: Arc<OverlayCrates>,
+    overlay_source_roots: Option<Arc<SourceRoots>>,
+    /// The overlay that the files named by the request belong to. Paths in the response are
+    /// those of its worktree.
+    request_overlay: OnceLock<usize>,
+    client_root: Option<AbsPathBuf>,
 }
 
 impl std::panic::UnwindSafe for GlobalStateSnapshot {}
 
 impl GlobalState {
     pub(crate) fn new(sender: Sender<lsp_server::Message>, config: Config) -> GlobalState {
+        let encoding = config.caps().negotiated_encoding();
+        let mut this = Self::new_multi(config);
+        this.register_client_with_id(ClientId::DEFAULT, sender, encoding);
+        if let Some(client) = this.clients.get_mut(&ClientId::DEFAULT) {
+            client.is_initialized = true;
+            client.root = Some(this.config.default_root_path().clone());
+        }
+        this
+    }
+
+    pub(crate) fn new_multi(config: Config) -> GlobalState {
         let loader = {
             let (sender, receiver) = unbounded::<vfs::loader::Message>();
             let handle: vfs_notify::NotifyHandle = vfs::loader::Handle::spawn(sender);
@@ -267,8 +317,8 @@ impl GlobalState {
         let last_gc_revision = analysis_host.raw_database().nonce_and_revision().1;
 
         let mut this = GlobalState {
-            sender,
-            req_queue: ReqQueue::default(),
+            clients: FxHashMap::default(),
+            active_progress: FxHashMap::default(),
             task_pool,
             fmt_pool,
             cancellation_pool,
@@ -276,6 +326,7 @@ impl GlobalState {
             config: Arc::new(config.clone()),
             analysis_host,
             diagnostics: Default::default(),
+            diagnostics_forced_files: FxHashSet::default(),
             mem_docs: MemDocs::default(),
             semantic_tokens_cache: Arc::new(Default::default()),
             shutdown_requested: false,
@@ -298,7 +349,9 @@ impl GlobalState {
             last_flycheck_error: None,
             flycheck_formatted_commands: vec![],
 
+            test_run_session_id: 0,
             test_run_session: None,
+            test_run_client: None,
             test_run_sender,
             test_run_receiver,
             test_run_remaining_jobs: 0,
@@ -312,6 +365,7 @@ impl GlobalState {
 
             vfs: Arc::new(RwLock::new((vfs::Vfs::default(), Default::default()))),
             vfs_config_version: 0,
+            files_watched_by_client: false,
             vfs_progress_config_version: 0,
             vfs_span: None,
             vfs_done: true,
@@ -328,6 +382,11 @@ impl GlobalState {
 
             deferred_task_queue,
             incomplete_crate_graph: false,
+            overlays: Arc::default(),
+            overlay_crates: Arc::default(),
+            overlay_source_roots: None,
+            pulled_in_files: FxHashMap::default(),
+            overlay_disk_cache: RefCell::default(),
 
             minicore: MiniCoreRustAnalyzerInternalOnly::default(),
             last_gc_revision,
@@ -352,6 +411,9 @@ impl GlobalState {
         if changed_files.is_empty() {
             return (false, None);
         }
+        let changed_file_ids: Vec<FileId> = changed_files.keys().copied().collect();
+        let files_created_or_deleted =
+            changed_files.values().any(|file| file.is_created_or_deleted());
 
         let (change, modified_rust_files, workspace_structure_change) =
             self.cancellation_pool.scoped(|s| {
@@ -424,6 +486,21 @@ impl GlobalState {
                     } else {
                         None
                     };
+                    let pulled_in_files = match &text {
+                        Some((text, _))
+                            if vfs_path
+                                .name_and_extension()
+                                .is_some_and(|(_, ext)| ext == Some("rs")) =>
+                        {
+                            overlay::pulled_in_files(text)
+                        }
+                        _ => Vec::new(),
+                    };
+                    if pulled_in_files.is_empty() {
+                        self.pulled_in_files.remove(&file.file_id);
+                    } else {
+                        self.pulled_in_files.insert(file.file_id, pulled_in_files);
+                    }
                     // delay `line_endings_map` changes until we are done normalizing the text
                     // this allows delaying the re-acquisition of the write lock
                     bytes.push((file.file_id, text));
@@ -568,11 +645,35 @@ impl GlobalState {
             }
         }
 
+        self.recheck_overlays(&changed_file_ids, files_created_or_deleted);
+
         (true, Some(cancellation_time))
     }
 
     pub(crate) fn snapshot(&self) -> GlobalStateSnapshot {
+        self.snapshot_for(None)
+    }
+
+    pub(crate) fn snapshot_for(&self, client_id: Option<ClientId>) -> GlobalStateSnapshot {
+        let position_encoding = client_id
+            .and_then(|id| self.clients.get(&id))
+            .map(|c| c.position_encoding)
+            .unwrap_or_else(|| self.config.caps().negotiated_encoding());
+        let caps = client_id.and_then(|id| self.clients.get(&id)).map(|c| c.caps.clone());
+        let client_root =
+            client_id.and_then(|id| self.clients.get(&id)).and_then(|c| c.root.clone());
+        let request_overlay = OnceLock::new();
+        if let Some(root) = &client_root
+            && let Some(idx) =
+                self.overlays.iter().position(|it| root.starts_with(&it.worktree_root))
+        {
+            _ = request_overlay.set(idx);
+        }
+
         GlobalStateSnapshot {
+            client_id,
+            position_encoding,
+            caps,
             config: Arc::clone(&self.config),
             workspaces: Arc::clone(&self.workspaces),
             analysis: self.analysis_host.analysis(),
@@ -584,6 +685,325 @@ impl GlobalState {
             proc_macros_loaded: !self.config.expand_proc_macros()
                 || self.fetch_proc_macros_queue.last_op_result().copied().unwrap_or(false),
             flycheck: self.flycheck.clone(),
+            overlays: Arc::clone(&self.overlays),
+            overlay_crates: Arc::clone(&self.overlay_crates),
+            overlay_source_roots: self.overlay_source_roots.clone(),
+            request_overlay,
+            client_root,
+        }
+    }
+
+    pub(crate) fn register_client_with_id(
+        &mut self,
+        client_id: ClientId,
+        sender: Sender<lsp_server::Message>,
+        position_encoding: PositionEncoding,
+    ) {
+        // Until the client sends its own `initialize` request, assume the capabilities the
+        // server was configured with.
+        let caps = self.config.caps().clone();
+        self.clients.insert(client_id, Client::new(sender, position_encoding, caps));
+    }
+
+    pub(crate) fn cleanup_closed_document(&mut self, path: &VfsPath) {
+        if let Some((file_id, _)) = self.vfs.read().0.file_id(path) {
+            self.diagnostics_forced_files.remove(&file_id);
+            self.diagnostics.clear_native_for(file_id);
+        }
+
+        if let Some(abs_path) = path.as_path() {
+            let uri = url_from_abs_path(abs_path);
+            self.semantic_tokens_cache.lock().remove(&uri);
+            self.loader.handle.invalidate(abs_path.to_path_buf());
+        }
+    }
+
+    /// Clients whose open buffer for `path` differs from the text that is being analyzed.
+    pub(crate) fn divergent_clients(&self, path: &VfsPath) -> Vec<ClientId> {
+        self.clients
+            .keys()
+            .copied()
+            .filter(|&id| {
+                self.mem_docs.get(id, path).is_some()
+                    && !self.mem_docs.is_in_sync_with_vfs(id, path)
+            })
+            .collect()
+    }
+
+    /// Makes `contents` the analyzed text of `path`, and makes sure that those of `clients`
+    /// whose buffer now matches it receive the diagnostics for this text.
+    ///
+    /// Returns whether the analyzed text changed.
+    pub(crate) fn set_analyzed_contents(
+        &mut self,
+        path: &VfsPath,
+        contents: Vec<u8>,
+        clients: &[ClientId],
+    ) -> bool {
+        // Library files are immutable: the client never becomes authoritative over their
+        // contents, disk is the truth.
+        let vfs_changed = !self.source_root_config.path_is_library(path)
+            && self.vfs.write().0.set_file_contents(path.clone(), Some(contents));
+        let Some((file_id, _)) = self.vfs.read().0.file_id(path) else {
+            return vfs_changed;
+        };
+        let mut synced =
+            clients.iter().copied().filter(|&id| self.mem_docs.is_in_sync_with_vfs(id, path));
+        if vfs_changed {
+            // The diagnostics are going to be recomputed, make sure they are published even if
+            // they turn out to be the same as before.
+            if synced.next().is_some() {
+                self.diagnostics_forced_files.insert(file_id);
+            }
+        } else {
+            // Nothing is going to be recomputed, so replay what we already have.
+            for id in synced {
+                self.replay_diagnostics_for_file_to(id, file_id);
+            }
+        }
+        vfs_changed
+    }
+
+    pub(crate) fn unregister_client(&mut self, client_id: ClientId) -> Option<Client> {
+        let (closed_paths, to_restore) = self.mem_docs.remove_client(client_id);
+        for path in &closed_paths {
+            self.cleanup_closed_document(path);
+        }
+        let other_clients: Vec<ClientId> =
+            self.clients.keys().copied().filter(|&id| id != client_id).collect();
+        for (path, content) in to_restore {
+            self.set_analyzed_contents(&path, content, &other_clients);
+        }
+        if self.test_run_client == Some(client_id) {
+            self.test_run_session_id = self.test_run_session_id.wrapping_add(1);
+            self.test_run_session = None;
+            self.test_run_client = None;
+        }
+        let removed = self.clients.remove(&client_id);
+        if self.any_client_watches_files() != self.files_watched_by_client {
+            self.update_file_watching();
+        }
+        removed
+    }
+
+    /// Whether file watching is delegated to at least one of the attached clients.
+    pub(crate) fn any_client_watches_files(&self) -> bool {
+        matches!(self.config.files().watcher, FilesWatcher::Client)
+            && self
+                .clients
+                .values()
+                .any(|client| client.caps.did_change_watched_files_dynamic_registration())
+    }
+
+    /// The file of the base checkout that is analyzed in place of the worktree's `file_id`.
+    pub(crate) fn shared_base_file(&self, vfs: &vfs::Vfs, file_id: FileId) -> Option<FileId> {
+        overlay::shared_base_file(
+            vfs,
+            self.overlay_source_roots.as_ref()?,
+            &self.overlays,
+            &self.overlay_crates,
+            file_id,
+            true,
+        )
+    }
+
+    /// The paths under which a client wants the diagnostics of the file at `path`.
+    ///
+    /// The diagnostics of a crate that a worktree shares with its base checkout are also those
+    /// of the worktree's files. A client gets them under the worktree's paths if it works in
+    /// that worktree, or has the worktree's document open. A client that works in a worktree
+    /// gets none for the rest of the base checkout, and one that works elsewhere none for the
+    /// worktree.
+    fn diagnostics_paths_for(
+        &self,
+        vfs: &vfs::Vfs,
+        client_id: ClientId,
+        client: &Client,
+        path: &VfsPath,
+    ) -> Vec<VfsPath> {
+        let Some(abs_path) = path.as_path().filter(|_| !self.overlays.is_empty()) else {
+            return vec![path.clone()];
+        };
+        let overlay_of = |path: &vfs::AbsPath| {
+            self.overlays.iter().position(|it| path.starts_with(&it.worktree_root))
+        };
+        let client_overlay = client.root.as_deref().and_then(overlay_of);
+        if let Some(file_overlay) = overlay_of(abs_path) {
+            let wanted = match (client_overlay, &client.root) {
+                (Some(client_overlay), _) => client_overlay == file_overlay,
+                (None, Some(root)) => self.overlays[file_overlay].worktree_root.starts_with(root),
+                (None, None) => true,
+            };
+            return if wanted { vec![path.clone()] } else { Vec::new() };
+        }
+        let file_id = vfs.file_id(path).map(|(file_id, _)| file_id);
+        let mut paths: Vec<VfsPath> = self
+            .overlays
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, overlay)| {
+                let worktree_path = VfsPath::from(overlay.to_worktree(abs_path)?);
+                let (worktree_file, _) = vfs.file_id(&worktree_path)?;
+                let wanted = client_overlay == Some(idx)
+                    || (client_overlay.is_none()
+                        && self.mem_docs.get(client_id, &worktree_path).is_some());
+                (wanted && self.shared_base_file(vfs, worktree_file) == file_id)
+                    .then_some(worktree_path)
+            })
+            .collect();
+        let in_base_checkout_of_client =
+            client_overlay.is_some_and(|idx| abs_path.starts_with(&self.overlays[idx].base_root));
+        if !in_base_checkout_of_client {
+            paths.push(path.clone());
+        }
+        paths
+    }
+
+    pub(crate) fn replay_diagnostics_for_file_to(&self, client_id: ClientId, file_id: FileId) {
+        let Some(client) = self.clients.get(&client_id) else {
+            return;
+        };
+        let vfs = self.vfs.read();
+        let file_id = self.shared_base_file(&vfs.0, file_id).unwrap_or(file_id);
+        let base_encoding = self.config.caps().negotiated_encoding();
+        for path in self.diagnostics_paths_for(&vfs.0, client_id, client, vfs.0.file_path(file_id))
+        {
+            if self.mem_docs.get(client_id, &path).is_some()
+                && !self.mem_docs.is_in_sync_with_vfs(client_id, &path)
+            {
+                // Suppress diagnostics for divergent open buffers
+                continue;
+            }
+            let Some(uri) = path.as_path().map(url_from_abs_path) else {
+                continue;
+            };
+            let mut diagnostics =
+                self.diagnostics.diagnostics_for(file_id).cloned().collect::<Vec<_>>();
+            if client.position_encoding != base_encoding {
+                diagnostics = to_proto::reencode_diagnostics(
+                    &self.snapshot(),
+                    &uri,
+                    base_encoding,
+                    client.position_encoding,
+                    diagnostics,
+                );
+            }
+            let version = self.mem_docs.get(client_id, &path).map(|d| d.version);
+            let not = lsp_server::Notification::new(
+                lsp_types::PublishDiagnosticsNotification::METHOD.into(),
+                lsp_types::PublishDiagnosticsParams { uri, diagnostics, version },
+            );
+            self.send(client_id, not.into());
+        }
+    }
+
+    pub(crate) fn replay_diagnostics_to(&self, client_id: ClientId) {
+        let files = self.diagnostics.files_with_diagnostics();
+        for file_id in files {
+            if self.diagnostics.diagnostics_for(file_id).next().is_none() {
+                continue;
+            }
+            self.replay_diagnostics_for_file_to(client_id, file_id);
+        }
+    }
+
+    pub(crate) fn watched_files_registration_for(
+        &self,
+        caps: &ClientCapabilities,
+    ) -> Option<lsp_types::Registration> {
+        if !caps.did_change_watched_files_dynamic_registration() {
+            return None;
+        }
+        if let crate::config::FilesWatcher::Client = self.config.files().watcher {
+            let filter = self
+                .workspaces
+                .iter()
+                .flat_map(|ws| ws.to_roots())
+                .filter(|it| it.is_local)
+                .map(|it| it.include);
+
+            let mut watchers: Vec<lsp_types::FileSystemWatcher> =
+                if caps.did_change_watched_files_relative_pattern_support() {
+                    // When relative patterns are supported by the client, prefer using them
+                    filter
+                        .flat_map(|include| {
+                            include.into_iter().flat_map(|base| {
+                                [
+                                    (base.clone(), "**/*.rs"),
+                                    (base.clone(), "**/Cargo.{lock,toml}"),
+                                    (base.clone(), "**/rust-analyzer.toml"),
+                                    (base, "**/*.md"),
+                                ]
+                            })
+                        })
+                        .map(|(base, pat)| lsp_types::FileSystemWatcher {
+                            glob_pattern: lsp_types::GlobPattern::RelativePattern(
+                                lsp_types::RelativePattern {
+                                    base_uri: lsp_types::BaseUri::Uri(
+                                        lsp_types::Uri::from_file_path(base).unwrap(),
+                                    ),
+                                    pattern: pat.to_owned(),
+                                },
+                            ),
+                            kind: None,
+                        })
+                        .collect()
+                } else {
+                    // When they're not, integrate the base to make them into absolute patterns
+                    filter
+                        .flat_map(|include| {
+                            include.into_iter().flat_map(|base| {
+                                [
+                                    format!("{base}/**/*.rs"),
+                                    format!("{base}/**/Cargo.{{toml,lock}}"),
+                                    format!("{base}/**/rust-analyzer.toml"),
+                                    format!("{base}/**/*.md"),
+                                ]
+                            })
+                        })
+                        .map(|glob_pattern| lsp_types::FileSystemWatcher {
+                            glob_pattern: lsp_types::GlobPattern::Pattern(glob_pattern),
+                            kind: None,
+                        })
+                        .collect()
+                };
+
+            // Also explicitly watch any build files configured in JSON project files.
+            for ws in self.workspaces.iter() {
+                if let ProjectWorkspaceKind::Json(project_json) = &ws.kind {
+                    for (_, krate) in project_json.crates() {
+                        let Some(build) = &krate.build else {
+                            continue;
+                        };
+                        watchers.push(lsp_types::FileSystemWatcher {
+                            glob_pattern: lsp_types::GlobPattern::Pattern(
+                                build.build_file.to_string(),
+                            ),
+                            kind: None,
+                        });
+                    }
+                }
+            }
+
+            watchers.extend(
+                std::iter::once(Config::user_config_dir_path().as_deref())
+                    .chain(self.workspaces.iter().map(|ws| ws.manifest().map(ManifestPath::as_ref)))
+                    .flatten()
+                    .map(|glob_pattern| lsp_types::FileSystemWatcher {
+                        glob_pattern: lsp_types::GlobPattern::Pattern(glob_pattern.to_string()),
+                        kind: None,
+                    }),
+            );
+
+            let registration_options =
+                lsp_types::DidChangeWatchedFilesRegistrationOptions { watchers };
+            Some(lsp_types::Registration {
+                id: "workspace/didChangeWatchedFiles".to_owned(),
+                method: "workspace/didChangeWatchedFiles".to_owned(),
+                register_options: Some(serde_json::to_value(registration_options).unwrap()),
+            })
+        } else {
+            None
         }
     }
 
@@ -591,73 +1011,178 @@ impl GlobalState {
         &mut self,
         params: R::Params,
         handler: ReqHandler,
-    ) {
-        let request = self.req_queue.outgoing.register(R::METHOD.into(), params, handler);
-        self.send(request.into());
+    ) where
+        R::Params: Clone,
+    {
+        self.send_request_all::<R>(params, handler);
     }
 
-    pub(crate) fn complete_request(&mut self, response: lsp_server::Response) {
+    pub(crate) fn send_request_all<R: lsp_types::Request>(
+        &mut self,
+        params: R::Params,
+        handler: ReqHandler,
+    ) where
+        R::Params: Clone,
+    {
+        let client_ids: Vec<_> =
+            self.clients.iter().filter_map(|(&id, c)| c.is_initialized.then_some(id)).collect();
+        for client_id in client_ids {
+            self.send_request_to::<R>(client_id, params.clone(), handler);
+        }
+    }
+
+    pub(crate) fn send_request_to<R: lsp_types::Request>(
+        &mut self,
+        client_id: ClientId,
+        params: R::Params,
+        handler: ReqHandler,
+    ) {
+        if let Some(client) = self.clients.get_mut(&client_id) {
+            let request = client.req_queue.outgoing.register(R::METHOD.into(), params, handler);
+            let _ = client.sender.send(request.into());
+        }
+    }
+
+    pub(crate) fn complete_request(&mut self, client_id: ClientId, response: lsp_server::Response) {
         let handler = self
-            .req_queue
-            .outgoing
-            .complete(response.id.clone())
-            .expect("received response for unknown request");
-        handler(self, response)
+            .clients
+            .get_mut(&client_id)
+            .and_then(|client| client.req_queue.outgoing.complete(response.id.clone()));
+        if let Some(handler) = handler {
+            handler(self, client_id, response);
+        }
     }
 
     pub(crate) fn send_notification<N: lsp_types::Notification>(&self, params: N::Params) {
         let not = lsp_server::Notification::new(N::METHOD.into(), params);
-        self.send(not.into());
+        self.broadcast(not.into());
+    }
+
+    pub(crate) fn send_notification_to<N: lsp_types::Notification>(
+        &self,
+        client_id: ClientId,
+        params: N::Params,
+    ) {
+        let not = lsp_server::Notification::new(N::METHOD.into(), params);
+        self.send(client_id, not.into());
     }
 
     pub(crate) fn register_request(
         &mut self,
+        client_id: ClientId,
         request: &lsp_server::Request,
         request_received: Instant,
     ) {
-        self.req_queue
-            .incoming
-            .register(request.id.clone(), (request.method.clone(), request_received));
+        if let Some(client) = self.clients.get_mut(&client_id) {
+            client
+                .req_queue
+                .incoming
+                .register(request.id.clone(), (request.method.clone(), request_received));
+        }
     }
 
-    pub(crate) fn respond(&mut self, response: lsp_server::Response) {
-        if let Some((method, start)) = self.req_queue.incoming.complete(&response.id) {
-            if let Some(err) = &response.error
-                && err.message.starts_with("server panicked")
-            {
-                self.poke_rust_analyzer_developer(format!("{}, check the log", err.message));
+    pub(crate) fn respond(&mut self, client_id: ClientId, response: lsp_server::Response) {
+        let info = self.clients.get_mut(&client_id).and_then(|client| {
+            client
+                .req_queue
+                .incoming
+                .complete(&response.id)
+                .map(|(method, start)| (client.sender.clone(), method, start))
+        });
+        let Some((sender, method, start)) = info else {
+            return;
+        };
+        if let Some(err) = &response.error
+            && err.message.starts_with("server panicked")
+        {
+            self.poke_rust_analyzer_developer(format!("{}, check the log", err.message));
+        }
+
+        let duration = start.elapsed();
+        tracing::debug!(name: "message response", method, %response.id, duration = format_args!("{:0.2?}", duration));
+        let _ = sender.send(response.into());
+    }
+
+    pub(crate) fn cancel(&mut self, client_id: ClientId, request_id: lsp_server::RequestId) {
+        if let Some(client) = self.clients.get_mut(&client_id)
+            && let Some(response) = client.req_queue.incoming.cancel(request_id)
+        {
+            let _ = client.sender.send(response.into());
+        }
+    }
+
+    pub(crate) fn is_completed(&self, client_id: ClientId, request: &lsp_server::Request) -> bool {
+        let Some(client) = self.clients.get(&client_id) else {
+            return true;
+        };
+        client.req_queue.incoming.is_completed(&request.id)
+    }
+
+    pub(crate) fn send(&self, client_id: ClientId, message: lsp_server::Message) {
+        if let Some(client) = self.clients.get(&client_id) {
+            let _ = client.sender.send(message);
+        }
+    }
+
+    pub(crate) fn broadcast(&self, message: lsp_server::Message) {
+        for client in self.clients.values() {
+            if client.is_initialized {
+                let _ = client.sender.send(message.clone());
             }
-
-            let duration = start.elapsed();
-            tracing::debug!(name: "message response", method, %response.id, duration = format_args!("{:0.2?}", duration));
-            self.send(response.into());
         }
-    }
-
-    pub(crate) fn cancel(&mut self, request_id: lsp_server::RequestId) {
-        if let Some(response) = self.req_queue.incoming.cancel(request_id) {
-            self.send(response.into());
-        }
-    }
-
-    pub(crate) fn is_completed(&self, request: &lsp_server::Request) -> bool {
-        self.req_queue.incoming.is_completed(&request.id)
-    }
-
-    #[track_caller]
-    fn send(&self, message: lsp_server::Message) {
-        self.sender.send(message).unwrap();
     }
 
     pub(crate) fn publish_diagnostics(
         &mut self,
         uri: Uri,
-        version: Option<i32>,
         mut diagnostics: Vec<lsp_types::Diagnostic>,
     ) {
+        let base_encoding = self.config.caps().negotiated_encoding();
+        let path = from_proto::vfs_path(&uri).ok();
+        let clients: Vec<(Sender<lsp_server::Message>, PositionEncoding, Option<i32>, Uri)> = {
+            let this = &*self;
+            let mem_docs = &this.mem_docs;
+            let vfs = &this.vfs.read().0;
+            this.clients
+                .iter()
+                .filter(|(_, c)| c.is_initialized)
+                .flat_map(|(&id, c)| {
+                    // A client may know the file under other paths than the one we analyze.
+                    let targets = match &path {
+                        Some(path) => this
+                            .diagnostics_paths_for(vfs, id, c, path)
+                            .into_iter()
+                            .filter_map(|path| {
+                                let uri = url_from_abs_path(path.as_path()?);
+                                Some((Some(path), uri))
+                            })
+                            .collect(),
+                        None => vec![(None, uri.clone())],
+                    };
+                    targets.into_iter().filter_map(move |(path, uri)| {
+                        if let Some(p) = &path
+                            && mem_docs.get(id, p).is_some()
+                            && !mem_docs.is_in_sync_with_vfs(id, p)
+                        {
+                            // Suppress diagnostics for divergent open buffers
+                            return None;
+                        }
+                        let version =
+                            path.as_ref().and_then(|p| mem_docs.get(id, p).map(|d| d.version));
+                        Some((c.sender.clone(), c.position_encoding, version, uri))
+                    })
+                })
+                .collect()
+        };
+        if clients.is_empty() {
+            return;
+        }
+        // Positions are computed in the server-wide encoding; a snapshot is only needed to
+        // re-encode them for clients that negotiated a different one.
+        let snap =
+            clients.iter().any(|&(_, enc, _, _)| enc != base_encoding).then(|| self.snapshot());
         // We put this on a separate thread to avoid blocking the main thread with serialization work
         self.task_pool.handle.spawn_with_sender(stdx::thread::ThreadIntent::Worker, {
-            let sender = self.sender.clone();
             move |_| {
                 // VSCode assumes diagnostic messages to be non-empty strings, so we need to patch
                 // empty diagnostics. Neither the docs of VSCode nor the LSP spec say whether
@@ -694,11 +1219,29 @@ impl GlobalState {
                     }
                 }
 
-                let not = lsp_server::Notification::new(
-                    lsp_types::PublishDiagnosticsNotification::METHOD.into(),
-                    lsp_types::PublishDiagnosticsParams { uri, diagnostics, version },
-                );
-                _ = sender.send(not.into());
+                for (sender, enc, version, uri) in clients {
+                    let client_diagnostics = match &snap {
+                        Some(snap) if enc != base_encoding => to_proto::reencode_diagnostics(
+                            snap,
+                            &uri,
+                            base_encoding,
+                            enc,
+                            diagnostics.clone(),
+                        ),
+                        _ => diagnostics.clone(),
+                    };
+
+                    let not = lsp_server::Notification::new(
+                        lsp_types::PublishDiagnosticsNotification::METHOD.into(),
+                        lsp_types::PublishDiagnosticsParams {
+                            uri,
+                            diagnostics: client_diagnostics,
+                            version,
+                        },
+                    );
+                    let msg: lsp_server::Message = not.into();
+                    _ = sender.send(msg);
+                }
             }
         });
     }
@@ -823,17 +1366,163 @@ impl Drop for GlobalState {
 }
 
 impl GlobalStateSnapshot {
+    pub(crate) fn caps(&self) -> &ClientCapabilities {
+        self.caps.as_ref().unwrap_or_else(|| self.config.caps())
+    }
+
+    pub(crate) fn completion_config<'a>(
+        &'a self,
+        source_root: Option<ide_db::base_db::SourceRootId>,
+    ) -> ide_completion::CompletionConfig<'a> {
+        let mut cfg = self.config.completion(source_root, self.minicore());
+        let caps = self.caps();
+        if !caps.completion_snippet() {
+            cfg.snippet_cap = None;
+        }
+        let client_capability_fields = caps.completion_resolve_support_properties();
+        cfg.fields_to_resolve = if self.config.client_is_neovim() {
+            ide_completion::CompletionFieldsToResolve::empty()
+        } else {
+            ide_completion::CompletionFieldsToResolve::from_client_capabilities(
+                &client_capability_fields,
+            )
+        };
+        cfg
+    }
+
+    pub(crate) fn inlay_hints_config(&self) -> ide::InlayHintsConfig<'_> {
+        let mut cfg = self.config.inlay_hints(self.minicore());
+        let properties = self.caps().inlay_hint_resolve_support_properties();
+        cfg.fields_to_resolve = ide::InlayFieldsToResolve::from_client_capabilities(&properties);
+        cfg
+    }
+
     fn vfs_read(&self) -> MappedRwLockReadGuard<'_, vfs::Vfs> {
         RwLockReadGuard::map(self.vfs.read(), |(it, _)| it)
     }
 
     /// Returns `None` if the file was excluded.
     pub(crate) fn url_to_file_id(&self, url: &Uri) -> anyhow::Result<Option<FileId>> {
-        url_to_file_id(&self.vfs_read(), url)
+        let Some(file_id) = url_to_file_id(&self.vfs_read(), url)? else {
+            return Ok(None);
+        };
+        Ok(Some(self.analyzed_file(file_id)?))
+    }
+
+    /// The file that is analyzed for `file_id`: a file of a worktree that is not part of any
+    /// crate stands for the same file of the base checkout, as its crate is shared with it.
+    fn analyzed_file(&self, file_id: FileId) -> Cancellable<FileId> {
+        if self.overlays.is_empty() {
+            return Ok(file_id);
+        }
+        let base_file = {
+            let vfs = self.vfs_read();
+            let Some(path) = vfs.file_path(file_id).as_path() else {
+                return Ok(file_id);
+            };
+            let Some(idx) = self.overlays.iter().position(|it| path.starts_with(&it.worktree_root))
+            else {
+                return Ok(file_id);
+            };
+            _ = self.request_overlay.set(idx);
+            // Until the crate graph is rebuilt after a change, the file may be in no crate
+            // although its package is not shared anymore: that the file is the same and that
+            // its package is known to be shared has to be checked as well.
+            self.overlay_source_roots.as_ref().and_then(|roots| {
+                overlay::shared_base_file(
+                    &vfs,
+                    roots,
+                    &self.overlays,
+                    &self.overlay_crates,
+                    file_id,
+                    false,
+                )
+            })
+        };
+        match base_file {
+            Some(base_file) if self.analysis.crates_for(file_id)?.is_empty() => Ok(base_file),
+            _ => Ok(file_id),
+        }
+    }
+
+    /// Whether something found in `file_id` is of interest to the client that sent the request.
+    ///
+    /// A client that works in a worktree does not want to hear about the base checkout's copy of
+    /// a crate that the worktree has its own version of, nor about other worktrees. A client
+    /// that works elsewhere does not want to hear about worktrees.
+    pub(crate) fn in_client_view(&self, file_id: FileId) -> Cancellable<bool> {
+        if self.overlays.is_empty() {
+            return Ok(true);
+        }
+        let worktree_file = {
+            let vfs = self.vfs_read();
+            let Some(path) = vfs.file_path(file_id).as_path() else {
+                return Ok(true);
+            };
+            let worktree_of_file =
+                self.overlays.iter().position(|it| path.starts_with(&it.worktree_root));
+            let Some(&idx) = self.request_overlay.get() else {
+                // Without knowing where the client works, show it everything.
+                let outside_of_client_root = worktree_of_file.is_some_and(|idx| {
+                    self.client_root
+                        .as_ref()
+                        .is_some_and(|root| !self.overlays[idx].worktree_root.starts_with(root))
+                });
+                return Ok(!outside_of_client_root);
+            };
+            if worktree_of_file.is_some() {
+                return Ok(worktree_of_file == Some(idx));
+            }
+            // A library, which is the same for all.
+            let Some(worktree_path) = self.overlays[idx].to_worktree(path) else {
+                return Ok(true);
+            };
+            vfs.file_id(&VfsPath::from(worktree_path))
+                .map(|(file_id, _)| file_id)
+                .filter(|&file_id| vfs.exists(file_id))
+        };
+        match worktree_file {
+            Some(worktree_file) => Ok(self.analysis.crates_for(worktree_file)?.is_empty()),
+            // The worktree does not have the file.
+            None => Ok(false),
+        }
+    }
+
+    /// Keeps the items that are in files that are of interest to the client.
+    pub(crate) fn retain_in_client_view<T>(
+        &self,
+        items: &mut Vec<T>,
+        file_id: impl Fn(&T) -> FileId,
+    ) -> Cancellable<()> {
+        if self.overlays.is_empty() {
+            return Ok(());
+        }
+        let mut res = Ok(());
+        items.retain(|item| match self.in_client_view(file_id(item)) {
+            Ok(in_view) => in_view,
+            Err(cancelled) => {
+                res = Err(cancelled);
+                true
+            }
+        });
+        res
+    }
+
+    /// The path under which the client that sent the request knows the file.
+    fn client_path(&self, vfs: &vfs::Vfs, file_id: FileId) -> VfsPath {
+        let path = vfs.file_path(file_id);
+        let worktree_path = self
+            .request_overlay
+            .get()
+            .and_then(|&idx| self.overlays[idx].to_worktree(path.as_path()?))
+            .map(VfsPath::from)
+            .filter(|path| vfs.file_id(path).is_some());
+        worktree_path.unwrap_or_else(|| path.clone())
     }
 
     pub(crate) fn file_id_to_url(&self, id: FileId) -> Uri {
-        file_id_to_url(&self.vfs_read(), id)
+        let path = self.client_path(&self.vfs_read(), id);
+        url_from_abs_path(path.as_path().unwrap())
     }
 
     /// Returns `None` if the file was excluded.
@@ -842,23 +1531,80 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn file_line_index(&self, file_id: FileId) -> Cancellable<LineIndex> {
-        let endings = self.vfs.read().1[&file_id];
+        let endings = match self.vfs.read().1.get(&file_id) {
+            Some(&endings) => endings,
+            None => return Err(ide_db::base_db::salsa::Cancelled::PendingWrite),
+        };
         let index = self.analysis.file_line_index(file_id)?;
-        let res = LineIndex { index, endings, encoding: self.config.caps().negotiated_encoding() };
+        let res = LineIndex { index, endings, encoding: self.position_encoding };
         Ok(res)
     }
 
     pub(crate) fn file_version(&self, file_id: FileId) -> Option<i32> {
-        Some(self.mem_docs.get(self.vfs_read().file_path(file_id))?.version)
+        let path = &self.client_path(&self.vfs_read(), file_id);
+        match self.client_id {
+            Some(client_id) if self.mem_docs.is_in_sync_with_vfs(client_id, path) => {
+                self.mem_docs.get(client_id, path).map(|d| d.version)
+            }
+            Some(_) => None,
+            None => self.mem_docs.get_any(path).map(|d| d.version),
+        }
     }
 
     pub(crate) fn url_file_version(&self, url: &Uri) -> Option<i32> {
         let path = from_proto::vfs_path(url).ok()?;
-        Some(self.mem_docs.get(&path)?.version)
+        match self.client_id {
+            Some(client_id) if self.mem_docs.is_in_sync_with_vfs(client_id, &path) => {
+                self.mem_docs.get(client_id, &path).map(|d| d.version)
+            }
+            Some(_) => None,
+            None => self.mem_docs.get_any(&path).map(|d| d.version),
+        }
+    }
+
+    pub(crate) fn file_mem_data(&self, path: &VfsPath) -> Option<Vec<u8>> {
+        let client_id = self.client_id?;
+        self.mem_docs.get(client_id, path).map(|d| d.data.clone())
+    }
+
+    pub(crate) fn is_file_divergent(&self, file_id: FileId) -> bool {
+        let path = self.client_path(&self.vfs_read(), file_id);
+        self.is_path_divergent(&path)
+    }
+
+    pub(crate) fn is_path_divergent(&self, path: &VfsPath) -> bool {
+        if let Some(client_id) = self.client_id {
+            if self.mem_docs.get(client_id, path).is_some() {
+                // The client has the document open; it will edit its in-memory buffer.
+                // It is divergent if its buffer does not match VFS.
+                return !self.mem_docs.is_in_sync_with_vfs(client_id, path);
+            }
+            // The client does not have the document open, so it refers to the text on disk,
+            // which is not what we analyze if another client has unsaved changes.
+            if self.mem_docs.contains(path) {
+                return !self.mem_docs.matches_disk(path);
+            }
+        }
+        false
+    }
+
+    pub(crate) fn is_dir_divergent(&self, dir_path: &VfsPath) -> bool {
+        let dir_abs = dir_path.as_path();
+        let dir_str = dir_path.to_string();
+        for path in self.mem_docs.iter() {
+            let is_child = match (dir_abs, path.as_path()) {
+                (Some(dir), Some(p)) => p.starts_with(dir),
+                _ => path.to_string().starts_with(&dir_str),
+            };
+            if is_child && self.is_path_divergent(path) {
+                return true;
+            }
+        }
+        false
     }
 
     pub(crate) fn anchored_path(&self, path: &AnchoredPathBuf) -> Uri {
-        let mut base = self.vfs_read().file_path(path.anchor).clone();
+        let mut base = self.client_path(&self.vfs_read(), path.anchor);
         base.pop();
         let path = base.join(&path.path).unwrap();
         let path = path.as_path().unwrap();

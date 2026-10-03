@@ -6,6 +6,7 @@ use lsp_types::{MessageActionItem, Request};
 use triomphe::Arc;
 
 use crate::{
+    client::ClientId,
     global_state::GlobalState,
     line_index::{LineEndings, LineIndex, PositionEncoding},
     lsp::{LspError, from_proto},
@@ -51,7 +52,7 @@ impl GlobalState {
                         properties: Default::default(),
                     }]),
                 },
-                |this, resp| {
+                |this, client_id, resp| {
                     let lsp_server::Response { error: None, result: Some(result), .. } = resp
                     else {
                         return;
@@ -60,7 +61,10 @@ impl GlobalState {
                         lsp_types::ShowMessageRequest::METHOD.as_str(),
                         &result,
                     ) {
-                        this.send_notification::<lsp_ext::OpenServerLogsNotification>(());
+                        this.send_notification_to::<lsp_ext::OpenServerLogsNotification>(
+                            client_id,
+                            (),
+                        );
                     }
                 },
             ),
@@ -117,59 +121,97 @@ impl GlobalState {
         fraction: Option<f64>,
         cancel_token: Option<String>,
     ) {
-        if !self.config.work_done_progress() {
-            return;
-        }
         let percentage = fraction.map(|f| {
             assert!((0.0..=1.0).contains(&f));
             (f * 100.0) as u32
         });
-        let cancellable = Some(cancel_token.is_some());
+        let is_cancellable = cancel_token.is_some();
         let token = lsp_types::ProgressToken::String(
             cancel_token.unwrap_or_else(|| format!("rustAnalyzer/{title}")),
         );
         tracing::debug!(?token, ?state, "report_progress {message:?}");
+
+        let client_ids: Vec<ClientId> = self
+            .clients
+            .iter()
+            .filter_map(|(&cid, c)| {
+                if !c.is_initialized {
+                    return None;
+                }
+                let caps = &c.caps;
+                caps.work_done_progress().then_some(cid)
+            })
+            .collect();
+
         match state {
             Progress::Begin => {
-                self.send_request::<lsp_types::WorkDoneProgressCreateRequest>(
-                    lsp_types::WorkDoneProgressCreateParams { token: token.clone() },
-                    |_, _| (),
+                self.active_progress.insert(
+                    token.clone(),
+                    crate::global_state::ActiveProgress {
+                        title: title.to_owned(),
+                        message: message.clone(),
+                        percentage,
+                        cancellable: is_cancellable,
+                    },
                 );
 
-                self.send_notification::<lsp_types::ProgressNotification>(
-                    lsp_types::ProgressParams {
-                        token,
-                        value: serde_json::to_value(lsp_types::WorkDoneProgressBegin {
-                            title: title.into(),
-                            cancellable,
-                            message,
-                            percentage,
-                        })
-                        .unwrap(),
-                    },
-                );
+                for &cid in &client_ids {
+                    self.send_request_to::<lsp_types::WorkDoneProgressCreateRequest>(
+                        cid,
+                        lsp_types::WorkDoneProgressCreateParams { token: token.clone() },
+                        |_, _, _| (),
+                    );
+                    self.send_notification_to::<lsp_types::ProgressNotification>(
+                        cid,
+                        lsp_types::ProgressParams {
+                            token: token.clone(),
+                            value: serde_json::to_value(lsp_types::WorkDoneProgressBegin {
+                                title: title.into(),
+                                cancellable: Some(is_cancellable),
+                                message: message.clone(),
+                                percentage,
+                            })
+                            .unwrap(),
+                        },
+                    );
+                }
             }
             Progress::Report => {
-                self.send_notification::<lsp_types::ProgressNotification>(
-                    lsp_types::ProgressParams {
-                        token,
-                        value: serde_json::to_value(lsp_types::WorkDoneProgressReport {
-                            cancellable,
-                            message,
-                            percentage,
-                        })
-                        .unwrap(),
-                    },
-                );
+                if let Some(p) = self.active_progress.get_mut(&token) {
+                    p.message = message.clone();
+                    p.percentage = percentage;
+                }
+
+                for &cid in &client_ids {
+                    self.send_notification_to::<lsp_types::ProgressNotification>(
+                        cid,
+                        lsp_types::ProgressParams {
+                            token: token.clone(),
+                            value: serde_json::to_value(lsp_types::WorkDoneProgressReport {
+                                cancellable: Some(is_cancellable),
+                                message: message.clone(),
+                                percentage,
+                            })
+                            .unwrap(),
+                        },
+                    );
+                }
             }
             Progress::End => {
-                self.send_notification::<lsp_types::ProgressNotification>(
-                    lsp_types::ProgressParams {
-                        token,
-                        value: serde_json::to_value(lsp_types::WorkDoneProgressEnd { message })
+                self.active_progress.remove(&token);
+
+                for &cid in &client_ids {
+                    self.send_notification_to::<lsp_types::ProgressNotification>(
+                        cid,
+                        lsp_types::ProgressParams {
+                            token: token.clone(),
+                            value: serde_json::to_value(lsp_types::WorkDoneProgressEnd {
+                                message: message.clone(),
+                            })
                             .unwrap(),
-                    },
-                );
+                        },
+                    );
+                }
             }
         }
     }

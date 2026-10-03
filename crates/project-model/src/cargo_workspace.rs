@@ -1,6 +1,6 @@
 //! See [`CargoWorkspace`].
 
-use std::{borrow::Cow, ops, str::from_utf8};
+use std::{borrow::Cow, mem, ops, str::from_utf8};
 
 use anyhow::Context;
 use base_db::Env;
@@ -528,6 +528,54 @@ impl CargoWorkspace {
         }
     }
 
+    /// This workspace as `cargo metadata` describes a copy of it: what is at `from` here is at
+    /// `to` there. This only holds if the manifests, the lock file and the cargo configuration
+    /// of the copy are the same.
+    pub(crate) fn rerooted(&self, from: &AbsPath, to: &AbsPath) -> CargoWorkspace {
+        let path = |path: &AbsPath| match path.strip_prefix(from) {
+            Some(in_workspace) => to.join(in_workspace),
+            None => path.to_path_buf(),
+        };
+        let manifest = |manifest: &ManifestPath| {
+            ManifestPath::try_from(path(manifest)).unwrap_or_else(|_| manifest.clone())
+        };
+        // On Windows, cargo writes the paths in package ids with `/`.
+        let (from_in_url, to_in_url) =
+            (from.as_str().replace('\\', "/"), to.as_str().replace('\\', "/"));
+        let text = |text: &str| {
+            let text = move_paths_in_text(text, from.as_str(), to.as_str());
+            if from_in_url == from.as_str() {
+                text
+            } else {
+                move_paths_in_text(&text, &from_in_url, &to_in_url)
+            }
+        };
+        let utf8_path = |path: &Utf8PathBuf| match path.strip_prefix(from) {
+            Ok(in_workspace) => Utf8PathBuf::from(to.join(in_workspace)),
+            Err(_) => path.clone(),
+        };
+
+        let mut this = self.clone();
+        for (_, package) in this.packages.iter_mut() {
+            package.manifest = manifest(&package.manifest);
+            package.id = Arc::new(PackageId { repr: text(&package.id.repr) });
+            package.license_file = package.license_file.as_ref().map(utf8_path);
+            package.readme = package.readme.as_ref().map(utf8_path);
+        }
+        for (_, target) in this.targets.iter_mut() {
+            target.root = path(&target.root);
+        }
+        this.workspace_root = path(&this.workspace_root);
+        this.target_directory = path(&this.target_directory);
+        this.build_directory = this.build_directory.as_deref().map(path);
+        this.manifest_path = manifest(&this.manifest_path);
+        this.env = Vec::from(mem::take(&mut this.env))
+            .into_iter()
+            .map(|(key, value)| (key, text(&value)))
+            .collect();
+        this
+    }
+
     pub fn packages(&self) -> impl ExactSizeIterator<Item = Package> + '_ {
         self.packages.iter().map(|(id, _pkg)| id)
     }
@@ -850,5 +898,52 @@ impl FetchMetadata {
         .with_context(|| format!("Failed to run `{:?}`", command.cargo_command()));
         progress("cargo metadata: finished".to_owned());
         res
+    }
+}
+
+/// Replaces the paths in `text` that start with `from` by the same path under `to`.
+///
+/// `from` is such a path only where a whole path starts with it: `/work/repo` is neither in
+/// `/work/repo-utils` nor in `/deps/work/repo`.
+fn move_paths_in_text(text: &str, from: &str, to: &str) -> String {
+    let is_in_name = |c: char| c.is_alphanumeric() || matches!(c, '_' | '-' | '.');
+    let mut res = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(idx) = rest.find(from) {
+        let (before, after) = (&rest[..idx], &rest[idx + from.len()..]);
+        res.push_str(before);
+        let starts_a_path = !res.chars().next_back().is_some_and(is_in_name)
+            && !after.chars().next().is_some_and(is_in_name);
+        res.push_str(if starts_a_path { to } else { from });
+        rest = after;
+    }
+    res.push_str(rest);
+    res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::move_paths_in_text;
+
+    #[test]
+    fn moves_whole_paths_only() {
+        let moved = |text: &str| move_paths_in_text(text, "/work/repo", "/copy");
+        assert_eq!(moved("/work/repo"), "/copy");
+        assert_eq!(moved("/work/repo/app"), "/copy/app");
+        assert_eq!(moved("path+file:///work/repo/app#0.1.0"), "path+file:///copy/app#0.1.0");
+        assert_eq!(moved("/work/repo/a:/work/repo/b"), "/copy/a:/copy/b");
+        // A sibling whose name starts the same
+        assert_eq!(moved("/work/repo-utils/helper"), "/work/repo-utils/helper");
+        assert_eq!(moved("/work/repository"), "/work/repository");
+        // A drive, and the separators of Windows
+        let moved = |text: &str| move_paths_in_text(text, r"C:\work\repo", r"C:\copy");
+        assert_eq!(moved(r"C:\work\repo\app"), r"C:\copy\app");
+        assert_eq!(moved(r"C:\work\repo-utils"), r"C:\work\repo-utils");
+        let moved = |text: &str| move_paths_in_text(text, "C:/work/repo", "C:/copy");
+        assert_eq!(moved("path+file:///C:/work/repo/app#0.1.0"), "path+file:///C:/copy/app#0.1.0");
+        let moved = |text: &str| move_paths_in_text(text, "/work/repo", "/copy");
+        // The same components in the middle of another path
+        assert_eq!(moved("/deps/work/repo/helper"), "/deps/work/repo/helper");
+        assert_eq!(moved("path+file:///deps/work/repo#0.1.0"), "path+file:///deps/work/repo#0.1.0");
     }
 }
