@@ -1565,6 +1565,22 @@ fn main() {
 }
 
 #[test]
+fn regression_23259() {
+    check_highlighting(
+        r#"
+#[doc = "
+~~~
+let s = \"中华Việt Nam\";
+8: ệ
+"]
+fn main() {}
+"#,
+        expect_file!["./test_data/regression_23259.html"],
+        false,
+    );
+}
+
+#[test]
 fn test_deprecated_highlighting() {
     check_highlighting(
         r#"
