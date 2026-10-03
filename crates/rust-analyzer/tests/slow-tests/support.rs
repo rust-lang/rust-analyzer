@@ -32,6 +32,7 @@ pub(crate) struct Project<'a> {
     roots: Vec<Utf8PathBuf>,
     config: serde_json::Value,
     root_dir_contains_symlink: bool,
+    completion_item_resolve_support: bool,
 }
 
 impl Project<'_> {
@@ -56,6 +57,7 @@ impl Project<'_> {
                 }
             }),
             root_dir_contains_symlink: false,
+            completion_item_resolve_support: false,
         }
     }
 
@@ -71,6 +73,11 @@ impl Project<'_> {
 
     pub(crate) fn with_root_dir_contains_symlink(mut self) -> Self {
         self.root_dir_contains_symlink = true;
+        self
+    }
+
+    pub(crate) fn with_completion_item_resolve_support(mut self) -> Self {
+        self.completion_item_resolve_support = true;
         self
     }
 
@@ -232,6 +239,19 @@ impl Project<'_> {
                     ..Default::default()
                 }),
                 text_document: Some(lsp_types::TextDocumentClientCapabilities {
+                    completion: self.completion_item_resolve_support.then_some(
+                        lsp_types::CompletionClientCapabilities {
+                            completion_item: Some(lsp_types::ClientCompletionItemOptions {
+                                resolve_support: Some(
+                                    lsp_types::ClientCompletionItemResolveOptions {
+                                        properties: vec!["textEdit".to_owned()],
+                                    },
+                                ),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        },
+                    ),
                     definition: Some(lsp_types::DefinitionClientCapabilities {
                         link_support: Some(true),
                         ..Default::default()

@@ -23,14 +23,15 @@ use std::{path::PathBuf, time::Instant};
 
 use ide_db::FxHashMap;
 use lsp_types::{
-    CodeActionContext, CodeActionParams, CodeActionRequest, CompletionParams, CompletionRequest,
-    DidChangeTextDocumentNotification, DidChangeTextDocumentParams,
-    DidOpenTextDocumentNotification, DidOpenTextDocumentParams, DocumentFormattingParams,
-    DocumentFormattingRequest, DocumentRangeFormattingParams, DocumentRangeFormattingRequest,
-    FileRename, FormattingOptions, HoverParams, HoverRequest, InlayHint, InlayHintParams,
-    InlayHintRequest, InlayHintResolveRequest, Label, LanguageKind, PartialResultParams, Position,
-    Range, RenameFilesParams, SemanticTokensDeltaParams, SemanticTokensDeltaRequest,
-    SemanticTokensParams, SemanticTokensRequest, TextDocumentContentChangeEvent,
+    CodeActionContext, CodeActionParams, CodeActionRequest, CompletionItem, CompletionParams,
+    CompletionRequest, CompletionResolveRequest, DidChangeTextDocumentNotification,
+    DidChangeTextDocumentParams, DidOpenTextDocumentNotification, DidOpenTextDocumentParams,
+    DocumentFormattingParams, DocumentFormattingRequest, DocumentRangeFormattingParams,
+    DocumentRangeFormattingRequest, FileRename, FormattingOptions, HoverParams, HoverRequest,
+    InlayHint, InlayHintParams, InlayHintRequest, InlayHintResolveRequest, Label, LanguageKind,
+    PartialResultParams, Position, Range, RenameFilesParams, SemanticTokensDeltaParams,
+    SemanticTokensDeltaRequest, SemanticTokensParams, SemanticTokensRequest,
+    TextDocumentContentChangeEvent, TextDocumentContentChangePartial,
     TextDocumentContentChangeWholeDocument, TextDocumentItem, TextDocumentPositionParams,
     TypeDefinitionParams, TypeDefinitionRequest, Uri, VersionedTextDocumentIdentifier,
     WillRenameFilesRequest, WorkDoneProgressParams, WorkspaceSymbolRequest,
@@ -77,6 +78,93 @@ use std::collections::Spam;
         work_done_progress_params: WorkDoneProgressParams::default(),
     });
     assert!(res.to_string().contains("HashMap"));
+}
+
+#[test]
+fn does_not_resolve_completion_items_for_outdated_documents() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+[dependencies]
+anyhow = { path = "anyhow" }
+
+//- /anyhow/Cargo.toml
+[package]
+name = "anyhow"
+version = "0.0.0"
+
+//- /anyhow/src/lib.rs
+pub mod anyhow {}
+pub struct Error;
+
+//- /src/lib.rs
+use anyhow::anyhow;
+use anyhow::Error;
+
+struct Helper;
+struct Other;
+#[derive(Clone, Debug)]
+pub struct SpawnForm;
+"#,
+    )
+    .with_completion_item_resolve_support()
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    let document = server.doc_id("src/lib.rs");
+    server.notification::<DidOpenTextDocumentNotification>(DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: document.uri.clone(),
+            language_id: LanguageKind::Rust,
+            version: 1,
+            text: "use anyhow::anyhow;\nuse anyhow::Error;\n\nstruct Helper;\nstruct Other;\n#[derive(Clone, Debug)]\npub struct SpawnForm;\n".to_owned(),
+        },
+    });
+
+    let res = server.send_request::<CompletionRequest>(CompletionParams {
+        text_document_position_params: TextDocumentPositionParams::new(
+            document.clone(),
+            Position::new(5, 8),
+        ),
+        context: None,
+        partial_result_params: PartialResultParams::default(),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+    });
+    let completion = res["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|item| serde_json::from_value::<CompletionItem>(item.clone()).ok())
+        .find(|item| item.label == "anyhow::")
+        .unwrap_or_else(|| panic!("missing anyhow:: completion: {res:#?}"));
+    assert!(completion.text_edit.is_none());
+    assert_eq!(completion.data.as_ref().unwrap()["version"], 1);
+
+    server.notification::<DidChangeTextDocumentNotification>(DidChangeTextDocumentParams {
+        text_document: VersionedTextDocumentIdentifier::new(2, document),
+        content_changes: vec![
+            TextDocumentContentChangePartial::new(
+                Range::new(Position::new(5, 0), Position::new(5, 0)),
+                None,
+                "\n\n".to_owned(),
+            )
+            .into(),
+        ],
+    });
+
+    let resolved: CompletionItem =
+        serde_json::from_value(server.send_request::<CompletionResolveRequest>(completion))
+            .unwrap();
+    assert!(resolved.text_edit.is_none(), "{resolved:#?}");
+    assert!(resolved.additional_text_edits.is_none(), "{resolved:#?}");
 }
 
 #[test]
