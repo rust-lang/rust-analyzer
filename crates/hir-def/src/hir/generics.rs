@@ -37,13 +37,17 @@ pub struct LifetimeParamData {
     pub bound_type: LifetimeBoundType,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum LifetimeBoundType {
     EarlyBound,
     LateBound,
 }
 
 impl LifetimeParamData {
+    pub fn is_elided(&self) -> bool {
+        self.name.is_anon_lifetime()
+    }
+
     pub fn is_late_bound(&self) -> bool {
         self.bound_type == LifetimeBoundType::LateBound
     }
