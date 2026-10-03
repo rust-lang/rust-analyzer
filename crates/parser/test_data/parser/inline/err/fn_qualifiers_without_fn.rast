@@ -1,0 +1,110 @@
+SOURCE_FILE
+  MODULE
+    MOD_KW "mod"
+    WHITESPACE " "
+    NAME
+      IDENT "a"
+    WHITESPACE " "
+    ITEM_LIST
+      L_CURLY "{"
+      WHITESPACE " "
+      FN
+        ASYNC_KW "async"
+        WHITESPACE " "
+        GEN_KW "gen"
+      WHITESPACE " "
+      R_CURLY "}"
+  WHITESPACE "\n"
+  MODULE
+    MOD_KW "mod"
+    WHITESPACE " "
+    NAME
+      IDENT "b"
+    WHITESPACE " "
+    ITEM_LIST
+      L_CURLY "{"
+      WHITESPACE " "
+      FN
+        GEN_KW "gen"
+        WHITESPACE " "
+        CONST_KW "const"
+      WHITESPACE " "
+      R_CURLY "}"
+  WHITESPACE "\n"
+  MODULE
+    MOD_KW "mod"
+    WHITESPACE " "
+    NAME
+      IDENT "c"
+    WHITESPACE " "
+    ITEM_LIST
+      L_CURLY "{"
+      WHITESPACE " "
+      FN
+        GEN_KW "gen"
+        WHITESPACE " "
+        UNSAFE_KW "unsafe"
+      WHITESPACE " "
+      R_CURLY "}"
+  WHITESPACE "\n"
+  MODULE
+    MOD_KW "mod"
+    WHITESPACE " "
+    NAME
+      IDENT "d"
+    WHITESPACE " "
+    ITEM_LIST
+      L_CURLY "{"
+      WHITESPACE " "
+      FN
+        GEN_KW "gen"
+        WHITESPACE " "
+        GEN_KW "gen"
+      WHITESPACE " "
+      R_CURLY "}"
+  WHITESPACE "\n"
+  MODULE
+    MOD_KW "mod"
+    WHITESPACE " "
+    NAME
+      IDENT "e"
+    WHITESPACE " "
+    ITEM_LIST
+      L_CURLY "{"
+      WHITESPACE " "
+      FN
+        GEN_KW "gen"
+        WHITESPACE " "
+        ABI
+          EXTERN_KW "extern"
+      WHITESPACE " "
+      R_CURLY "}"
+  WHITESPACE "\n"
+  FN
+    FN_KW "fn"
+    WHITESPACE " "
+    NAME
+      IDENT "f"
+    PARAM_LIST
+      L_PAREN "("
+      R_PAREN ")"
+    WHITESPACE " "
+    BLOCK_EXPR
+      STMT_LIST
+        L_CURLY "{"
+        WHITESPACE " "
+        FN
+          ASYNC_KW "async"
+          WHITESPACE " "
+          GEN_KW "gen"
+        WHITESPACE " "
+        R_CURLY "}"
+  WHITESPACE "\n"
+error 17: expected fn
+error 31: wrong order of qualifiers
+error 37: expected fn
+error 58: expected fn
+error 72: duplicate qualifier
+error 76: expected fn
+error 97: expected fn
+error 118: expected fn

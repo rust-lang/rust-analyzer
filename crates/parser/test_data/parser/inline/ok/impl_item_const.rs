@@ -1,1 +1,1 @@
-impl const Send for S {}
+const impl Send for S {}

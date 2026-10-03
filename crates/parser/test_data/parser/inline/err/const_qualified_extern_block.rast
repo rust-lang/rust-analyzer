@@ -1,0 +1,56 @@
+SOURCE_FILE
+  FN
+    CONST_KW "const"
+    WHITESPACE " "
+    ABI
+      EXTERN_KW "extern"
+      WHITESPACE " "
+      STRING "\"C\""
+  WHITESPACE " "
+  ERROR
+    L_CURLY "{"
+    R_CURLY "}"
+  WHITESPACE "\n"
+  FN
+    SAFE_KW "safe"
+    WHITESPACE " "
+    ABI
+      EXTERN_KW "extern"
+      WHITESPACE " "
+      STRING "\"C\""
+  WHITESPACE " "
+  ERROR
+    L_CURLY "{"
+    R_CURLY "}"
+  WHITESPACE "\n"
+  FN
+    CONST_KW "const"
+    WHITESPACE " "
+    UNSAFE_KW "unsafe"
+    WHITESPACE " "
+    ABI
+      EXTERN_KW "extern"
+      WHITESPACE " "
+      STRING "\"C\""
+  WHITESPACE " "
+  ERROR
+    L_CURLY "{"
+    WHITESPACE "\n    "
+    FN
+      FN_KW "fn"
+      WHITESPACE " "
+      NAME
+        IDENT "item"
+      PARAM_LIST
+        L_PAREN "("
+        R_PAREN ")"
+      SEMICOLON ";"
+    WHITESPACE "\n"
+    R_CURLY "}"
+  WHITESPACE "\n"
+error 16: expected fn
+error 17: expected an item
+error 35: expected fn
+error 36: expected an item
+error 62: expected fn
+error 63: expected an item

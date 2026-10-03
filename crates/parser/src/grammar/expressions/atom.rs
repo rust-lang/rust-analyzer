@@ -591,8 +591,6 @@ fn array_expr(p: &mut Parser<'_>) -> CompletedMarker {
 //     async move || {};
 //     static || {};
 //     static move || {};
-//     static async || {};
-//     static async move || {};
 //     for<'a> || {};
 //     for<'a> move || {};
 // }

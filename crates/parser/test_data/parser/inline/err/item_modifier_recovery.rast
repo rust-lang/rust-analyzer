@@ -1,0 +1,72 @@
+SOURCE_FILE
+  CONST
+    VISIBILITY
+      PUB_KW "pub"
+    WHITESPACE " "
+    CONST_KW "const"
+    WHITESPACE "\n"
+    ERROR
+      MOD_KW "mod"
+  WHITESPACE " "
+  ERROR
+    PATH
+      PATH_SEGMENT
+        NAME_REF
+          IDENT "m"
+  WHITESPACE " "
+  ERROR
+    L_CURLY "{"
+    WHITESPACE " "
+    CONST
+      VISIBILITY
+        PUB_KW "pub"
+      WHITESPACE " "
+      CONST_KW "const"
+    WHITESPACE " "
+    R_CURLY "}"
+  WHITESPACE "\n"
+  ERROR
+    CONST_KW "const"
+  WHITESPACE " "
+  STATIC
+    STATIC_KW "static"
+    WHITESPACE " "
+    NAME
+      IDENT "X"
+    COLON ":"
+    WHITESPACE " "
+    PATH_TYPE
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "u8"
+    WHITESPACE " "
+    EQ "="
+    WHITESPACE " "
+    LITERAL
+      INT_NUMBER "0"
+    SEMICOLON ";"
+  WHITESPACE "\n"
+  ERROR
+    VISIBILITY
+      PUB_KW "pub"
+    WHITESPACE " "
+    UNSAFE_KW "unsafe"
+  WHITESPACE " "
+  ERROR
+    INT_NUMBER "92"
+  ERROR
+    SEMICOLON ";"
+  WHITESPACE "\n"
+error 10: expected a name
+error 13: missing type for `const`
+error 13: expected SEMICOLON
+error 15: expected an item
+error 16: expected an item
+error 27: expected a name
+error 27: missing type for `const`
+error 27: expected SEMICOLON
+error 30: expected an item
+error 64: expected an item
+error 65: expected an item
+error 67: expected an item

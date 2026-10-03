@@ -1,0 +1,54 @@
+SOURCE_FILE
+  TRAIT
+    IMPL_RESTRICTION
+      IMPL_KW "impl"
+      VISIBILITY_INNER
+        L_PAREN "("
+        IN_KW "in"
+        WHITESPACE " "
+        PATH
+          PATH_SEGMENT
+            NAME_REF
+              IDENT "foo"
+        R_PAREN ")"
+  WHITESPACE "\n"
+  TRAIT
+    IMPL_RESTRICTION
+      IMPL_KW "impl"
+      VISIBILITY_INNER
+        L_PAREN "("
+        IN_KW "in"
+        WHITESPACE " "
+        PATH
+          PATH_SEGMENT
+            NAME_REF
+              IDENT "foo"
+        R_PAREN ")"
+  WHITESPACE " "
+  STRUCT
+    STRUCT_KW "struct"
+    WHITESPACE " "
+    NAME
+      IDENT "S"
+    SEMICOLON ";"
+  WHITESPACE "\n"
+  TRAIT
+    IMPL_RESTRICTION
+      IMPL_KW "impl"
+      VISIBILITY_INNER
+        L_PAREN "("
+        IN_KW "in"
+        WHITESPACE " "
+        PATH
+          PATH_SEGMENT
+            NAME_REF
+              IDENT "foo"
+        R_PAREN ")"
+    WHITESPACE " "
+    CONST_KW "const"
+    WHITESPACE " "
+    UNSAFE_KW "unsafe"
+  WHITESPACE "\n"
+error 12: expected `trait`
+error 25: expected `trait`
+error 61: expected `trait`

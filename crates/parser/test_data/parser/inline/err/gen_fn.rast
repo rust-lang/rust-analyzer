@@ -45,5 +45,5 @@ SOURCE_FILE
         R_CURLY "}"
   WHITESPACE "\n"
 error 11: expected an item
-error 32: expected fn, trait or impl
+error 27: expected an item
 error 36: expected an item
