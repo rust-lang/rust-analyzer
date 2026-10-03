@@ -1259,7 +1259,6 @@ impl Config {
                     .completion_snippets_custom
                     .as_ref()
                     .unwrap_or(&self.default_config.global.completion_snippets_custom);
-                #[allow(dead_code)]
                 let _ = Self::completion_snippets_custom;
                 for (name, def) in snips.iter() {
                     if def.prefix.is_empty() && def.postfix.is_empty() {
@@ -3600,14 +3599,12 @@ impl GlobalWorkspaceLocalConfigInput {
 /// some rust-analyzer.toml file or JSON blob. An empty rust-analyzer.toml corresponds to
 /// all fields being None.
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
 struct WorkspaceLocalConfigInput {
     workspace: WorkspaceConfigInput,
     local: LocalConfigInput,
 }
 
 impl WorkspaceLocalConfigInput {
-    #[allow(dead_code)]
     const FIELDS: &'static [&'static [&'static str]] =
         &[WorkspaceConfigInput::FIELDS, LocalConfigInput::FIELDS];
     fn from_toml(toml: toml::Table, error_sink: &mut Vec<(String, toml::de::Error)>) -> Self {
