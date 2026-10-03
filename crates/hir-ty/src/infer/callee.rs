@@ -546,7 +546,9 @@ impl<'db> DeferredCallResolution<'db> {
 
         // we should not be invoked until the closure kind has been
         // determined by upvar inference
-        assert!(ctx.infcx().closure_kind(self.closure_ty).is_some());
+        if ctx.infcx().closure_kind(self.closure_ty).is_none() {
+            return;
+        }
 
         // We may now know enough to figure out fn vs fnmut etc.
         match ctx.try_overloaded_call_traits(self.call_expr, self.closure_ty, None) {
