@@ -58,12 +58,7 @@ macro_rules! quote_impl_ {
         $($rest:tt)*
     ) => {
         const { $crate::ast::make::quote::verify_only_whitespaces($whitespace) };
-        $children.push($crate::ast::make::quote::NodeOrToken::Token(
-            $crate::ast::make::quote::GreenToken::new(
-                $crate::ast::make::quote::RSyntaxKind($crate::SyntaxKind::WHITESPACE as u16),
-                $whitespace,
-            ),
-        ));
+        $crate::ast::make::quote::push_whitespace(&mut $children, $whitespace);
         $crate::ast::make::quote::quote_impl!( @append $children $($rest)* );
     };
 
@@ -148,13 +143,76 @@ macro_rules! quote_ {
         >>::with_capacity(1);
         $crate::ast::make::quote::quote_impl!( @append root $root { $($tree)* } );
         let root = root.into_iter().next().unwrap();
-        let root = $crate::SyntaxNode::new_root(root.into_node().unwrap());
+        let root = $crate::ast::make::quote::attach_trivia(&root.into_node().unwrap());
+        let root = $crate::algo::strip_blank_edges(&$crate::SyntaxNode::new_root(root), true);
         <$crate::ast::$root as $crate::ast::AstNode>::cast(root).unwrap()
     }};
 }
 pub(crate) use quote_ as quote;
 
-use crate::AstNode;
+use std::mem;
+
+use rowan::{GreenNodeData, GreenTokenData};
+
+use super::tokens;
+use crate::{AstNode, SyntaxKind, SyntaxKind::NEWLINE, algo::strip_blank_edges};
+
+pub(crate) fn push_whitespace(children: &mut Vec<NodeOrToken<GreenNode, GreenToken>>, text: &str) {
+    children.extend(
+        tokens::trivia(text)
+            .into_iter()
+            .map(|(kind, text)| GreenToken::new(RSyntaxKind(kind as u16), text).into()),
+    );
+}
+
+type Attached = (GreenToken, Vec<GreenToken>, Vec<GreenToken>);
+
+fn kind(token: &GreenTokenData) -> SyntaxKind {
+    SyntaxKind::from(token.kind().0)
+}
+
+fn collect(node: &GreenNodeData, tokens: &mut Vec<Attached>, leading: &mut Vec<GreenToken>) {
+    for child in node.children() {
+        match child {
+            NodeOrToken::Node(node) => collect(node, tokens, leading),
+            NodeOrToken::Token(token) if !kind(token).is_trivia() => {
+                leading.extend(token.leading_trivia().iter().cloned());
+                let trailing = token.trailing_trivia().to_vec();
+                tokens.push((token.to_owned(), mem::take(leading), trailing));
+            }
+            NodeOrToken::Token(trivia) => match tokens.last_mut() {
+                Some((_, _, trailing))
+                    if !trailing.last().is_some_and(|it| kind(it) == NEWLINE) =>
+                {
+                    trailing.push(trivia.to_owned())
+                }
+                _ => leading.push(trivia.to_owned()),
+            },
+        }
+    }
+}
+
+fn rebuild(node: &GreenNodeData, tokens: &mut impl Iterator<Item = GreenToken>) -> GreenNode {
+    let children: Vec<_> = node
+        .children()
+        .filter_map(|child| match child {
+            NodeOrToken::Node(node) => Some(rebuild(node, tokens).into()),
+            NodeOrToken::Token(token) if kind(token).is_trivia() => None,
+            NodeOrToken::Token(_) => tokens.next().map(Into::into),
+        })
+        .collect();
+    GreenNode::new(node.kind(), children)
+}
+
+pub(crate) fn attach_trivia(root: &GreenNode) -> GreenNode {
+    let (mut tokens, mut leading) = (Vec::new(), Vec::new());
+    collect(root, &mut tokens, &mut leading);
+    debug_assert!(leading.is_empty(), "trivia needs a following token");
+    let mut tokens = tokens.into_iter().map(|(token, leading, trailing)| {
+        GreenToken::with_trivia(token.kind(), token.text(), leading, trailing)
+    });
+    rebuild(root, &mut tokens)
+}
 
 pub(crate) trait ToNodeChild {
     fn append_node_child(self, children: &mut Vec<NodeOrToken<GreenNode, GreenToken>>);
@@ -162,7 +220,7 @@ pub(crate) trait ToNodeChild {
 
 impl<N: AstNode> ToNodeChild for N {
     fn append_node_child(self, children: &mut Vec<NodeOrToken<GreenNode, GreenToken>>) {
-        children.push((*self.syntax().clone_subtree().green()).to_owned().into());
+        children.push(strip_blank_edges(self.syntax(), false).green().to_owned().into());
     }
 }
 

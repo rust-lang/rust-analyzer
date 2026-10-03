@@ -12,8 +12,7 @@ SOURCE_FILE
         CFG_ATOM
           IDENT "foo"
         R_PAREN ")"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       UNSAFE_META
         UNSAFE_KW "unsafe"
         L_PAREN "("
@@ -26,8 +25,7 @@ SOURCE_FILE
             L_PAREN "("
             R_PAREN ")"
         R_PAREN ")"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       CFG_ATTR_META
         CFG_ATTR_KW "cfg_attr"
         L_PAREN "("
@@ -36,28 +34,22 @@ SOURCE_FILE
           L_PAREN "("
           CFG_ATOM
             TRUE_KW "true"
-          COMMA ","
-          WHITESPACE " "
+          COMMA "," [] [WHITESPACE(" ")]
           CFG_ATOM
-            IDENT "foo"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+            IDENT "foo" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             STRING "\"bar\""
           R_PAREN ")"
-        COMMA ","
-        WHITESPACE " "
+        COMMA "," [] [WHITESPACE(" ")]
         KEY_VALUE_META
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "baz"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+                IDENT "baz" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
             STRING "\"baz\""
         R_PAREN ")"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
+  EOF ""

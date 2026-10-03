@@ -18,7 +18,7 @@ use ide_db::{
 };
 use stdx::never;
 use syntax::{
-    AstNode, AstPtr, SyntaxNode, TextRange,
+    AstNode, SyntaxNode, TextRange,
     ast::{self, HasName},
 };
 
@@ -242,12 +242,13 @@ impl<'db> TryToNav for FileSymbol<'db> {
     ) -> Option<UpmappingResult<NavigationTarget>> {
         let db = sema.db;
         let display_target = self.def.krate(db).to_display_target(db);
+        let root = sema.parse_or_expand(self.loc.hir_file_id);
         Some(
-            orig_range_with_focus_r(
+            orig_range_with_focus(
                 db,
                 self.loc.hir_file_id,
-                self.loc.ptr.text_range(),
-                self.loc.name_ptr.map(AstPtr::text_range),
+                &self.loc.ptr.to_node(&root),
+                self.loc.name_ptr.map(|it| it.to_node(&root)),
             )
             .map(|(FileRange { file_id, range: full_range }, focus_range)| {
                 NavigationTarget {
@@ -445,7 +446,11 @@ where
                     (
                         full_range,
                         node.and_then(|node| {
-                            Some(ast::HasName::name(&node)?.syntax().text_range())
+                            Some(
+                                ast::HasName::name(&node)?
+                                    .syntax()
+                                    .text_range_without_outer_trivia(),
+                            )
                         }),
                     )
                 }),
@@ -501,7 +506,9 @@ impl TryToNav for hir::Impl {
                 db,
                 file_id,
                 full_range,
-                source.and_then(|source| Some(source.self_ty()?.syntax().text_range())),
+                source.and_then(|source| {
+                    Some(source.self_ty()?.syntax().text_range_without_outer_trivia())
+                }),
             )
             .map(|(FileRange { file_id, range: full_range }, focus_range)| {
                 NavigationTarget::from_syntax(
@@ -901,11 +908,15 @@ fn orig_range_with_focus(
     value: &SyntaxNode,
     name: Option<impl AstNode>,
 ) -> UpmappingResult<(FileRange, Option<TextRange>)> {
+    let range = match ast::SourceFile::can_cast(value.kind()) {
+        true => value.text_range(),
+        false => value.text_range_without_outer_trivia(),
+    };
     orig_range_with_focus_r(
         db,
         hir_file,
-        value.text_range(),
-        name.map(|it| it.syntax().text_range()),
+        range,
+        name.map(|it| it.syntax().text_range_without_outer_trivia()),
     )
 }
 

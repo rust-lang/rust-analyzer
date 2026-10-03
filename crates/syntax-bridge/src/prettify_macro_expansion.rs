@@ -1,10 +1,11 @@
 //! Utilities for formatting macro expanded nodes until we get a proper formatter.
+use rustc_hash::FxHashMap;
 use syntax::{
     NodeOrToken,
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, T, WalkEvent,
-    ast::syntax_factory::SyntaxFactory,
-    syntax_editor::{Position, SyntaxEditor},
+    ast::{make, syntax_factory::SyntaxFactory},
+    syntax_editor::SyntaxEditor,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,7 +24,6 @@ pub enum PrettifyWsKind {
 pub fn prettify_macro_expansion(
     syn: SyntaxNode,
     dollar_crate_replacement: &mut dyn FnMut(&SyntaxToken, &SyntaxFactory) -> Option<SyntaxToken>,
-    inspect_mods: impl FnOnce(&[(Position, PrettifyWsKind)]),
 ) -> SyntaxNode {
     let mut indent = 0;
     let mut last: Option<SyntaxKind> = None;
@@ -31,16 +31,14 @@ pub fn prettify_macro_expansion(
     let mut dollar_crate_replacements = Vec::new();
     let (editor, syn) = SyntaxEditor::new(syn);
 
-    let before = Position::before;
-    let after = Position::after;
+    let before = false;
+    let after = true;
 
-    let do_indent = |pos: fn(_) -> Position, token: &SyntaxToken, indent| {
-        (pos(token.clone()), PrettifyWsKind::Indent(indent))
+    let do_indent = |side: bool, token: &SyntaxToken, indent| {
+        (token.clone(), side, PrettifyWsKind::Indent(indent))
     };
-    let do_ws =
-        |pos: fn(_) -> Position, token: &SyntaxToken| (pos(token.clone()), PrettifyWsKind::Space);
-    let do_nl =
-        |pos: fn(_) -> Position, token: &SyntaxToken| (pos(token.clone()), PrettifyWsKind::Newline);
+    let do_ws = |side: bool, token: &SyntaxToken| (token.clone(), side, PrettifyWsKind::Space);
+    let do_nl = |side: bool, token: &SyntaxToken| (token.clone(), side, PrettifyWsKind::Newline);
 
     for event in syn.preorder_with_tokens() {
         let token = match event {
@@ -52,14 +50,19 @@ pub fn prettify_macro_expansion(
                 let is_non_last_newline = match node.kind() {
                     MATCH_ARM | STRUCT | ENUM | UNION | FN | IMPL | MACRO_RULES | EXTERN_BLOCK
                     | EXTERN_CRATE | MODULE => true,
-                    EXPR_STMT if Some(R_CURLY) == node.last_token().map(|it| it.kind()) => true,
+                    EXPR_STMT
+                        if Some(R_CURLY) == node.last_non_trivia_token().map(|it| it.kind()) =>
+                    {
+                        true
+                    }
                     _ => false,
                 };
                 if (!is_last_child && is_non_last_newline) || is_always_newline {
-                    mods.push((Position::after(node.clone()), PrettifyWsKind::Indent(indent)));
+                    let Some(last) = node.last_non_trivia_token() else { continue };
                     if node.parent().is_some() {
-                        mods.push((Position::after(node), PrettifyWsKind::Newline));
+                        mods.push(do_nl(after, &last));
                     }
+                    mods.push(do_indent(after, &last, indent));
                 }
                 continue;
             }
@@ -74,7 +77,10 @@ pub fn prettify_macro_expansion(
         let tok = &token;
 
         let is_next = |f: fn(SyntaxKind) -> bool, default| -> bool {
-            tok.next_token().map(|it| f(it.kind())).unwrap_or(default)
+            tok.next_non_trivia_token()
+                .filter(|it| it.kind() != SyntaxKind::EOF)
+                .map(|it| f(it.kind()))
+                .unwrap_or(default)
         };
         let is_last =
             |f: fn(SyntaxKind) -> bool, default| -> bool { last.map(f).unwrap_or(default) };
@@ -87,18 +93,18 @@ pub fn prettify_macro_expansion(
             }
             L_CURLY if is_next(|it| it != R_CURLY, true) => {
                 indent += 1;
-                mods.push(do_indent(after, tok, indent));
                 mods.push(do_nl(after, tok));
+                mods.push(do_indent(after, tok, indent));
             }
             R_CURLY if is_last(|it| it != L_CURLY, true) => {
                 indent = indent.saturating_sub(1);
 
-                mods.push(do_indent(before, tok, indent));
                 mods.push(do_nl(before, tok));
+                mods.push(do_indent(before, tok, indent));
             }
             R_CURLY if is_next(|it| it == T![else], false) => {
-                mods.push(do_indent(before, tok, indent));
                 mods.push(do_nl(before, tok));
+                mods.push(do_indent(before, tok, indent));
             }
             LIFETIME_IDENT if is_next(is_text, true) => {
                 mods.push(do_ws(after, tok));
@@ -107,12 +113,12 @@ pub fn prettify_macro_expansion(
                 mods.push(do_ws(after, tok));
             }
             T![;] if is_next(|it| it != R_CURLY, true) => {
-                mods.push(do_indent(after, tok, indent));
                 if tok.text_range().end() != syn.text_range().end() {
                     mods.push(do_nl(after, tok));
                 }
+                mods.push(do_indent(after, tok, indent));
             }
-            T![=] if let Some((last, next)) = last.zip(tok.next_token()) => {
+            T![=] if let Some((last, next)) = last.zip(tok.next_non_trivia_token()) => {
                 // FIXME: this branch is for `=>` in macro_rules!, which is currently parsed as
                 // two separate symbols.
                 match (last, next.kind()) {
@@ -161,24 +167,41 @@ pub fn prettify_macro_expansion(
         last = Some(tok.kind());
     }
 
-    inspect_mods(&mods);
-    for (pos, insert) in mods {
-        editor.insert(
-            pos,
-            match insert {
-                PrettifyWsKind::Space => editor.make().whitespace(" "),
-                PrettifyWsKind::Indent(0) => continue,
-                PrettifyWsKind::Indent(indent) => editor.make().whitespace(&" ".repeat(4 * indent)),
-                PrettifyWsKind::Newline => editor.make().whitespace("\n"),
-            },
-        );
+    let mut gaps: FxHashMap<SyntaxToken, String> = FxHashMap::default();
+    for (token, side, insert) in mods {
+        let text = match insert {
+            PrettifyWsKind::Space => " ".to_owned(),
+            PrettifyWsKind::Indent(0) => continue,
+            PrettifyWsKind::Indent(indent) => " ".repeat(4 * indent),
+            PrettifyWsKind::Newline => "\n".to_owned(),
+        };
+        let Some(next) = (if side { token.next_non_trivia_token() } else { Some(token) }) else {
+            continue;
+        };
+        let spaced = next.leading_trivia().next().is_some()
+            || next.prev_non_trivia_token().is_some_and(|it| it.trailing_trivia().next().is_some());
+        if !(spaced && matches!(insert, PrettifyWsKind::Space)) {
+            gaps.entry(next).or_default().push_str(&text);
+        }
+    }
+    for (next, text) in &gaps {
+        let (line, rest) = text.split_at(text.find('\n').map_or(text.len(), |it| it + 1));
+        let leading = match next.prev_non_trivia_token() {
+            Some(prev) => {
+                let end = prev.trailing_trivia().len();
+                editor.splice_trailing_trivia(&prev, end.., make::tokens::trivia(line));
+                rest
+            }
+            None => text,
+        };
+        editor.splice_leading_trivia(next, ..0, make::tokens::trivia(leading));
     }
     for (old, new) in dollar_crate_replacements {
         editor.replace(old, new);
     }
 
-    if let Some(it) = syn.last_token().filter(|it| it.kind() == SyntaxKind::WHITESPACE) {
-        editor.delete(it);
+    if let Some(it) = syn.last_token() {
+        editor.splice_trailing_trivia(&it, .., []);
     }
 
     editor.finish().new_root().clone()
@@ -200,7 +223,7 @@ mod tests {
         let source_file = syntax::ast::SourceFile::parse(&ra_fixture, span::Edition::CURRENT);
         let syn = remove_whitespaces(&source_file.syntax_node());
 
-        let pretty = prettify_macro_expansion(syn, &mut |_, _| None, |_| ());
+        let pretty = prettify_macro_expansion(syn, &mut |_, _| None);
         let mut pretty = pretty.to_string();
         if pretty.contains('\n') {
             pretty.push('\n');
@@ -209,12 +232,10 @@ mod tests {
 
         fn remove_whitespaces(node: &SyntaxNode) -> SyntaxNode {
             let (editor, node) = SyntaxEditor::new(node.clone());
-            node.preorder_with_tokens().for_each(|it| match it {
-                WalkEvent::Enter(NodeOrToken::Token(tok)) if tok.kind().is_trivia() => {
-                    editor.delete(tok);
-                }
-                _ => (),
-            });
+            for token in node.descendants_with_tokens().filter_map(|it| it.into_token()) {
+                editor.splice_leading_trivia(&token, .., []);
+                editor.splice_trailing_trivia(&token, .., []);
+            }
             editor.finish().new_root().clone()
         }
     }

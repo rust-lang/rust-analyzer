@@ -1,25 +1,20 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "main"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
               IDENT "x"
-          COLON ":"
-          WHITESPACE " "
+          COLON ":" [] [WHITESPACE(" ")]
           MACRO_TYPE
             MACRO_CALL
               PATH
@@ -29,11 +24,9 @@ SOURCE_FILE
               BANG "!"
               TOKEN_TREE
                 L_PAREN "("
-                R_PAREN ")"
-        WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
         ERROR
-          PLUS "+"
-        WHITESPACE " "
+          PLUS "+" [] [WHITESPACE(" ")]
         EXPR_STMT
           BIN_EXPR
             MACRO_EXPR
@@ -45,10 +38,8 @@ SOURCE_FILE
                 BANG "!"
                 TOKEN_TREE
                   L_PAREN "("
-                  R_PAREN ")"
-            WHITESPACE " "
-            PLUS "+"
-            WHITESPACE " "
+                  R_PAREN ")" [] [WHITESPACE(" ")]
+            PLUS "+" [] [WHITESPACE(" ")]
             MACRO_EXPR
               MACRO_CALL
                 PATH
@@ -59,9 +50,8 @@ SOURCE_FILE
                 TOKEN_TREE
                   L_PAREN "("
                   R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 25: expected SEMICOLON
 error 26: expected expression, item or let statement

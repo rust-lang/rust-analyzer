@@ -62,7 +62,7 @@ fn generate_record_deref(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opti
 
     let field_type = field.ty()?;
     let field_name = field.name()?;
-    let target = field.syntax().text_range();
+    let target = field.syntax().text_range_without_outer_trivia();
     let file_id = ctx.vfs_file_id();
     acc.add(
         AssistId::generate("generate_deref"),
@@ -105,7 +105,7 @@ fn generate_tuple_deref(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Optio
     let trait_path = module.find_path(ctx.db(), ModuleDef::Trait(trait_), cfg)?;
 
     let field_type = field.ty()?;
-    let target = field.syntax().text_range();
+    let target = field.syntax().text_range_without_outer_trivia();
     let file_id = ctx.vfs_file_id();
     acc.add(
         AssistId::generate("generate_deref"),
@@ -198,9 +198,9 @@ fn generate_edit(
     let indent = strukt.indent_level();
     let impl_ = generate_trait_impl_intransitive_with_item(make, &strukt_adt, trait_ty, body)
         .indent(indent);
-    editor.insert_all(
+    editor.insert(
         Position::after(strukt.syntax()),
-        vec![make.whitespace(&format!("\n\n{indent}")).into(), impl_.syntax().clone().into()],
+        editor.make().prepend_leading_trivia(impl_.syntax(), "\n"),
     );
     edit.add_file_edits(file_id, editor);
 }
@@ -270,7 +270,8 @@ impl core::ops::Deref for B {
     fn deref(&self) -> &Self::Target {
         &self.a
     }
-}"#,
+}
+"#,
         );
     }
 
@@ -316,7 +317,8 @@ impl Deref for B {
     fn deref(&self) -> &Self::Target {
         &self.a
     }
-}"#,
+}
+"#,
         );
     }
 
@@ -338,7 +340,8 @@ impl core::ops::Deref for B {
     fn deref(&self) -> &Self::Target {
         &self.0
     }
-}"#,
+}
+"#,
         );
     }
     #[test]
@@ -359,7 +362,8 @@ impl core::ops::Deref for B {
     fn deref(&self) -> &Self::Target {
         &self.1
     }
-}"#,
+}
+"#,
         );
     }
 

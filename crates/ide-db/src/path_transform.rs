@@ -12,7 +12,7 @@ use span::Edition;
 use syntax::{
     NodeOrToken, SyntaxNode,
     ast::{self, AstNode, HasGenericArgs, HasName, make},
-    syntax_editor::{self, SyntaxEditor},
+    syntax_editor::{self, Element, SyntaxEditor},
 };
 
 #[derive(Default, Debug)]
@@ -279,8 +279,8 @@ impl Ctx<'_> {
         // so that such operation is safe.
         let (editor, item) = SyntaxEditor::new(self.transform_path(item));
         preorder_rev(&item).filter_map(ast::Lifetime::cast).for_each(|lifetime| {
-            if let Some(subst) = self.lifetime_substs.get(&lifetime.syntax().text().to_string()) {
-                editor.replace(lifetime.syntax(), subst.clone().syntax());
+            if let Some(subst) = self.lifetime_substs.get(&lifetime.to_string()) {
+                replace_keeping_trivia(&editor, lifetime.syntax(), subst.clone().syntax());
             }
         });
 
@@ -332,7 +332,7 @@ impl Ctx<'_> {
         let result = find_child_paths_and_ident_pats(&root_path);
         for sub_path in result {
             let new = self.transform_path(sub_path.syntax());
-            editor.replace(sub_path.syntax(), new);
+            replace_keeping_trivia(&editor, sub_path.syntax(), new);
         }
         let (editor, update_sub_item) = SyntaxEditor::new(editor.finish().new_root().clone());
         let item = find_child_paths_and_ident_pats(&update_sub_item);
@@ -412,7 +412,7 @@ impl Ctx<'_> {
 
                         let segment = make::path_segment_ty(subst.clone(), trait_ref);
                         let qualified = make::path_from_segments(std::iter::once(segment), false);
-                        editor.replace(path.syntax(), qualified.clone().syntax());
+                        replace_keeping_trivia(editor, path.syntax(), qualified.clone().syntax());
                     } else if let Some(path_ty) = ast::PathType::cast(parent) {
                         let old = path_ty.syntax();
                         let needs_paren = old.parent().is_some_and(|it| subst.needs_parens_in(&it));
@@ -420,7 +420,7 @@ impl Ctx<'_> {
                             if needs_paren { make.ty_paren(subst.clone()) } else { subst.clone() };
 
                         if old.parent().is_some() {
-                            editor.replace(old, subst.syntax());
+                            replace_keeping_trivia(editor, old, subst.syntax());
                         } else {
                             let start = path_ty.syntax().first_child().map(NodeOrToken::Node)?;
                             let end = path_ty.syntax().last_child().map(NodeOrToken::Node)?;
@@ -434,7 +434,7 @@ impl Ctx<'_> {
                             );
                         }
                     } else {
-                        editor.replace(path.syntax(), subst.clone().syntax());
+                        replace_keeping_trivia(editor, path.syntax(), subst.clone().syntax());
                     }
                 }
             }
@@ -462,7 +462,7 @@ impl Ctx<'_> {
                     && let Some(segment) = res.segment()
                 {
                     if let Some(old) = segment.generic_arg_list() {
-                        res_editor.replace(old.syntax(), args.syntax().clone())
+                        replace_keeping_trivia(&res_editor, old.syntax(), args.syntax().clone())
                     } else {
                         res_editor.insert(
                             syntax_editor::Position::last_child_of(segment.syntax()),
@@ -471,11 +471,11 @@ impl Ctx<'_> {
                     }
                 }
                 let res = res_editor.finish().new_root().clone();
-                editor.replace(path.syntax().clone(), res);
+                replace_keeping_trivia(editor, path.syntax().clone(), res);
             }
             hir::PathResolution::ConstParam(cp) => {
                 if let Some(subst) = self.const_substs.get(&cp) {
-                    editor.replace(path.syntax(), subst.clone());
+                    replace_keeping_trivia(editor, path.syntax(), subst.clone());
                 }
             }
             hir::PathResolution::SelfType(imp) => {
@@ -513,7 +513,8 @@ impl Ctx<'_> {
                         mod_path_to_ast_with_factory(make, &found_path, self.target_edition)
                             .qualifier()
                     {
-                        editor.replace(
+                        replace_keeping_trivia(
+                            editor,
                             path.syntax(),
                             make::path_concat(qual, path_ty.path()?).syntax(),
                         );
@@ -521,7 +522,7 @@ impl Ctx<'_> {
                     }
                 }
 
-                editor.replace(path.syntax(), ast_ty.syntax());
+                replace_keeping_trivia(editor, path.syntax(), ast_ty.syntax());
             }
             hir::PathResolution::Local(_)
             | hir::PathResolution::Def(_)
@@ -589,7 +590,8 @@ impl Ctx<'_> {
                     allow_unstable: true,
                 };
                 let found_path = self.target_module.find_path(self.source_scope.db, def, cfg)?;
-                editor.replace(
+                replace_keeping_trivia(
+                    editor,
                     ident_pat.syntax(),
                     mod_path_to_ast_with_factory(make, &found_path, self.target_edition).syntax(),
                 );
@@ -662,6 +664,11 @@ fn find_trait_for_assoc_item(
     }
 
     None
+}
+
+fn replace_keeping_trivia(editor: &SyntaxEditor, old: impl Element, new: impl Element) {
+    let old = old.syntax_element();
+    editor.replace(&old, editor.make().with_trivia_from(new, &old));
 }
 
 #[cfg(test)]
@@ -744,6 +751,6 @@ fn main() {
     let Alias = ();
     let Union = ();
 }"#;
-        assert_eq_text!(expected, &transformed.to_string());
+        assert_eq_text!(expected, &transformed.text_without_outer_trivia().to_string());
     }
 }

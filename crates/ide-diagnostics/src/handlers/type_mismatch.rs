@@ -132,7 +132,7 @@ fn add_or_fix_reference(
         let expr = ctx.sema.original_ast_node(expr)?;
         let expr_without_ref = RefExpr::cast(expr.syntax().clone())?.expr()?;
 
-        let pos = expr_without_ref.syntax().text_range().start();
+        let pos = expr_without_ref.syntax().text_range_without_outer_trivia().start();
         let edit = TextEdit::insert(pos, expected_mutability.as_keyword_for_ref().to_owned());
         let source_change = SourceChange::from_text_edit(range.file_id, edit);
         acc.push(fix(
@@ -334,7 +334,10 @@ fn remove_unnecessary_wrapper(
         }
         _ => {
             editor = builder.make_editor(call_expr.syntax());
-            editor.replace(call_expr.syntax(), inner_arg.syntax());
+            editor.replace(
+                call_expr.syntax(),
+                editor.make().with_trivia_from(inner_arg.syntax(), call_expr.syntax()),
+            );
         }
     }
 
@@ -344,7 +347,7 @@ fn remove_unnecessary_wrapper(
         "remove_unnecessary_wrapper",
         &name,
         builder.finish(),
-        call_expr.syntax().text_range(),
+        call_expr.syntax().text_range_without_outer_trivia(),
     ));
     Some(())
 }

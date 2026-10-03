@@ -1,49 +1,40 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S"
     GENERIC_PARAM_LIST
       L_ANGLE "<"
       ERROR
-        INT_NUMBER "90"
-  WHITESPACE " "
+        INT_NUMBER "90" [] [WHITESPACE(" ")]
   ERROR
-    PLUS "+"
-  WHITESPACE " "
+    PLUS "+" [] [WHITESPACE(" ")]
   ERROR
     INT_NUMBER "2"
   ERROR
-    R_ANGLE ">"
-  WHITESPACE " "
+    R_ANGLE ">" [] [WHITESPACE(" ")]
   ERROR
-    L_CURLY "{"
-    WHITESPACE "\n    "
+    L_CURLY "{" [] [NEWLINE("\n")]
     EXPR_STMT
       PATH_EXPR
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "f"
+              IDENT "f" [WHITESPACE("    ")] []
     ERROR
-      COLON ":"
-    WHITESPACE " "
+      COLON ":" [] [WHITESPACE(" ")]
     PATH_EXPR
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "u32"
-    WHITESPACE "\n"
-    R_CURLY "}"
-  WHITESPACE "\n\n"
+            IDENT "u32" [] [NEWLINE("\n")]
+    R_CURLY "}" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
       IDENT "T"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""
 error 9: expected generic parameter
 error 11: expected R_ANGLE
 error 11: expected `;`, `{`, or `(`

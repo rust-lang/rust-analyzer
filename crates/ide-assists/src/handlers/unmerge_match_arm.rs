@@ -1,7 +1,7 @@
 use syntax::{
-    Direction, SyntaxKind, T,
-    ast::{self, AstNode, edit::IndentLevel},
-    syntax_editor::{Element, Position},
+    Direction, T,
+    ast::{self, AstNode},
+    syntax_editor::Position,
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -65,22 +65,9 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
                 make.or_pat(pats_after, or_pat.leading_pipe().is_some()).into()
             };
             let new_match_arm = make.match_arm(new_pat, match_arm.guard(), match_arm_body);
-            let mut pipe_index = pipe_token.index();
-            if pipe_token
-                .prev_sibling_or_token()
-                .is_some_and(|it| it.kind() == SyntaxKind::WHITESPACE)
-            {
-                pipe_index -= 1;
+            for child in pipe_token.siblings_with_tokens(Direction::Next) {
+                editor.delete(child);
             }
-            for child in or_pat
-                .syntax()
-                .children_with_tokens()
-                .skip_while(|child| child.index() < pipe_index)
-            {
-                editor.delete(child.syntax_element());
-            }
-
-            let mut insert_after_old_arm = Vec::new();
 
             // A comma can be:
             //  - After the arm. In this case we always want to insert a comma after the newly
@@ -92,15 +79,10 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
             //    we don't want to insert a comma at all.
             let has_comma_after = match_arm.comma_token().is_some();
             if !has_comma_after && !match_arm.expr().unwrap().is_block_like() {
-                insert_after_old_arm.push(make.token(T![,]).into());
+                editor.insert(Position::last_child_of(match_arm.syntax()), make.token(T![,]));
             }
 
-            let indent = IndentLevel::from_node(match_arm.syntax());
-            insert_after_old_arm.push(make.whitespace(&format!("\n{indent}")).into());
-
-            insert_after_old_arm.push(new_match_arm.syntax().clone().into());
-
-            editor.insert_all(Position::after(match_arm.syntax()), insert_after_old_arm);
+            editor.insert(Position::after(match_arm.syntax()), new_match_arm.syntax());
             edit.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

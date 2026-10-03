@@ -40,7 +40,7 @@ pub trait HasSource: Sized {
         db: &dyn HirDatabase,
     ) -> Option<InFile<(TextRange, Option<Self::Ast>)>> {
         let source = self.source(db)?;
-        Some(source.map(|node| (node.syntax().text_range(), Some(node))))
+        Some(source.map(|node| (node.syntax().text_range_without_outer_trivia(), Some(node))))
     }
 }
 
@@ -178,9 +178,11 @@ impl HasSource for Function {
         db: &dyn HirDatabase,
     ) -> Option<InFile<(TextRange, Option<Self::Ast>)>> {
         match self.id {
-            AnyFunctionId::FunctionId(id) => Some(
-                id.loc(db).source(db).map(|source| (source.syntax().text_range(), Some(source))),
-            ),
+            AnyFunctionId::FunctionId(id) => {
+                Some(id.loc(db).source(db).map(|source| {
+                    (source.syntax().text_range_without_outer_trivia(), Some(source))
+                }))
+            }
             AnyFunctionId::BuiltinDeriveImplMethod { impl_, .. } => {
                 Some(impl_.loc(db).source(db).map(|range| (range, None)))
             }
@@ -239,9 +241,11 @@ impl HasSource for Impl {
         db: &dyn HirDatabase,
     ) -> Option<InFile<(TextRange, Option<Self::Ast>)>> {
         match self.id {
-            AnyImplId::ImplId(id) => Some(
-                id.loc(db).source(db).map(|source| (source.syntax().text_range(), Some(source))),
-            ),
+            AnyImplId::ImplId(id) => {
+                Some(id.loc(db).source(db).map(|source| {
+                    (source.syntax().text_range_without_outer_trivia(), Some(source))
+                }))
+            }
             AnyImplId::BuiltinDeriveImplId(impl_) => {
                 Some(impl_.loc(db).source(db).map(|range| (range, None)))
             }

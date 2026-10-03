@@ -1,7 +1,6 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH
@@ -26,5 +25,5 @@ SOURCE_FILE
               NAME_REF
                 IDENT "tree"
         R_CURLY "}"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

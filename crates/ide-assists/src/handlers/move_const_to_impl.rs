@@ -1,7 +1,7 @@
 use hir::{AsAssocItem, AssocItemContainer, FileRange, HasSource};
 use ide_db::{assists::AssistId, defs::Definition, search::SearchScope};
 use syntax::{
-    SyntaxKind,
+    SyntaxKind, TextRange,
     ast::{
         self, AstNode,
         edit::{AstNodeEdit, IndentLevel},
@@ -47,7 +47,7 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
     let const_: ast::Const = ctx.find_node_at_offset()?;
     // Don't show the assist when the cursor is at the const's body.
     if let Some(body) = const_.body()
-        && body.syntax().text_range().contains(ctx.offset())
+        && body.syntax().text_range_without_outer_trivia().contains(ctx.offset())
     {
         return None;
     }
@@ -88,24 +88,24 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
     acc.add(
         AssistId::refactor_rewrite("move_const_to_impl"),
         "Move const to impl block",
-        const_.syntax().text_range(),
+        const_.syntax().text_range_without_outer_trivia(),
         |builder| {
             let usages = Definition::Const(def)
                 .usages(&ctx.sema)
                 .in_scope(&SearchScope::file_range(FileRange {
                     file_id: ctx.file_id(),
-                    range: parent_fn.syntax().text_range(),
+                    range: parent_fn.syntax().text_range_without_outer_trivia(),
                 }))
                 .all();
 
-            let range_to_delete = match const_.syntax().next_sibling_or_token() {
-                Some(s) if matches!(s.kind(), SyntaxKind::WHITESPACE) => {
-                    // Remove following whitespaces too.
-                    const_.syntax().text_range().cover(s.text_range())
-                }
-                _ => const_.syntax().text_range(),
-            };
-            builder.delete(range_to_delete);
+            let trimmed = const_.syntax().text_range_without_outer_trivia();
+            let end = const_
+                .syntax()
+                .trivia_after()
+                .find(|it| it.kind() == SyntaxKind::COMMENT)
+                .or_else(|| const_.syntax().next_non_trivia_token())
+                .map_or(trimmed.end(), |it| it.text_range().start());
+            builder.delete(TextRange::new(trimmed.start(), end));
 
             let usages = usages.iter().flat_map(|(file_id, usages)| {
                 let edition = file_id.edition(ctx.db());
@@ -122,12 +122,12 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
             let last_const =
                 items.assoc_items().take_while(|it| matches!(it, ast::AssocItem::Const(_))).last();
             let insert_offset = match &last_const {
-                Some(it) => it.syntax().text_range().end(),
+                Some(it) => it.syntax().text_range_without_outer_trivia().end(),
                 None => match items.l_curly_token() {
                     Some(l_curly) => l_curly.text_range().end(),
                     // Not sure if this branch is ever reachable, but it wouldn't hurt to have a
                     // fallback.
-                    None => items.syntax().text_range().start(),
+                    None => items.syntax().text_range_without_outer_trivia().start(),
                 },
             };
 

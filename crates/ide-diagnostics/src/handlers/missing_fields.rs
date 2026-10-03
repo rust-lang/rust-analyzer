@@ -601,7 +601,7 @@ impl TestWithNew {
 struct TestStruct { one: i32, two: TestWithNew }
 
 fn test_fn() {
-    let s = TestStruct{ one: 0, two: TestWithNew::new()  };
+    let s = TestStruct{ one: 0, two: TestWithNew::new() };
 }
 ",
         );
@@ -634,7 +634,7 @@ impl Default for TestWithDefault {
 struct TestStruct { one: i32, two: TestWithDefault, r: &'static [i32] }
 
 fn test_fn() {
-    let s = TestStruct{ one: 0, two: TestWithDefault::default(), r: <&'static [i32]>::default()  };
+    let s = TestStruct{ one: 0, two: TestWithDefault::default(), r: <&'static [i32]>::default() };
 }
 ",
         );
@@ -654,7 +654,7 @@ fn test_fn() {
 struct TestStruct { r#type: u8 }
 
 fn test_fn() {
-    TestStruct { r#type: 0  };
+    TestStruct { r#type: 0 };
 }
 ",
         );

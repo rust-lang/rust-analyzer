@@ -155,7 +155,8 @@ use external_crate::bar::A;
 use crate::bar::A;
 use self::bar::A;
 use super::bar::A;
-use external_crate2::bar::A;",
+use external_crate2::bar::A;
+",
         &InsertUseConfig {
             granularity: ImportGranularity::Item,
             enforce_granularity: true,
@@ -279,7 +280,8 @@ use std::bar::A;
 use std::bar::D;
 use std::bar::F;
 use std::bar::G;
-use std::bar::ZZ;",
+use std::bar::ZZ;
+",
     )
 }
 
@@ -297,7 +299,8 @@ fn insert_end_indent() {
     use std::bar::D;
     use std::bar::F;
     use std::bar::G;
-    use std::bar::ZZ;",
+    use std::bar::ZZ;
+",
     );
     check_none(
         "std::bar::r#ZZ",
@@ -311,7 +314,8 @@ fn insert_end_indent() {
     use std::bar::D;
     use std::bar::F;
     use std::bar::G;
-    use std::bar::r#ZZ;",
+    use std::bar::r#ZZ;
+",
     );
 }
 
@@ -419,7 +423,8 @@ use foo::bar::D;",
 use foo::bar::A;
 use foo::bar::D;
 
-use self::fmt;",
+use self::fmt;
+",
     )
 }
 
@@ -445,7 +450,6 @@ fn insert_empty_file() {
         "foo::bar",
         "",
         r"use foo::bar;
-
 ",
     );
 
@@ -454,7 +458,6 @@ fn insert_empty_file() {
         "use external_crate2::bar::A",
         r"",
         r"use external_crate2::bar::A;
-
 ",
         &InsertUseConfig {
             granularity: ImportGranularity::Item,
@@ -511,7 +514,8 @@ fn insert_after_inner_attr() {
         r"#![allow(unused_imports)]",
         r"#![allow(unused_imports)]
 
-use foo::bar;",
+use foo::bar;
+",
     );
 
     // "not group" configuration
@@ -520,7 +524,8 @@ use foo::bar;",
         r"#![allow(unused_imports)]",
         r"#![allow(unused_imports)]
 
-use foo::bar;",
+use foo::bar;
+",
         &InsertUseConfig {
             granularity: ImportGranularity::Item,
             enforce_granularity: true,
@@ -544,6 +549,7 @@ fn main() {}",
 #![no_std]
 
 use foo::bar;
+
 fn main() {}",
     );
 }
@@ -555,7 +561,8 @@ fn inserts_after_single_line_inner_comments() {
         "//! Single line inner comments do not allow any code before them.",
         r#"//! Single line inner comments do not allow any code before them.
 
-use foo::bar::Baz;"#,
+use foo::bar::Baz;
+"#,
     );
     check_none(
         "foo::bar::Baz",
@@ -567,7 +574,6 @@ $0
     //! Single line inner comments do not allow any code before them.
 
     use foo::bar::Baz;
-
 }",
     );
 }
@@ -579,7 +585,8 @@ fn inserts_after_single_line_comments() {
         "// Represents a possible license header and/or general module comments",
         r#"// Represents a possible license header and/or general module comments
 
-use foo::bar::Baz;"#,
+use foo::bar::Baz;
+"#,
     );
 }
 
@@ -590,7 +597,8 @@ fn inserts_after_shebang() {
         "#!/usr/bin/env rust",
         r#"#!/usr/bin/env rust
 
-use foo::bar::Baz;"#,
+use foo::bar::Baz;
+"#,
     );
 }
 
@@ -605,7 +613,8 @@ fn inserts_after_multiple_single_line_comments() {
 // Second single-line comment
 // Third single-line comment
 
-use foo::bar::Baz;"#,
+use foo::bar::Baz;
+"#,
     );
 }
 
@@ -652,6 +661,7 @@ fn main() {}"#,
 /*! Still an inner comment, cannot place any code before. */
 
 use foo::bar::Baz;
+
 fn main() {}"#,
     )
 }
@@ -677,6 +687,7 @@ fn main() {}"#,
 //! Single line comment 2
 
 use foo::bar::Baz;
+
 fn main() {}"#,
     )
 }
@@ -694,7 +705,8 @@ fn merge_groups_last() {
         "std::io",
         r"use std::fmt::{Result, Display};",
         r"use std::fmt::{Result, Display};
-use std::io;",
+use std::io;
+",
     );
     check_one(
         "std::io",
@@ -851,13 +863,15 @@ fn merge_groups_skip_pub() {
         "std::io",
         r"pub use std::fmt::{Result, Display};",
         r"pub use std::fmt::{Result, Display};
-use std::io;",
+use std::io;
+",
     );
     check_one(
         "std::io",
         r"pub use {std::fmt::{Result, Display}};",
         r"pub use {std::fmt::{Result, Display}};
-use {std::io};",
+use {std::io};
+",
     );
 }
 
@@ -867,13 +881,15 @@ fn merge_groups_skip_pub_crate() {
         "std::io",
         r"pub(crate) use std::fmt::{Result, Display};",
         r"pub(crate) use std::fmt::{Result, Display};
-use std::io;",
+use std::io;
+",
     );
     check_one(
         "std::io",
         r"pub(crate) use {std::fmt::{Result, Display}};",
         r"pub(crate) use {std::fmt::{Result, Display}};
-use {std::io};",
+use {std::io};
+",
     );
 }
 
@@ -1019,7 +1035,8 @@ fn skip_merge_last_too_long2() {
         "foo::bar::baz::Qux",
         r"use foo::bar;",
         r"use foo::bar;
-use foo::bar::baz::Qux;",
+use foo::bar::baz::Qux;
+",
     );
 }
 

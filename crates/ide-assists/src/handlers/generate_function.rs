@@ -80,7 +80,7 @@ fn gen_fn(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
 
     let function_builder =
         FunctionBuilder::from_call(&make, ctx, &call, fn_name, target_module, target, &adt_info)?;
-    let text_range = call.syntax().text_range();
+    let text_range = call.syntax().text_range_without_outer_trivia();
     let label = format!("Generate {} function", function_builder.fn_name);
     add_func_to_accumulator(acc, ctx, text_range, function_builder, file, adt_info, label)
 }
@@ -179,7 +179,7 @@ fn gen_method(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
         target_module,
         target,
     )?;
-    let text_range = call.syntax().text_range();
+    let text_range = call.syntax().text_range_without_outer_trivia();
     let adt_info = AdtInfo::new(adt, impl_.is_some());
     let label = format!("Generate {} method", function_builder.fn_name);
     add_func_to_accumulator(acc, ctx, text_range, function_builder, file, Some(adt_info), label)
@@ -587,7 +587,6 @@ impl GeneratedFunctionTarget {
                     adt,
                     position,
                     indent,
-                    indent,
                     cap,
                 );
             }
@@ -599,8 +598,6 @@ impl GeneratedFunctionTarget {
                     None => Position::first_child_of(item_list),
                 };
 
-                let indent = IndentLevel::from_node(item_list);
-                let leading_indent = indent + 1;
                 insert_rendered_impl(
                     &editor,
                     edit,
@@ -608,8 +605,7 @@ impl GeneratedFunctionTarget {
                     function_builder,
                     adt,
                     position,
-                    indent,
-                    leading_indent,
+                    IndentLevel::from_node(item_list),
                     cap,
                 );
             }
@@ -639,16 +635,7 @@ impl GeneratedFunctionTarget {
                 };
 
                 let indent = IndentLevel::from_node(item);
-                insert_rendered_fn(
-                    &editor,
-                    edit,
-                    function_builder,
-                    position,
-                    indent,
-                    format!("\n\n{indent}"),
-                    None,
-                    cap,
-                );
+                insert_rendered_fn(&editor, edit, function_builder, position, indent, cap);
             }
             GeneratedFunctionTarget::InEmptyItemList(item_list) => {
                 let insert_after =
@@ -658,24 +645,13 @@ impl GeneratedFunctionTarget {
                     None => Position::first_child_of(item_list),
                 };
 
-                let indent = IndentLevel::from_node(item_list);
-                let leading_indent = indent + 1;
-                insert_rendered_fn(
-                    &editor,
-                    edit,
-                    function_builder,
-                    position,
-                    leading_indent,
-                    format!("\n{leading_indent}"),
-                    Some(format!("\n{indent}")),
-                    cap,
-                );
+                let indent = IndentLevel::from_node(item_list) + 1;
+                insert_rendered_fn(&editor, edit, function_builder, position, indent, cap);
             }
             GeneratedFunctionTarget::InImpl(impl_) => {
                 let leading_indent = impl_.indent_level() + 1;
 
                 if let Some(item_list) = impl_.assoc_item_list() {
-                    let insert_after_item = item_list.assoc_items().last();
                     let insert_after = item_list
                         .assoc_items()
                         .last()
@@ -690,21 +666,12 @@ impl GeneratedFunctionTarget {
                         Some(child) => Position::after(child),
                         None => Position::first_child_of(item_list.syntax()),
                     };
-                    let indent = impl_.indent_level();
-                    let leading_ws = if insert_after_item.is_some() {
-                        format!("\n\n{leading_indent}")
-                    } else {
-                        format!("\n{leading_indent}")
-                    };
-                    let trailing_ws = insert_after_item.is_none().then(|| format!("\n{indent}"));
                     insert_rendered_fn(
                         &editor,
                         edit,
                         function_builder,
                         position,
                         leading_indent,
-                        leading_ws,
-                        trailing_ws,
                         cap,
                     );
                 } else {
@@ -729,11 +696,9 @@ fn insert_rendered_impl(
     adt: Adt,
     position: Position,
     impl_indent: IndentLevel,
-    leading_ws_indent: IndentLevel,
     cap: Option<SnippetCap>,
 ) {
     let make = editor.make();
-    let leading_ws = make.whitespace(&format!("\n{leading_ws_indent}"));
     let name = make.ty_path(make.ident_path(&format!(
         "{}",
         adt.name(ctx.db()).display(ctx.db(), function_builder.target_edition)
@@ -748,7 +713,7 @@ fn insert_rendered_impl(
         add_generated_fn_annotation(editor, edit, function_builder, &fn_, cap);
     }
 
-    editor.insert_all(position, vec![leading_ws.into(), impl_.syntax().clone().into()]);
+    editor.insert(position, editor.make().prepend_leading_trivia(impl_.syntax(), "\n"));
 }
 
 fn insert_rendered_fn(
@@ -757,20 +722,11 @@ fn insert_rendered_fn(
     function_builder: &FunctionBuilder,
     position: Position,
     indent: IndentLevel,
-    leading_ws: String,
-    trailing_ws: Option<String>,
     cap: Option<SnippetCap>,
 ) {
-    let make = editor.make();
-    let leading_ws = make.whitespace(&leading_ws);
-    let func = function_builder.render(make).indent(indent);
+    let func = function_builder.render(editor.make()).indent(indent);
     add_generated_fn_annotation(editor, edit, function_builder, &func, cap);
-
-    let mut elements = vec![leading_ws.into(), func.syntax().clone().into()];
-    if let Some(trailing_ws) = trailing_ws {
-        elements.push(make.whitespace(&trailing_ws).into());
-    }
-    editor.insert_all(position, elements);
+    editor.insert(position, editor.make().prepend_leading_trivia(func.syntax(), "\n"));
 }
 
 fn add_generated_fn_annotation(
@@ -1914,6 +1870,7 @@ fn foo<T, U>(s: S<T>, u: U) { s.$0foo(u) }
 ",
             r"
 struct S<T>(T);
+
 impl S {
     fn foo<T, U>(&self, u: U) {
         ${0:todo!()}
@@ -2455,11 +2412,10 @@ fn main() {
 //- /foo.rs
 ",
             r"
-
-
 pub(crate) fn bar() {
     ${0:todo!()}
-}",
+}
+",
         )
     }
 
@@ -2636,6 +2592,7 @@ fn foo() {S.bar$0();}
 ",
             r"
 struct S;
+
 impl S {
     fn bar(&self) ${0:-> _} {
         todo!()
@@ -2682,6 +2639,7 @@ fn foo() {s::S.bar$0();}
             r"
 mod s {
     pub struct S;
+
     impl S {
         pub(crate) fn bar(&self) ${0:-> _} {
             todo!()
@@ -2708,6 +2666,7 @@ mod s {
 ",
             r"
 struct S;
+
 impl S {
     fn bar(&self) ${0:-> _} {
         todo!()
@@ -2733,6 +2692,7 @@ fn foo() {$0S.bar();}
 ",
             r"
 struct S;
+
 impl S {
     fn bar(&self) ${0:-> _} {
         todo!()
@@ -2756,6 +2716,7 @@ async fn foo() {
 ",
             r"
 struct S;
+
 impl S {
     async fn bar(&self, arg: i32) -> Result<_, ()> {
         ${0:todo!()}
@@ -2778,6 +2739,7 @@ fn foo() {S::bar$0();}
 ",
             r"
 struct S;
+
 impl S {
     fn bar() ${0:-> _} {
         todo!()
@@ -2801,6 +2763,7 @@ async fn foo() {
 ",
             r"
 struct S;
+
 impl S {
     async fn bar(arg: i32) -> Result<_, ()> {
         ${0:todo!()}
@@ -2823,6 +2786,7 @@ fn foo<T, const N: usize>(t: [T; N]) { S::bar$0(t); }
 ",
             r"
 struct S;
+
 impl S {
     fn bar<T, const N: usize>(t: [T; N]) ${0:-> _} {
         todo!()
@@ -2869,6 +2833,7 @@ fn foo() {s::S::bar$0();}
             r"
 mod s {
     pub struct S;
+
     impl S {
         pub(crate) fn bar() ${0:-> _} {
             todo!()
@@ -2890,6 +2855,7 @@ fn foo() {$0S::bar();}
 ",
             r"
 struct S;
+
 impl S {
     fn bar() ${0:-> _} {
         todo!()
@@ -3065,6 +3031,7 @@ fn main() {
 ",
             r"
 enum Foo {}
+
 impl Foo {
     fn bar() ${0:-> _} {
         todo!()
@@ -3113,6 +3080,7 @@ fn main() {
 ",
             r"
 pub struct S;
+
 impl S {
     pub fn foo(&self) ${0:-> _} {
         todo!()
@@ -3171,6 +3139,7 @@ pub struct Foo {
     field_1: usize,
     field_2: String,
 }
+
 impl Foo {
     fn new() -> Self {
         ${0:Self { field_1: todo!(), field_2: todo!() }}
@@ -3197,6 +3166,7 @@ fn main() {
         ",
             r"
 pub struct Foo (usize, String);
+
 impl Foo {
     fn new() -> Self {
         ${0:Self(todo!(), todo!())}
@@ -3223,6 +3193,7 @@ fn main() {
         ",
             r"
 pub struct Foo;
+
 impl Foo {
     fn new() -> Self {
         ${0:Self}
@@ -3249,6 +3220,7 @@ fn main() {
         ",
             r"
 pub enum Foo {}
+
 impl Foo {
     fn new() -> Self {
         ${0:todo!()}
@@ -3284,6 +3256,7 @@ pub struct Foo {
     field_1: usize,
     field_2: String,
 }
+
 impl Foo {
     fn new(baz_1: Baz, baz_2: Baz, arg_1: &'static str, arg_2: &'static str) -> Self {
         ${0:Self { field_1: todo!(), field_2: todo!() }}
@@ -3451,6 +3424,7 @@ impl Foo for Bar {
 ",
             r"
 struct Bar;
+
 impl Bar {
     fn func2(&self) ${0:-> _} {
         todo!()

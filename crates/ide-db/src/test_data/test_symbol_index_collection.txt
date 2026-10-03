@@ -23,13 +23,13 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: VARIANT,
-                        range: 201..202,
+                        range: 197..202,
                     },
                     name_ptr: Some(
                         AstPtr(
                             SyntaxNodePtr {
                                 kind: NAME,
-                                range: 201..202,
+                                range: 197..202,
                             },
                         ),
                     ),
@@ -59,13 +59,13 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: TYPE_ALIAS,
-                        range: 470..490,
+                        range: 470..491,
                     },
                     name_ptr: Some(
                         AstPtr(
                             SyntaxNodePtr {
                                 kind: NAME,
-                                range: 475..480,
+                                range: 475..481,
                             },
                         ),
                     ),
@@ -93,13 +93,13 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: VARIANT,
-                        range: 204..205,
+                        range: 204..206,
                     },
                     name_ptr: Some(
                         AstPtr(
                             SyntaxNodePtr {
                                 kind: NAME,
-                                range: 204..205,
+                                range: 204..206,
                             },
                         ),
                     ),
@@ -129,7 +129,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: CONST,
-                        range: 413..434,
+                        range: 412..435,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -163,7 +163,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: CONST,
-                        range: 593..665,
+                        range: 592..666,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -199,13 +199,13 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: ENUM,
-                        range: 185..207,
+                        range: 185..208,
                     },
                     name_ptr: Some(
                         AstPtr(
                             SyntaxNodePtr {
                                 kind: NAME,
-                                range: 190..194,
+                                range: 190..195,
                             },
                         ),
                     ),
@@ -271,13 +271,13 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: MACRO_DEF,
-                        range: 153..168,
+                        range: 152..169,
                     },
                     name_ptr: Some(
                         AstPtr(
                             SyntaxNodePtr {
                                 kind: NAME,
-                                range: 159..164,
+                                range: 159..165,
                             },
                         ),
                     ),
@@ -305,7 +305,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STATIC,
-                        range: 435..469,
+                        range: 435..470,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -341,7 +341,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 170..184,
+                        range: 169..185,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -413,7 +413,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 391..409,
+                        range: 387..410,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -451,7 +451,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 628..654,
+                        range: 624..655,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -489,7 +489,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 552..580,
+                        range: 548..581,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -525,7 +525,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 261..279,
+                        range: 260..280,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -559,13 +559,13 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: TRAIT,
-                        range: 334..373,
+                        range: 333..374,
                     },
                     name_ptr: Some(
                         AstPtr(
                             SyntaxNodePtr {
                                 kind: NAME,
-                                range: 340..345,
+                                range: 340..346,
                             },
                         ),
                     ),
@@ -631,13 +631,13 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: UNION,
-                        range: 208..222,
+                        range: 208..223,
                     },
                     name_ptr: Some(
                         AstPtr(
                             SyntaxNodePtr {
                                 kind: NAME,
-                                range: 214..219,
+                                range: 214..220,
                             },
                         ),
                     ),
@@ -665,13 +665,13 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: MODULE,
-                        range: 492..530,
+                        range: 491..531,
                     },
                     name_ptr: Some(
                         AstPtr(
                             SyntaxNodePtr {
                                 kind: NAME,
-                                range: 496..501,
+                                range: 496..502,
                             },
                         ),
                     ),
@@ -699,7 +699,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: MODULE,
-                        range: 667..677,
+                        range: 666..678,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -735,13 +735,13 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: MACRO_RULES,
-                        range: 51..131,
+                        range: 50..131,
                     },
                     name_ptr: Some(
                         AstPtr(
                             SyntaxNodePtr {
                                 kind: NAME,
-                                range: 64..77,
+                                range: 64..78,
                             },
                         ),
                     ),
@@ -769,7 +769,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: FN,
-                        range: 307..330,
+                        range: 303..331,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -805,7 +805,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: FN,
-                        range: 242..257,
+                        range: 238..258,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -843,13 +843,13 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: MACRO_RULES,
-                        range: 1..48,
+                        range: 0..48,
                     },
                     name_ptr: Some(
                         AstPtr(
                             SyntaxNodePtr {
                                 kind: NAME,
-                                range: 14..31,
+                                range: 14..32,
                             },
                         ),
                     ),
@@ -877,7 +877,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: FN,
-                        range: 375..411,
+                        range: 374..412,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -947,7 +947,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: FN,
-                        range: 352..371,
+                        range: 348..372,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -994,7 +994,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 508..528,
+                        range: 504..529,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -1109,7 +1109,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 0..20,
+                        range: 0..21,
                     },
                     name_ptr: Some(
                         AstPtr(

@@ -6,7 +6,7 @@ use syntax::{
     ast::{self, HasName},
 };
 
-use crate::{AssistContext, AssistId, Assists};
+use crate::{AssistContext, AssistId, Assists, utils::repositioned};
 
 // Assist: reorder_impl_items
 //
@@ -53,7 +53,7 @@ pub(crate) fn reorder_impl_items(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
 
     // restrict the range
     // if cursor is in assoc_items, abort
-    let assoc_range = items.syntax().text_range();
+    let assoc_range = items.syntax().text_range_without_outer_trivia();
     let cursor_position = ctx.offset();
     if assoc_range.contains_inclusive(cursor_position) {
         cov_mark::hit!(not_applicable_editing_assoc_items);
@@ -93,7 +93,7 @@ pub(crate) fn reorder_impl_items(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         return None;
     }
 
-    let target = items.syntax().text_range();
+    let target = items.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor_rewrite("reorder_impl_items"),
         "Sort items by trait definition",
@@ -101,10 +101,10 @@ pub(crate) fn reorder_impl_items(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         |builder| {
             let editor = builder.make_editor(&parent_node);
 
-            assoc_items
-                .into_iter()
-                .zip(sorted)
-                .for_each(|(old, new)| editor.replace(old.syntax(), new.syntax()));
+            assoc_items.into_iter().zip(sorted).for_each(|(old, new)| {
+                let new = repositioned(editor.make(), old.syntax(), new.syntax());
+                editor.replace(old.syntax(), new);
+            });
 
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },

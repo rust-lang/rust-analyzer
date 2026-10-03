@@ -1,7 +1,6 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S1"
     GENERIC_PARAM_LIST
@@ -10,11 +9,9 @@ SOURCE_FILE
         NAME
           IDENT "T"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S2"
     GENERIC_PARAM_LIST
@@ -32,11 +29,9 @@ SOURCE_FILE
               NAME_REF
                 IDENT "u32"
       R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S3"
     GENERIC_PARAM_LIST
@@ -44,37 +39,29 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-      R_ANGLE ">"
-    WHITESPACE " "
+      R_ANGLE ">" [] [WHITESPACE(" ")]
     RECORD_FIELD_LIST
-      L_CURLY "{"
-      WHITESPACE " "
+      L_CURLY "{" [] [WHITESPACE(" ")]
       RECORD_FIELD
         NAME
           IDENT "u"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "u32"
-      WHITESPACE " "
-      R_CURLY "}"
-  WHITESPACE "\n\n"
+                IDENT "u32" [] [WHITESPACE(" ")]
+      R_CURLY "}" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
       IDENT "S4"
     GENERIC_PARAM_LIST
       L_ANGLE "<"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S5"
     GENERIC_PARAM_LIST
@@ -83,11 +70,9 @@ SOURCE_FILE
         LIFETIME
           LIFETIME_IDENT "'a"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S6"
     GENERIC_PARAM_LIST
@@ -98,11 +83,9 @@ SOURCE_FILE
         COLON ":"
         TYPE_BOUND_LIST
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S7"
     GENERIC_PARAM_LIST
@@ -110,18 +93,15 @@ SOURCE_FILE
       LIFETIME_PARAM
         LIFETIME
           LIFETIME_IDENT "'a"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
               LIFETIME_IDENT "'b"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S8"
     GENERIC_PARAM_LIST
@@ -129,21 +109,16 @@ SOURCE_FILE
       LIFETIME_PARAM
         LIFETIME
           LIFETIME_IDENT "'a"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'b"
-          WHITESPACE " "
-          PLUS "+"
-      WHITESPACE " "
+              LIFETIME_IDENT "'b" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S9"
     GENERIC_PARAM_LIST
@@ -151,24 +126,19 @@ SOURCE_FILE
       LIFETIME_PARAM
         LIFETIME
           LIFETIME_IDENT "'a"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
-              LIFETIME_IDENT "'b"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+              LIFETIME_IDENT "'b" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             LIFETIME
               LIFETIME_IDENT "'c"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S10"
     GENERIC_PARAM_LIST
@@ -178,11 +148,9 @@ SOURCE_FILE
           LIFETIME_IDENT "'a"
       COMMA ","
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S11"
     GENERIC_PARAM_LIST
@@ -190,17 +158,14 @@ SOURCE_FILE
       LIFETIME_PARAM
         LIFETIME
           LIFETIME_IDENT "'a"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       LIFETIME_PARAM
         LIFETIME
           LIFETIME_IDENT "'b"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S12"
     GENERIC_PARAM_LIST
@@ -208,31 +173,26 @@ SOURCE_FILE
       LIFETIME_PARAM
         LIFETIME
           LIFETIME_IDENT "'a"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
               LIFETIME_IDENT "'b"
           PLUS "+"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       LIFETIME_PARAM
         LIFETIME
           LIFETIME_IDENT "'b"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             LIFETIME
               LIFETIME_IDENT "'c"
       COMMA ","
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
       IDENT "S13"
     GENERIC_PARAM_LIST
@@ -241,11 +201,9 @@ SOURCE_FILE
         NAME
           IDENT "T"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S14"
     GENERIC_PARAM_LIST
@@ -253,17 +211,14 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
           IDENT "U"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S15"
     GENERIC_PARAM_LIST
@@ -271,16 +226,14 @@ SOURCE_FILE
       LIFETIME_PARAM
         LIFETIME
           LIFETIME_IDENT "'a"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
           IDENT "T"
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       TYPE_PARAM
         NAME
           IDENT "U"
       R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

@@ -268,17 +268,20 @@ impl SourceChangeBuilder {
 
                 let snippet = match (kind, elements) {
                     (AnnotationSnippet::Before, [element]) => {
-                        Snippet::Tabstop(element.text_range().start())
+                        Snippet::Tabstop(element.text_range_without_outer_trivia().start())
                     }
                     (AnnotationSnippet::After, [element]) => {
-                        Snippet::Tabstop(element.text_range().end())
+                        Snippet::Tabstop(element.text_range_without_outer_trivia().end())
                     }
                     (AnnotationSnippet::Over, [element]) => {
-                        Snippet::Placeholder(element.text_range())
+                        Snippet::Placeholder(element.text_range_without_outer_trivia())
                     }
                     (AnnotationSnippet::Over, elements) if !elements.is_empty() => {
                         Snippet::PlaceholderGroup(
-                            elements.iter().map(|it| it.text_range()).collect(),
+                            elements
+                                .iter()
+                                .map(|it| it.text_range_without_outer_trivia())
+                                .collect(),
                         )
                     }
                     _ => continue,
@@ -319,7 +322,26 @@ impl SourceChangeBuilder {
         self.edit.replace(range, replace_with.into())
     }
     pub fn replace_ast<N: AstNode>(&mut self, old: N, new: N) {
-        diff(old.syntax(), new.syntax()).into_text_edit(&mut self.edit)
+        let range = old.syntax().text_range_without_outer_trivia();
+        let (editor, new) = SyntaxEditor::new(new.syntax().clone());
+        if let Some(first) = new.first_non_trivia_token() {
+            editor.splice_leading_trivia(&first, .., []);
+        }
+        if let Some(last) = new.last_non_trivia_token() {
+            editor.splice_trailing_trivia(&last, .., []);
+        }
+        let new = editor.finish().new_root().clone();
+        let mut edit = TextEdit::builder();
+        diff(old.syntax(), &new).into_text_edit(&mut edit);
+        for indel in edit.finish() {
+            let delete = TextRange::new(
+                indel.delete.start().clamp(range.start(), range.end()),
+                indel.delete.end().clamp(range.start(), range.end()),
+            );
+            if !delete.is_empty() || !indel.insert.is_empty() {
+                self.edit.replace(delete, indel.insert);
+            }
+        }
     }
     pub fn create_file(&mut self, dst: AnchoredPathBuf, content: impl Into<String>) {
         let file_system_edit = FileSystemEdit::CreateFile { dst, initial_contents: content.into() };

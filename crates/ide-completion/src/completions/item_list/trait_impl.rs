@@ -110,18 +110,13 @@ fn complete_trait_impl_name(
         // ctx.sema.original_ast_node(item)?;
         let first_child = real_file_item
             .children_with_tokens()
-            .find(|child| {
-                !matches!(
-                    child.kind(),
-                    SyntaxKind::COMMENT
-                        | SyntaxKind::DOC_COMMENT
-                        | SyntaxKind::WHITESPACE
-                        | SyntaxKind::ATTR
-                )
-            })
+            .find(|child| !matches!(child.kind(), SyntaxKind::DOC_COMMENT | SyntaxKind::ATTR))
             .unwrap_or_else(|| SyntaxElement::Node(real_file_item.clone()));
 
-        TextRange::new(first_child.text_range().start(), ctx.source_range().end())
+        TextRange::new(
+            first_child.text_range_without_outer_trivia().start(),
+            ctx.source_range().end(),
+        )
     };
 
     complete_trait_impl(acc, ctx, kind, replacement_range, &impl_def);
@@ -147,7 +142,7 @@ pub(crate) fn complete_trait_impl_item_by_name(
                 .as_ref()
                 .and_then(|name| ctx.sema.original_syntax_node_rooted(name.syntax()))
             {
-                Some(name) => name.text_range(),
+                Some(name) => name.text_range_without_outer_trivia(),
                 None => ctx.source_range(),
             },
             impl_,
@@ -350,10 +345,7 @@ fn get_transformed_fn(
                 }
                 None => {
                     let ret_type = factory.ret_type(factory.ty("impl Future<Output = ()>"));
-                    editor.insert_with_whitespace(
-                        Position::after(fn_.param_list()?.syntax()),
-                        ret_type.syntax(),
-                    );
+                    editor.insert(Position::after(fn_.param_list()?.syntax()), ret_type.syntax());
                 }
             }
             editor.delete(fn_.async_token()?);
@@ -390,10 +382,7 @@ fn get_transformed_fn(
                 }
                 _ => (),
             }
-            editor.insert_with_whitespace(
-                Position::first_child_of(fn_.syntax()),
-                factory.token(T![async]),
-            );
+            editor.insert(Position::first_child_of(fn_.syntax()), factory.token(T![async]));
         }
         AsyncSugaring::Async | AsyncSugaring::Plain => (),
     }
@@ -432,7 +421,7 @@ fn add_type_alias_impl(
                 _ => unreachable!(),
             };
 
-            let start = transformed_ty.syntax().text_range().start();
+            let start = transformed_ty.syntax().text_range_without_outer_trivia().start();
 
             let end = if let Some(end) =
                 transformed_ty.colon_token().map(|tok| tok.text_range().start())
@@ -456,7 +445,8 @@ fn add_type_alias_impl(
             };
 
             let len = end - start;
-            let mut decl = transformed_ty.syntax().text().slice(..len).to_string();
+            let mut decl =
+                transformed_ty.syntax().text_without_outer_trivia().slice(..len).to_string();
             decl.truncate(decl.trim_end().len());
             decl.push_str(" = ");
 
@@ -465,9 +455,10 @@ fn add_type_alias_impl(
                 .map(|wc| {
                     let ws = wc
                         .where_token()
-                        .and_then(|it| it.prev_token())
-                        .filter(|token| token.kind() == SyntaxKind::WHITESPACE)
-                        .map(|token| token.to_string())
+                        .map(|it| {
+                            it.trivia_before().map(|it| it.text().to_owned()).collect::<String>()
+                        })
+                        .filter(|it| !it.is_empty())
                         .unwrap_or_else(|| " ".into());
                     format!("{ws}{wc}")
                 })
@@ -537,18 +528,18 @@ fn add_const_impl(
 fn make_const_compl_syntax(const_: &ast::Const) -> SmolStr {
     let const_ = const_.syntax();
 
-    let start = const_.text_range().start();
-    let const_end = const_.text_range().end();
+    let start = const_.text_range_without_outer_trivia().start();
+    let const_end = const_.text_range_without_outer_trivia().end();
 
     let end = const_
         .children_with_tokens()
         .find(|s| s.kind() == T![;] || s.kind() == T![=])
-        .map_or(const_end, |f| f.text_range().start());
+        .map_or(const_end, |f| f.text_range_without_outer_trivia().start());
 
     let len = end - start;
     let range = TextRange::new(0.into(), len);
 
-    let syntax = const_.text().slice(range).to_smolstr();
+    let syntax = const_.text_without_outer_trivia().slice(range).to_smolstr();
 
     format_smolstr!("{} =", syntax.trim_end())
 }
@@ -565,16 +556,16 @@ fn function_declaration(
         node.syntax().clone()
     };
 
-    let start = node.text_range().start();
-    let end = node.text_range().end();
+    let start = node.text_range_without_outer_trivia().start();
+    let end = node.text_range_without_outer_trivia().end();
 
     let end = node
         .last_child_or_token()
         .filter(|s| s.kind() == T![;] || s.kind() == SyntaxKind::BLOCK_EXPR)
-        .map_or(end, |f| f.text_range().start());
+        .map_or(end, |f| f.text_range_without_outer_trivia().start());
 
     let len = end - start;
-    let mut syntax = node.text().slice(..len).to_string();
+    let mut syntax = node.text_without_outer_trivia().slice(..len).to_string();
     syntax.truncate(syntax.trim_end().len());
 
     syntax
@@ -1760,7 +1751,7 @@ trait DesugaredAsyncTrait {
 }
 
 impl DesugaredAsyncTrait for () {
-     fn foo(&self) -> impl Future<Output = usize> {
+    fn foo(&self) -> impl Future<Output = usize> {
     $0
 }
 }

@@ -1,42 +1,33 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           MATCH_EXPR
-            MATCH_KW "match"
-            WHITESPACE " "
+            MATCH_KW "match" [WHITESPACE("    ")] [WHITESPACE(" ")]
             TUPLE_EXPR
               L_PAREN "("
-              R_PAREN ")"
-            WHITESPACE " "
+              R_PAREN ")" [] [WHITESPACE(" ")]
             MATCH_ARM_LIST
-              L_CURLY "{"
-              WHITESPACE "\n        "
+              L_CURLY "{" [] [NEWLINE("\n")]
               MATCH_ARM
                 WILDCARD_PAT
-                  UNDERSCORE "_"
-                WHITESPACE " "
-                FAT_ARROW "=>"
-                WHITESPACE " "
+                  UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
+                FAT_ARROW "=>" [] [WHITESPACE(" ")]
                 TUPLE_EXPR
                   L_PAREN "("
                   R_PAREN ")"
-                COMMA ","
-              WHITESPACE "\n        "
+                COMMA "," [] [NEWLINE("\n")]
               MATCH_ARM
                 ATTR
-                  POUND "#"
+                  POUND "#" [WHITESPACE("        ")] []
                 NOT_NULL
                   BANG "!"
                   SLICE_PAT
@@ -51,57 +42,43 @@ SOURCE_FILE
                         LITERAL
                           STRING "\"Not allowed here\""
                       R_PAREN ")"
-                    R_BRACK "]"
-                WHITESPACE "\n        "
+                    R_BRACK "]" [] [NEWLINE("\n")]
                 UNDERSCORE_EXPR
-                  UNDERSCORE "_"
-              WHITESPACE " "
+                  UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
               MATCH_ARM
-                FAT_ARROW "=>"
-                WHITESPACE " "
+                FAT_ARROW "=>" [] [WHITESPACE(" ")]
                 TUPLE_EXPR
                   L_PAREN "("
                   R_PAREN ")"
-                COMMA ","
-              WHITESPACE "\n    "
-              R_CURLY "}"
-        WHITESPACE "\n\n    "
+                COMMA "," [] [NEWLINE("\n")]
+              R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
         EXPR_STMT
           MATCH_EXPR
-            MATCH_KW "match"
-            WHITESPACE " "
+            MATCH_KW "match" [NEWLINE("\n"), WHITESPACE("    ")] [WHITESPACE(" ")]
             TUPLE_EXPR
               L_PAREN "("
-              R_PAREN ")"
-            WHITESPACE " "
+              R_PAREN ")" [] [WHITESPACE(" ")]
             MATCH_ARM_LIST
-              L_CURLY "{"
-              WHITESPACE "\n        "
+              L_CURLY "{" [] [NEWLINE("\n")]
               MATCH_ARM
                 WILDCARD_PAT
-                  UNDERSCORE "_"
-                WHITESPACE " "
-                FAT_ARROW "=>"
-                WHITESPACE " "
+                  UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
+                FAT_ARROW "=>" [] [WHITESPACE(" ")]
                 TUPLE_EXPR
                   L_PAREN "("
                   R_PAREN ")"
-                COMMA ","
-              WHITESPACE "\n        "
+                COMMA "," [] [NEWLINE("\n")]
               MATCH_ARM
                 WILDCARD_PAT
-                  UNDERSCORE "_"
-                WHITESPACE " "
-                FAT_ARROW "=>"
-                WHITESPACE " "
+                  UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
+                FAT_ARROW "=>" [] [WHITESPACE(" ")]
                 TUPLE_EXPR
                   L_PAREN "("
                   R_PAREN ")"
-                COMMA ","
-              WHITESPACE "\n        "
+                COMMA "," [] [NEWLINE("\n")]
               MATCH_ARM
                 ATTR
-                  POUND "#"
+                  POUND "#" [WHITESPACE("        ")] []
                 NOT_NULL
                   BANG "!"
                   SLICE_PAT
@@ -116,23 +93,18 @@ SOURCE_FILE
                         LITERAL
                           STRING "\"Nor here\""
                       R_PAREN ")"
-                    R_BRACK "]"
-              WHITESPACE "\n    "
-              R_CURLY "}"
-        WHITESPACE "\n\n    "
+                    R_BRACK "]" [] [NEWLINE("\n")]
+              R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
         MATCH_EXPR
-          MATCH_KW "match"
-          WHITESPACE " "
+          MATCH_KW "match" [NEWLINE("\n"), WHITESPACE("    ")] [WHITESPACE(" ")]
           TUPLE_EXPR
             L_PAREN "("
-            R_PAREN ")"
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
           MATCH_ARM_LIST
-            L_CURLY "{"
-            WHITESPACE "\n        "
+            L_CURLY "{" [] [NEWLINE("\n")]
             MATCH_ARM
               ATTR
-                POUND "#"
+                POUND "#" [WHITESPACE("        ")] []
                 L_BRACK "["
                 CFG_META
                   CFG_KW "cfg"
@@ -140,10 +112,9 @@ SOURCE_FILE
                   CFG_ATOM
                     IDENT "test"
                   R_PAREN ")"
-                R_BRACK "]"
-              WHITESPACE "\n        "
+                R_BRACK "]" [] [NEWLINE("\n")]
               ATTR
-                POUND "#"
+                POUND "#" [WHITESPACE("        ")] []
               NOT_NULL
                 BANG "!"
                 SLICE_PAT
@@ -158,34 +129,26 @@ SOURCE_FILE
                       LITERAL
                         STRING "\"Nor here\""
                     R_PAREN ")"
-                  R_BRACK "]"
-              WHITESPACE "\n        "
+                  R_BRACK "]" [] [NEWLINE("\n")]
               UNDERSCORE_EXPR
-                UNDERSCORE "_"
-            WHITESPACE " "
+                UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
             MATCH_ARM
-              FAT_ARROW "=>"
-              WHITESPACE " "
+              FAT_ARROW "=>" [] [WHITESPACE(" ")]
               TUPLE_EXPR
                 L_PAREN "("
                 R_PAREN ")"
-              COMMA ","
-            WHITESPACE "\n        "
+              COMMA "," [] [NEWLINE("\n")]
             MATCH_ARM
               WILDCARD_PAT
-                UNDERSCORE "_"
-              WHITESPACE " "
-              FAT_ARROW "=>"
-              WHITESPACE " "
+                UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
+              FAT_ARROW "=>" [] [WHITESPACE(" ")]
               TUPLE_EXPR
                 L_PAREN "("
                 R_PAREN ")"
-              COMMA ","
-            WHITESPACE "\n    "
-            R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+              COMMA "," [] [NEWLINE("\n")]
+            R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 52: expected L_BRACK
 error 78: expected FAT_ARROW
 error 88: expected `,`

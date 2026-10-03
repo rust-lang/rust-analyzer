@@ -2,16 +2,13 @@
 //! immutable, all function here return a fresh copy of the tree, instead of
 //! doing an in-place modification.
 use parser::{SyntaxKind::DOC_COMMENT, T};
-use std::{
-    fmt,
-    iter::{self, once},
-    ops,
-};
+use std::{fmt, iter::once, ops};
 
 use crate::{
-    AstToken, NodeOrToken, SyntaxElement,
-    SyntaxKind::{ATTR, COMMENT, WHITESPACE},
+    SyntaxElement,
+    SyntaxKind::{ATTR, NEWLINE, WHITESPACE},
     SyntaxNode, SyntaxToken,
+    algo::strip_blank_edges,
     ast::{self, AstNode, HasName, make},
     syntax_editor::{Position, Removable, SyntaxEditor, SyntaxMappingBuilder},
 };
@@ -70,61 +67,57 @@ impl IndentLevel {
     }
 
     pub fn from_node(node: &SyntaxNode) -> IndentLevel {
-        match node.first_token() {
+        match node.first_non_trivia_token() {
             Some(it) => Self::from_token(&it),
             None => IndentLevel(0),
         }
     }
 
     pub fn from_token(token: &SyntaxToken) -> IndentLevel {
-        for ws in prev_tokens(token.clone()).filter_map(ast::Whitespace::cast) {
-            let text = ws.syntax().text();
-            if let Some(pos) = text.rfind('\n') {
-                let level = text[pos + 1..].chars().count() / 4;
-                return IndentLevel(level as u8);
-            }
+        let mut start = token.clone();
+        while let Some(prev) = start.prev_token().filter(|it| it.kind() != NEWLINE) {
+            start = prev;
         }
-        IndentLevel(0)
+        let indent = if start.kind() == WHITESPACE { start.text() } else { "" };
+        IndentLevel((indent.chars().count() / 4) as u8)
     }
 
     pub(super) fn clone_increase_indent(self, node: &SyntaxNode) -> SyntaxNode {
-        let (editor, node) = SyntaxEditor::new(node.clone());
-        let tokens = node
-            .preorder_with_tokens()
-            .filter_map(|event| match event {
-                rowan::WalkEvent::Leave(NodeOrToken::Token(it)) => Some(it),
-                _ => None,
-            })
-            .filter_map(ast::Whitespace::cast)
-            .filter(|ws| ws.text().contains('\n'));
-        for ws in tokens {
-            let new_ws = make::tokens::whitespace(&format!("{}{self}", ws.syntax()));
-            editor.replace(ws.syntax(), &new_ws);
-        }
-        editor.finish().new_root().clone()
+        self.clone_adjust_indent(node, true)
     }
 
     pub(super) fn clone_decrease_indent(self, node: &SyntaxNode) -> SyntaxNode {
+        self.clone_adjust_indent(node, false)
+    }
+
+    fn clone_adjust_indent(self, node: &SyntaxNode, increase: bool) -> SyntaxNode {
         let (editor, node) = SyntaxEditor::new(node.clone());
-        let tokens = node
-            .preorder_with_tokens()
-            .filter_map(|event| match event {
-                rowan::WalkEvent::Leave(NodeOrToken::Token(it)) => Some(it),
-                _ => None,
-            })
-            .filter_map(ast::Whitespace::cast)
-            .filter(|ws| ws.text().contains('\n'));
-        for ws in tokens {
-            let new_ws =
-                make::tokens::whitespace(&ws.syntax().text().replace(&format!("\n{self}"), "\n"));
-            editor.replace(ws.syntax(), &new_ws);
+        let indent = self.to_string();
+        let mut line_start = !increase;
+        for token in node.descendants_with_tokens().filter_map(|it| it.into_token()) {
+            let text: String = token.leading_trivia().map(|it| it.text().to_owned()).collect();
+            let last = text.matches('\n').count();
+            let adjusted = text
+                .split('\n')
+                .enumerate()
+                .map(|(index, line)| {
+                    if (index == 0 && !line_start) || (index != last && line.is_empty()) {
+                        line.to_owned()
+                    } else if increase {
+                        format!("{indent}{line}")
+                    } else {
+                        line.strip_prefix(&indent).unwrap_or(line).to_owned()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            if adjusted != text {
+                editor.splice_leading_trivia(&token, .., make::tokens::trivia(&adjusted));
+            }
+            line_start = token.trailing_trivia().next_back().is_some_and(|it| it.kind() == NEWLINE);
         }
         editor.finish().new_root().clone()
     }
-}
-
-fn prev_tokens(token: SyntaxToken) -> impl Iterator<Item = SyntaxToken> {
-    iter::successors(Some(token), |token| token.prev_token())
 }
 
 pub trait AstNodeEdit: AstNode + Clone + Sized {
@@ -148,6 +141,10 @@ pub trait AstNodeEdit: AstNode + Clone + Sized {
         new_node
     }
     #[must_use]
+    fn detached(&self) -> Self {
+        Self::cast(strip_blank_edges(self.syntax(), true)).unwrap()
+    }
+    #[must_use]
     fn dedent(&self, level: IndentLevel) -> Self {
         Self::cast(level.clone_decrease_indent(self.syntax())).unwrap()
     }
@@ -162,20 +159,10 @@ impl<N: AstNode + Clone> AstNodeEdit for N {}
 
 pub trait AttrsOwnerEdit: ast::HasAttrs {
     fn remove_attrs_and_docs(&self, editor: &SyntaxEditor) {
-        let mut remove_next_ws = false;
         for child in self.syntax().children_with_tokens() {
-            match child.kind() {
-                ATTR | COMMENT | DOC_COMMENT => {
-                    remove_next_ws = true;
-                    editor.delete(child);
-                    continue;
-                }
-                WHITESPACE if remove_next_ws => {
-                    editor.delete(child);
-                }
-                _ => (),
+            if matches!(child.kind(), ATTR | DOC_COMMENT) {
+                editor.delete(child);
             }
-            remove_next_ws = false;
         }
     }
 }
@@ -195,13 +182,6 @@ impl ast::IdentPat {
                         .map(|it| it.syntax().clone().into())
                         .unwrap_or_else(|| at_token.into());
                     editor.delete_all(start..=end);
-
-                    // Remove any trailing ws
-                    if let Some(last) =
-                        self.syntax().last_token().filter(|it| it.kind() == WHITESPACE)
-                    {
-                        editor.delete(last);
-                    }
                 }
             }
             Some(pat) => {
@@ -214,12 +194,7 @@ impl ast::IdentPat {
                 } else {
                     // Don't have an `@`, should have a name
                     let name = self.name().unwrap();
-                    let elements = vec![
-                        make.whitespace(" ").into(),
-                        make.token(T![@]).into(),
-                        make.whitespace(" ").into(),
-                        pat.syntax().clone().into(),
-                    ];
+                    let elements = vec![make.token(T![@]).into(), pat.syntax().clone().into()];
 
                     if self.syntax().parent().is_none() {
                         let (local, local_self) = SyntaxEditor::with_ast_node(self);

@@ -1,12 +1,9 @@
 use ide_db::{EditionedFileId, defs::Definition, search::FileReference};
 use syntax::{
-    AstNode, SourceFile, SyntaxElement, SyntaxKind, SyntaxNode, T, TextRange,
-    algo::{find_node_at_range, least_common_ancestor_element},
+    AstNode, Direction, SourceFile, SyntaxNode, T, TextRange,
+    algo::find_node_at_range,
     ast::{self, HasArgList},
-    syntax_editor::Element,
 };
-
-use SyntaxKind::WHITESPACE;
 
 use crate::{
     AssistContext, AssistId, Assists, assist_context::SourceChangeBuilder, utils::next_prev,
@@ -78,13 +75,10 @@ pub(crate) fn remove_unused_param(acc: &mut Assists, ctx: &AssistContext<'_, '_>
     acc.add(
         AssistId::refactor("remove_unused_param"),
         "Remove unused parameter",
-        param.syntax().text_range(),
+        param.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(&parent);
-            let elements = elements_to_remove(param.syntax());
-            for element in elements {
-                editor.delete(element);
-            }
+            editor.delete(param.syntax());
             for (file_id, references) in fn_def.usages(&ctx.sema).all() {
                 process_usages(ctx, builder, file_id, references, param_position, is_self_present);
             }
@@ -104,22 +98,14 @@ fn process_usages(
     let source_file = ctx.sema.parse(editioned_file_id);
     let file_id = editioned_file_id.file_id(ctx.db());
     builder.edit_file(file_id);
-    let possible_ranges = references
+    let args = references
         .into_iter()
         .filter_map(|usage| process_usage(&source_file, usage, arg_to_remove, is_self_present));
 
-    for element_range in possible_ranges {
-        let Some(SyntaxElement::Node(parent)) = element_range
-            .iter()
-            .cloned()
-            .reduce(|a, b| least_common_ancestor_element(&a, &b).unwrap().syntax_element())
-        else {
-            continue;
-        };
+    for arg in args {
+        let Some(parent) = arg.syntax().parent() else { continue };
         let editor = builder.make_editor(&parent);
-        for element in element_range {
-            editor.delete(element);
-        }
+        editor.delete(arg.syntax());
 
         builder.add_file_edits(file_id, editor);
     }
@@ -130,22 +116,22 @@ fn process_usage(
     FileReference { range, .. }: FileReference,
     mut arg_to_remove: usize,
     is_self_present: bool,
-) -> Option<Vec<SyntaxElement>> {
+) -> Option<ast::Expr> {
     let call_expr_opt: Option<ast::CallExpr> = find_node_at_range(source_file.syntax(), range);
     if let Some(call_expr) = call_expr_opt {
-        let call_expr_range = call_expr.expr()?.syntax().text_range();
+        let call_expr_range = call_expr.expr()?.syntax().text_range_without_outer_trivia();
         if !call_expr_range.contains_range(range) {
             return None;
         }
 
-        let arg = call_expr.arg_list()?.args().nth(arg_to_remove)?;
-        return Some(elements_to_remove(arg.syntax()));
+        return call_expr.arg_list()?.args().nth(arg_to_remove);
     }
 
     let method_call_expr_opt: Option<ast::MethodCallExpr> =
         find_node_at_range(source_file.syntax(), range);
     if let Some(method_call_expr) = method_call_expr_opt {
-        let method_call_expr_range = method_call_expr.name_ref()?.syntax().text_range();
+        let method_call_expr_range =
+            method_call_expr.name_ref()?.syntax().text_range_without_outer_trivia();
         if !method_call_expr_range.contains_range(range) {
             return None;
         }
@@ -154,8 +140,7 @@ fn process_usage(
             arg_to_remove -= 1;
         }
 
-        let arg = method_call_expr.arg_list()?.args().nth(arg_to_remove)?;
-        return Some(elements_to_remove(arg.syntax()));
+        return method_call_expr.arg_list()?.args().nth(arg_to_remove);
     }
 
     None
@@ -168,45 +153,19 @@ pub(crate) fn range_to_remove(node: &SyntaxNode) -> TextRange {
             .find(|it| it.kind() == T![,])
             .map(|it| (dir, it))
     });
-    if let Some((dir, token)) = up_to_comma {
-        if node.next_sibling().is_some() {
-            let up_to_space = token
-                .siblings_with_tokens(dir)
-                .skip(1)
-                .take_while(|it| it.kind() == WHITESPACE)
-                .last()
-                .and_then(|it| it.into_token());
-            return node
-                .text_range()
-                .cover(up_to_space.map_or(token.text_range(), |it| it.text_range()));
-        }
-        node.text_range().cover(token.text_range())
-    } else {
-        node.text_range()
+    let range = node.text_range_without_outer_trivia();
+    let Some((dir, token)) = up_to_comma else { return range };
+    let range = range.cover(token.text_range());
+    if node.next_sibling().is_none() {
+        return range;
     }
-}
-
-pub(crate) fn elements_to_remove(node: &SyntaxNode) -> Vec<SyntaxElement> {
-    let up_to_comma = next_prev().find_map(|dir| {
-        node.siblings_with_tokens(dir)
-            .filter_map(|it| it.into_token())
-            .find(|it| it.kind() == T![,])
-            .map(|it| (dir, it))
-    });
-    if let Some((dir, token)) = up_to_comma {
-        let after = token.siblings_with_tokens(dir).nth(1).unwrap();
-        let mut result: Vec<_> =
-            node.siblings_with_tokens(dir).take_while(|it| it != &after).collect();
-        if node.next_sibling().is_some() {
-            result.extend(
-                token.siblings_with_tokens(dir).skip(1).take_while(|it| it.kind() == WHITESPACE),
-            );
-        }
-
-        result
-    } else {
-        vec![node.syntax_element()]
-    }
+    token.siblings_with_tokens(dir).nth(1).map_or(range, |next| {
+        let next = next.text_range_without_outer_trivia();
+        range.cover_offset(match dir {
+            Direction::Next => next.start(),
+            Direction::Prev => next.end(),
+        })
+    })
 }
 
 #[cfg(test)]
@@ -227,7 +186,7 @@ fn b() { foo(9, 2,) }
             r#"
 fn a() { foo(9) }
 fn foo(x: i32) { x; }
-fn b() { foo(9, ) }
+fn b() { foo(9,) }
 "#,
         );
     }
@@ -261,7 +220,7 @@ fn b() { foo(1, ) }
             r#"
 fn foo() { 0; }
 fn a() { foo() }
-fn b() { foo( ) }
+fn b() { foo() }
 "#,
         );
     }

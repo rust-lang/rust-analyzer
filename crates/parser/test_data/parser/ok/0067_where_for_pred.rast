@@ -1,7 +1,6 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "for_trait"
     GENERIC_PARAM_LIST
@@ -12,28 +11,24 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE "\n"
+      R_PAREN ")" [] [NEWLINE("\n")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE "\n    "
+      WHERE_KW "where" [] [NEWLINE("\n")]
       WHERE_PRED
         FOR_BINDER
-          FOR_KW "for"
+          FOR_KW "for" [WHITESPACE("    ")] []
           GENERIC_PARAM_LIST
             L_ANGLE "<"
             LIFETIME_PARAM
               LIFETIME
                 LIFETIME_IDENT "'a"
-            R_ANGLE ">"
-        WHITESPACE " "
+            R_ANGLE ">" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
                 IDENT "F"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -47,25 +42,20 @@ SOURCE_FILE
                       REF_TYPE
                         AMP "&"
                         LIFETIME
-                          LIFETIME_IDENT "'a"
-                        WHITESPACE " "
+                          LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
                         PATH_TYPE
                           PATH
                             PATH_SEGMENT
                               NAME_REF
                                 IDENT "str"
                     R_PAREN ")"
-      COMMA ","
-    WHITESPACE "\n"
+      COMMA "," [] [NEWLINE("\n")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "for_ref"
     GENERIC_PARAM_LIST
@@ -76,33 +66,28 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE "\n"
+      R_PAREN ")" [] [NEWLINE("\n")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE "\n    "
+      WHERE_KW "where" [] [NEWLINE("\n")]
       WHERE_PRED
         FOR_BINDER
-          FOR_KW "for"
+          FOR_KW "for" [WHITESPACE("    ")] []
           GENERIC_PARAM_LIST
             L_ANGLE "<"
             LIFETIME_PARAM
               LIFETIME
                 LIFETIME_IDENT "'a"
-            R_ANGLE ">"
-        WHITESPACE " "
+            R_ANGLE ">" [] [WHITESPACE(" ")]
         REF_TYPE
           AMP "&"
           LIFETIME
-            LIFETIME_IDENT "'a"
-          WHITESPACE " "
+            LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
                   IDENT "F"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -110,17 +95,13 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Debug"
-      COMMA ","
-    WHITESPACE "\n"
+      COMMA "," [] [NEWLINE("\n")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "for_parens"
     GENERIC_PARAM_LIST
@@ -131,36 +112,31 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE "\n"
+      R_PAREN ")" [] [NEWLINE("\n")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE "\n    "
+      WHERE_KW "where" [] [NEWLINE("\n")]
       WHERE_PRED
         FOR_BINDER
-          FOR_KW "for"
+          FOR_KW "for" [WHITESPACE("    ")] []
           GENERIC_PARAM_LIST
             L_ANGLE "<"
             LIFETIME_PARAM
               LIFETIME
                 LIFETIME_IDENT "'a"
-            R_ANGLE ">"
-        WHITESPACE " "
+            R_ANGLE ">" [] [WHITESPACE(" ")]
         PAREN_TYPE
           L_PAREN "("
           REF_TYPE
             AMP "&"
             LIFETIME
-              LIFETIME_IDENT "'a"
-            WHITESPACE " "
+              LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "F"
           R_PAREN ")"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -174,25 +150,20 @@ SOURCE_FILE
                       REF_TYPE
                         AMP "&"
                         LIFETIME
-                          LIFETIME_IDENT "'a"
-                        WHITESPACE " "
+                          LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
                         PATH_TYPE
                           PATH
                             PATH_SEGMENT
                               NAME_REF
                                 IDENT "str"
                     R_PAREN ")"
-      COMMA ","
-    WHITESPACE "\n"
+      COMMA "," [] [NEWLINE("\n")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "for_slice"
     GENERIC_PARAM_LIST
@@ -203,36 +174,31 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE "\n"
+      R_PAREN ")" [] [NEWLINE("\n")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE "\n    "
+      WHERE_KW "where" [] [NEWLINE("\n")]
       WHERE_PRED
         FOR_BINDER
-          FOR_KW "for"
+          FOR_KW "for" [WHITESPACE("    ")] []
           GENERIC_PARAM_LIST
             L_ANGLE "<"
             LIFETIME_PARAM
               LIFETIME
                 LIFETIME_IDENT "'a"
-            R_ANGLE ">"
-        WHITESPACE " "
+            R_ANGLE ">" [] [WHITESPACE(" ")]
         SLICE_TYPE
           L_BRACK "["
           REF_TYPE
             AMP "&"
             LIFETIME
-              LIFETIME_IDENT "'a"
-            WHITESPACE " "
+              LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "F"
           R_BRACK "]"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -240,17 +206,13 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Eq"
-      COMMA ","
-    WHITESPACE "\n"
+      COMMA "," [] [NEWLINE("\n")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "for_qpath"
     GENERIC_PARAM_LIST
@@ -265,8 +227,7 @@ SOURCE_FILE
         IDENT_PAT
           NAME
             IDENT "_t"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         REF_TYPE
           AMP "&"
           PATH_TYPE
@@ -274,21 +235,18 @@ SOURCE_FILE
               PATH_SEGMENT
                 NAME_REF
                   IDENT "T"
-      R_PAREN ")"
-    WHITESPACE "\n"
+      R_PAREN ")" [] [NEWLINE("\n")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE "\n    "
+      WHERE_KW "where" [] [NEWLINE("\n")]
       WHERE_PRED
         FOR_BINDER
-          FOR_KW "for"
+          FOR_KW "for" [WHITESPACE("    ")] []
           GENERIC_PARAM_LIST
             L_ANGLE "<"
             LIFETIME_PARAM
               LIFETIME
                 LIFETIME_IDENT "'a"
-            R_ANGLE ">"
-        WHITESPACE " "
+            R_ANGLE ">" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH
@@ -298,16 +256,13 @@ SOURCE_FILE
                   REF_TYPE
                     AMP "&"
                     LIFETIME
-                      LIFETIME_IDENT "'a"
-                    WHITESPACE " "
+                      LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
                     PATH_TYPE
                       PATH
                         PATH_SEGMENT
                           NAME_REF
-                            IDENT "T"
-                  WHITESPACE " "
-                  AS_KW "as"
-                  WHITESPACE " "
+                            IDENT "T" [] [WHITESPACE(" ")]
+                  AS_KW "as" [] [WHITESPACE(" ")]
                   PATH_TYPE
                     PATH
                       PATH_SEGMENT
@@ -318,8 +273,7 @@ SOURCE_FILE
             PATH_SEGMENT
               NAME_REF
                 IDENT "Foo"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -327,17 +281,13 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Iterator"
-      COMMA ","
-    WHITESPACE "\n"
+      COMMA "," [] [NEWLINE("\n")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "for_for_fn"
     GENERIC_PARAM_LIST
@@ -348,21 +298,18 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE "\n"
+      R_PAREN ")" [] [NEWLINE("\n")]
     WHERE_CLAUSE
-      WHERE_KW "where"
-      WHITESPACE "\n    "
+      WHERE_KW "where" [] [NEWLINE("\n")]
       WHERE_PRED
         FOR_BINDER
-          FOR_KW "for"
+          FOR_KW "for" [WHITESPACE("    ")] []
           GENERIC_PARAM_LIST
             L_ANGLE "<"
             LIFETIME_PARAM
               LIFETIME
                 LIFETIME_IDENT "'a"
-            R_ANGLE ">"
-        WHITESPACE " "
+            R_ANGLE ">" [] [WHITESPACE(" ")]
         FOR_TYPE
           FOR_BINDER
             FOR_KW "for"
@@ -371,8 +318,7 @@ SOURCE_FILE
               LIFETIME_PARAM
                 LIFETIME
                   LIFETIME_IDENT "'b"
-              R_ANGLE ">"
-          WHITESPACE " "
+              R_ANGLE ">" [] [WHITESPACE(" ")]
           FN_PTR_TYPE
             FN_KW "fn"
             PARAM_LIST
@@ -381,29 +327,25 @@ SOURCE_FILE
                 REF_TYPE
                   AMP "&"
                   LIFETIME
-                    LIFETIME_IDENT "'a"
-                  WHITESPACE " "
+                    LIFETIME_IDENT "'a" [] [WHITESPACE(" ")]
                   PATH_TYPE
                     PATH
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "T"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               PARAM
                 REF_TYPE
                   AMP "&"
                   LIFETIME
-                    LIFETIME_IDENT "'b"
-                  WHITESPACE " "
+                    LIFETIME_IDENT "'b" [] [WHITESPACE(" ")]
                   PATH_TYPE
                     PATH
                       PATH_SEGMENT
                         NAME_REF
                           IDENT "T"
               R_PAREN ")"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -411,11 +353,9 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Copy"
-      COMMA ","
-    WHITESPACE "\n"
+      COMMA "," [] [NEWLINE("\n")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

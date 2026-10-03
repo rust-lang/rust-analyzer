@@ -1,7 +1,6 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "S"
     GENERIC_PARAM_LIST
@@ -9,8 +8,7 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             PATH_TYPE
@@ -18,22 +16,18 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Copy"
-      R_ANGLE ">"
-    WHITESPACE " "
+      R_ANGLE ">" [] [WHITESPACE(" ")]
     RECORD_FIELD_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       RECORD_FIELD
         NAME
-          IDENT "f"
-        COLON ":"
-        WHITESPACE " "
+          IDENT "f" [WHITESPACE("    ")] []
+        COLON ":" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
                 IDENT "T"
-      COMMA ","
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n"
+      COMMA "," [] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

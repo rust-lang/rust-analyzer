@@ -47,10 +47,12 @@ pub(crate) fn unwrap_type_to_generic_arg(
     acc.add(
         AssistId::refactor_extract("unwrap_type_to_generic_arg"),
         format!("Unwrap type to type argument {generic_arg}"),
-        path_type.syntax().text_range(),
+        path_type.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(path_type.syntax());
-            editor.replace(path_type.syntax(), generic_arg.syntax());
+            let generic_arg =
+                editor.make().with_trivia_from(generic_arg.syntax(), path_type.syntax());
+            editor.replace(path_type.syntax(), generic_arg);
 
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },

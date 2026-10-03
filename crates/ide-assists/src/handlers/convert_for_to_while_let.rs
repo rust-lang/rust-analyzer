@@ -2,7 +2,7 @@ use hir::{Name, sym};
 use ide_db::{famous_defs::FamousDefs, syntax_helpers::suggest_name};
 use syntax::{
     AstNode,
-    ast::{self, HasAttrs, HasLoopBody, edit::IndentLevel},
+    ast::{self, HasAttrs, HasLoopBody, edit::AstNodeEdit},
     syntax_editor::Position,
 };
 
@@ -38,7 +38,7 @@ pub(crate) fn convert_for_loop_to_while_let(
     let iterable = for_loop.iterable()?;
     let pat = for_loop.pat()?;
     let body = for_loop.loop_body()?;
-    if body.syntax().text_range().start() < ctx.offset() {
+    if body.syntax().text_range_without_outer_trivia().start() < ctx.offset() {
         cov_mark::hit!(not_available_in_body);
         return None;
     }
@@ -46,7 +46,7 @@ pub(crate) fn convert_for_loop_to_while_let(
     acc.add(
         AssistId::refactor_rewrite("convert_for_loop_to_while_let"),
         "Replace this for loop with `while let`",
-        for_loop.syntax().text_range(),
+        for_loop.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(for_loop.syntax());
             let make = editor.make();
@@ -78,20 +78,15 @@ pub(crate) fn convert_for_loop_to_while_let(
                 None,
                 Some(iterable),
             );
-            let indent = IndentLevel::from_node(for_loop.syntax());
-
             if let Some(label) = for_loop.label() {
-                let label = label.syntax();
-                editor.insert(Position::before(for_loop.syntax()), make.whitespace(" "));
-                editor.insert(Position::before(for_loop.syntax()), label);
+                editor.insert(Position::before(for_loop.syntax()), label.detached().syntax());
             }
+
             crate::utils::insert_attributes(for_loop.syntax(), &editor, for_loop.attrs());
 
-            editor.insert(
-                Position::before(for_loop.syntax()),
-                make.whitespace(format!("\n{indent}").as_str()),
-            );
-            editor.insert(Position::before(for_loop.syntax()), mut_expr.syntax());
+            let stmt = for_loop.syntax().parent().filter(|it| ast::ExprStmt::can_cast(it.kind()));
+            let anchor = stmt.unwrap_or_else(|| for_loop.syntax().clone());
+            editor.insert(Position::before(anchor), mut_expr.syntax());
 
             let opt_pat = make.tuple_struct_pat(make.ident_path("Some"), [pat]);
             let iter_next_expr = make.expr_method_call(

@@ -418,7 +418,7 @@ fn filter_excluded_flyimport(ctx: &CompletionContext<'_, '_>, import: &LocatedIm
 fn import_name(ctx: &CompletionContext<'_, '_>) -> String {
     let token_kind = ctx.token.kind();
 
-    if token_kind.is_any_identifier() { ctx.token.to_string() } else { String::new() }
+    if token_kind.is_any_identifier() { ctx.token.text().to_owned() } else { String::new() }
 }
 
 fn import_assets_for_path<'db>(

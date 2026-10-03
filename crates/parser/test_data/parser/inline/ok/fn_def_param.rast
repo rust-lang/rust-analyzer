@@ -1,29 +1,25 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
       PARAM
         DOT3 "..."
-      COMMA ","
-      WHITESPACE " "
+      COMMA "," [] [WHITESPACE(" ")]
       PARAM
         TUPLE_PAT
           L_PAREN "("
           IDENT_PAT
             NAME
               IDENT "x"
-          COMMA ","
-          WHITESPACE " "
+          COMMA "," [] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
               IDENT "y"
           R_PAREN ")"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TUPLE_TYPE
           L_PAREN "("
           PATH_TYPE
@@ -31,18 +27,16 @@ SOURCE_FILE
               PATH_SEGMENT
                 NAME_REF
                   IDENT "i32"
-          COMMA ","
-          WHITESPACE " "
+          COMMA "," [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
                   IDENT "i32"
           R_PAREN ")"
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
