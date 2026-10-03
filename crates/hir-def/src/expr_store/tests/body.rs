@@ -529,6 +529,95 @@ async fn main(&self, param1: i32, ref mut param2: i32, _: i32, param4 @ _: i32, 
 }
 
 #[test]
+fn async_closure_duplicate_params() {
+    pretty_print(
+        r#"
+fn test(temp: usize) {
+    async |b, b| { temp };
+}
+"#,
+        expect![[r#"
+            fn test(temp) {
+                async |mut b, mut <ra@gennew>0| {
+                    let b = b;
+                    let b = <ra@gennew>0;
+                    {
+                        temp
+                    }
+                };
+            }"#]],
+    );
+}
+
+#[test]
+fn async_closure_duplicate_nested_params() {
+    pretty_print(
+        r#"
+fn test(temp: usize) {
+    async |(b, c), b| { temp };
+}
+"#,
+        expect![[r#"
+            fn test(temp) {
+                async |mut <ra@gennew>0, mut <ra@gennew>1| {
+                    let mut <ra@gennew>0 = <ra@gennew>0;
+                    let (b, c) = <ra@gennew>0;
+                    let b = <ra@gennew>1;
+                    {
+                        temp
+                    }
+                };
+            }"#]],
+    );
+}
+
+#[test]
+fn async_closure_same_name_with_different_hygiene() {
+    pretty_print(
+        r#"
+macro_rules! introduced {
+    () => { b };
+}
+
+fn test(temp: usize) {
+    async |introduced!(): usize, b: usize| { temp };
+}
+"#,
+        expect![[r#"
+            fn test(temp) {
+                async |mut b: usize, mut b: usize| {
+                    let b = b;
+                    let b = b;
+                    {
+                        temp
+                    }
+                };
+            }"#]],
+    );
+}
+
+#[test]
+fn async_closure_distinct_params_keep_names() {
+    pretty_print(
+        r#"
+fn test(temp: usize) {
+    async |a, b| { temp };
+}
+"#,
+        expect![[r#"
+            fn test(temp) {
+                async |mut a, mut b| {
+                    let a = a;
+                    let b = b;
+                    {
+                        temp
+                    }
+                };
+            }"#]],
+    );
+}
+
+#[test]
 fn array_element_cfg() {
     pretty_print(
         r#"
