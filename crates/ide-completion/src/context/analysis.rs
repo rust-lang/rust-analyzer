@@ -1025,6 +1025,7 @@ fn classify_name_ref<'db>(
             ctx: DotAccessExprCtx {
                 in_block_expr: is_in_block(node),
                 in_breakable: is_in_breakable(node).unzip().0,
+                is_async: is_in_async_context(sema, original_file, node),
             },
         });
         Some(make_res(kind))
@@ -1050,7 +1051,7 @@ fn classify_name_ref<'db>(
                     receiver_ty: receiver.as_ref().and_then(|it| sema.type_of_expr(it)),
                     kind: DotAccessKind::Method,
                     receiver,
-                    ctx: DotAccessExprCtx { in_block_expr: is_in_block(method.syntax()), in_breakable: is_in_breakable(method.syntax()).unzip().0 }
+                    ctx: DotAccessExprCtx { in_block_expr: is_in_block(method.syntax()), in_breakable: is_in_breakable(method.syntax()).unzip().0, is_async: is_in_async_context(sema, original_file, method.syntax()) }
                 });
                 return Some(make_res(kind));
             },
@@ -1414,6 +1415,7 @@ fn classify_name_ref<'db>(
             .map(|ty| if ty.original.is_never() { ty.adjusted() } else { ty.original() });
         let is_func_update = func_update_record(it);
         let in_condition = is_in_condition(&expr);
+        let is_async = is_in_async_context(sema, original_file, it);
         let after_incomplete_let = after_incomplete_let(it.clone()).is_some();
         let incomplete_expr_stmt =
             it.parent().and_then(ast::ExprStmt::cast).map(|it| it.semicolon_token().is_none());
@@ -1451,6 +1453,7 @@ fn classify_name_ref<'db>(
                 after_incomplete_let,
                 impl_,
                 in_match_guard,
+                is_async,
             },
         }
     };
@@ -2023,6 +2026,31 @@ fn is_in_breakable(node: &SyntaxNode) -> Option<(BreakableKind, SyntaxNode)> {
             loop_body.syntax().text_range().contains_range(node.text_range())
                 .then_some((breakable, it))
         })
+}
+
+fn is_in_async_context(
+    sema: &'_ Semantics<'_, RootDatabase>,
+    in_file: &SyntaxNode,
+    node: &SyntaxNode,
+) -> bool {
+    let Some(ancestors) = ancestors_in_file_compensated(sema, in_file, node) else {
+        return false;
+    };
+    ancestors
+        .into_iter()
+        .find_map(|it| {
+            match_ast! {
+                match it {
+                    ast::BlockExpr(it) => if it.const_token().is_some(){Some(false)} else {it.async_token().is_some().then_some(true)},
+                    ast::Fn(it) => Some(it.async_token().is_some()),
+                    ast::ClosureExpr(it) => Some(it.async_token().is_some()),
+                    ast::Const(_) => Some(false),
+                    ast::Static(_) => Some(false),
+                    _ => None,
+                }
+            }
+        })
+        .unwrap_or(false)
 }
 
 fn is_in_block(node: &SyntaxNode) -> bool {
