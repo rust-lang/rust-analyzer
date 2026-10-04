@@ -1,25 +1,19 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [] [WHITESPACE(" ")]
           CFG_PRED_PAT
-            BUILTIN_KW "builtin"
-            WHITESPACE " "
-            POUND "#"
-            WHITESPACE " "
+            BUILTIN_KW "builtin" [] [WHITESPACE(" ")]
+            POUND "#" [] [WHITESPACE(" ")]
             CFG_KW "cfg"
             L_PAREN "("
             CFG_COMPOSITE
@@ -27,22 +21,16 @@ SOURCE_FILE
               L_PAREN "("
               CFG_ATOM
                 TRUE_KW "true"
-              COMMA ","
-              WHITESPACE " "
+              COMMA "," [] [WHITESPACE(" ")]
               CFG_ATOM
-                IDENT "x"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
+                IDENT "x" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
                 STRING "\"y\""
               R_PAREN ")"
-            R_PAREN ")"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
             TRUE_KW "true"
-          SEMICOLON ";"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+          SEMICOLON ";" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

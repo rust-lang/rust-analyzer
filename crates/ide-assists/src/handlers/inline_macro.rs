@@ -71,7 +71,13 @@ pub(crate) fn inline_macro(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
 
             let editor = builder.make_editor(source);
             let place = cover_edit_range(source, text_range);
-            editor.replace_all(place, vec![expanded.into()]);
+            let make = editor.make();
+            let trailing: String = (place.end().last_non_trivia_token().into_iter())
+                .flat_map(|it| it.trailing_trivia())
+                .map(|it| it.text().to_owned())
+                .collect();
+            let expanded = make.with_trivia_from(expanded, place.start());
+            editor.replace_all(place, vec![make.with_trailing_trivia(expanded, &trailing)]);
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

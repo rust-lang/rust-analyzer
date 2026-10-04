@@ -53,7 +53,11 @@ impl ExprCollector<'_> {
                 }
                 ast::AsmPiece::AsmOptions(opt) => {
                     opt.asm_options().for_each(|opt| {
-                        options |= match opt.syntax().first_token().map_or(T![$], |it| it.kind()) {
+                        options |= match opt
+                            .syntax()
+                            .first_non_trivia_token()
+                            .map_or(T![$], |it| it.kind())
+                        {
                             T![att_syntax] => AsmOptions::ATT_SYNTAX,
                             T![may_unwind] => AsmOptions::MAY_UNWIND,
                             T![nomem] => AsmOptions::NOMEM,

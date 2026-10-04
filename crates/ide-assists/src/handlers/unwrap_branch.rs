@@ -1,13 +1,13 @@
 use either::Either;
 use syntax::{
-    AstNode, SyntaxElement, SyntaxKind, SyntaxNode, T,
+    AstNode, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
     ast::{
         self,
         edit::{AstNodeEdit, IndentLevel},
         syntax_factory::SyntaxFactory,
     },
     match_ast,
-    syntax_editor::{Element, Position, SyntaxEditor},
+    syntax_editor::SyntaxEditor,
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -32,7 +32,7 @@ use crate::{AssistContext, AssistId, Assists};
 pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let (editor, _) = SyntaxEditor::new(ctx.source_file().syntax().clone());
     let place = unwrap_branch_place(ctx)?;
-    let target = place.syntax().text_range();
+    let target = place.syntax().text_range_without_outer_trivia();
     let block = wrap_block_raw(&place, editor.make());
     let mut container = place.syntax().clone();
     let mut replacement = block.clone();
@@ -83,17 +83,17 @@ pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
 
     acc.add(AssistId::refactor_rewrite("unwrap_branch"), label, target, |builder| {
         let replacement = replacement.dedent(from_indent).indent(into_indent);
-        let mut replacement = extract_statements(replacement);
         let container = prefer_container.unwrap_or(container);
+        let mut replacement = extract_statements(replacement, &container, &editor);
 
         if ast::ExprStmt::can_cast(container.kind())
             && block.tail_expr().is_some_and(|it| !it.is_block_like())
         {
-            replacement.push(editor.make().token(T![;]).into());
+            push_separator(&mut replacement, editor.make(), T![;]);
         }
 
+        delete_else_before(&container, &editor);
         editor.replace_with_many(&container, replacement);
-        delete_else_before(container, &editor);
 
         builder.add_file_edits(ctx.vfs_file_id(), editor);
     })
@@ -123,7 +123,7 @@ pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
 pub(crate) fn unwrap_block(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let l_curly_token = ctx.find_token_syntax_at_offset(T!['{'])?;
     let block = l_curly_token.parent_ancestors().nth(1).and_then(ast::BlockExpr::cast)?;
-    let target = block.syntax().text_range();
+    let target = block.syntax().text_range_without_outer_trivia();
     let tail_expr = block.tail_expr()?;
     let stmt_list = block.stmt_list()?;
     let container = Either::<ast::MatchArm, ast::ClosureExpr>::cast(block.syntax().parent()?)?;
@@ -135,12 +135,12 @@ pub(crate) fn unwrap_block(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
     acc.add(AssistId::refactor_rewrite("unwrap_block"), "Unwrap block", target, |builder| {
         let editor = builder.make_editor(block.syntax());
         let replacement = stmt_list.dedent(tail_expr.indent_level()).indent(block.indent_level());
-        let mut replacement = extract_statements(replacement);
+        let mut replacement = extract_statements(replacement, block.syntax(), &editor);
 
         if container.left().is_some_and(|it| it.comma_token().is_none())
             && !tail_expr.is_block_like()
         {
-            replacement.push(editor.make().token(T![,]).into());
+            push_separator(&mut replacement, editor.make(), T![,]);
         }
 
         editor.replace_with_many(block.syntax(), replacement);
@@ -148,8 +148,13 @@ pub(crate) fn unwrap_block(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Op
     })
 }
 
-fn delete_else_before(container: SyntaxNode, editor: &SyntaxEditor) {
-    let make = editor.make();
+fn push_separator(elements: &mut Vec<SyntaxElement>, make: &SyntaxFactory, kind: SyntaxKind) {
+    let Some(last) = elements.pop() else { return };
+    elements.push(make.clear_trailing_trivia(&last));
+    elements.push(make.clear_leading_trivia(make.with_trivia_from(make.token(kind), &last)));
+}
+
+fn delete_else_before(container: &SyntaxNode, editor: &SyntaxEditor) {
     let Some(else_token) = container
         .siblings_with_tokens(syntax::Direction::Prev)
         .skip(1)
@@ -158,30 +163,25 @@ fn delete_else_before(container: SyntaxNode, editor: &SyntaxEditor) {
     else {
         return;
     };
-    itertools::chain(else_token.prev_token(), else_token.next_token())
-        .filter(|it| it.kind() == SyntaxKind::WHITESPACE)
-        .for_each(|it| editor.delete(it));
-    let indent = IndentLevel::from_node(&container);
-    let newline = make.whitespace(&format!("\n{indent}"));
-    editor.replace(else_token, newline);
+    if let Some(prev) = else_token.prev_non_trivia_token() {
+        editor.splice_trailing_trivia(&prev, .., [(SyntaxKind::NEWLINE, "\n")]);
+    }
+    editor.delete(else_token);
 }
 
 fn wrap_let(assign: &ast::LetStmt, replacement: ast::BlockExpr) -> ast::BlockExpr {
     let try_wrap_assign = || {
-        let initializer = assign.initializer()?.syntax().syntax_element();
         let (editor, replacement) = SyntaxEditor::with_ast_node(&replacement);
         let tail_expr = replacement.tail_expr()?;
-        let before =
-            assign.syntax().children_with_tokens().take_while(|it| *it != initializer).collect();
-        let after = assign
-            .syntax()
-            .children_with_tokens()
-            .skip_while(|it| *it != initializer)
-            .skip(1)
-            .collect();
-
-        editor.insert_all(Position::before(tail_expr.syntax()), before);
-        editor.insert_all(Position::after(tail_expr.syntax()), after);
+        let (let_editor, let_stmt) = SyntaxEditor::with_ast_node(assign);
+        let initializer = let_stmt.initializer()?;
+        let tail = let_editor.make().with_trivia_from(tail_expr.syntax(), initializer.syntax());
+        let_editor.replace(initializer.syntax(), tail);
+        let let_stmt = let_editor.finish().new_root().clone();
+        editor.replace(
+            tail_expr.syntax(),
+            editor.make().with_trivia_from(&let_stmt, tail_expr.syntax()),
+        );
         ast::BlockExpr::cast(editor.finish().new_root().clone())
     };
     try_wrap_assign().unwrap_or(replacement)
@@ -199,14 +199,59 @@ fn unwrap_branch_place(ctx: &AssistContext<'_, '_>) -> Option<ast::Expr> {
     }
 }
 
-fn extract_statements(stmt_list: ast::StmtList) -> Vec<SyntaxElement> {
+fn extract_statements(
+    stmt_list: ast::StmtList,
+    replaced: &SyntaxNode,
+    editor: &SyntaxEditor,
+) -> Vec<SyntaxElement> {
+    let make = editor.make();
     let mut elements = stmt_list
         .syntax()
         .children_with_tokens()
         .filter(|it| !matches!(it.kind(), T!['{'] | T!['}']))
-        .skip_while(|it| it.kind() == SyntaxKind::WHITESPACE)
         .collect::<Vec<_>>();
-    while elements.pop_if(|it| it.kind() == SyntaxKind::WHITESPACE).is_some() {}
+    let text = |it: SyntaxToken| it.text().to_owned();
+    if let Some(first) = elements.first() {
+        let slot: String = replaced
+            .first_non_trivia_token()
+            .into_iter()
+            .flat_map(|it| it.leading_trivia())
+            .map(text)
+            .collect();
+        let leading: String = stmt_list
+            .l_curly_token()
+            .into_iter()
+            .flat_map(|it| it.trivia_after())
+            .map(text)
+            .collect();
+        elements[0] = match format!("{slot}{}", leading.trim_start()) {
+            it if it.is_empty() => make.clear_leading_trivia(first),
+            it => make.with_leading_trivia(first, &it),
+        };
+    }
+    if let Some(last) = elements.last() {
+        let trailing: String = last
+            .last_non_trivia_token()
+            .into_iter()
+            .flat_map(|it| it.trailing_trivia())
+            .map(text)
+            .collect();
+        let index = elements.len() - 1;
+        elements[index] = match trailing.trim_end() {
+            "" => make.clear_trailing_trivia(last),
+            kept => make.with_trailing_trivia(last, &format!("{kept}\n")),
+        };
+    }
+    let closing: String = stmt_list
+        .r_curly_token()
+        .into_iter()
+        .flat_map(|it| it.leading_trivia())
+        .map(text)
+        .collect();
+    let closing = closing.rfind('\n').map_or("", |end| closing[..=end].trim_start_matches('\n'));
+    if let Some(next) = replaced.last_non_trivia_token().and_then(|it| it.next_non_trivia_token()) {
+        editor.prepend_leading_trivia(next, closing);
+    }
     elements
 }
 

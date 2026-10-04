@@ -1,7 +1,7 @@
 use ide_db::source_change::SourceChangeBuilder;
 use syntax::{
-    NodeOrToken, SyntaxToken, T, TextRange, algo,
-    ast::{self, AstNode, edit::AstNodeEdit},
+    NodeOrToken, SyntaxToken, T, TextRange,
+    ast::{self, AstNode},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -44,14 +44,8 @@ fn attempt_get_derive(attr: ast::Attr, ident: SyntaxToken) -> WrapUnwrapOption {
             // We need to grab all previous tokens until we find a `,` or `(` and all following tokens until we find a `,` or `)`
             // We also want to consume the following comma if it exists
 
-            let mut prev = algo::skip_trivia_token(
-                ident.prev_sibling_or_token()?.into_token()?,
-                syntax::Direction::Prev,
-            )?;
-            let mut following = algo::skip_trivia_token(
-                ident.next_sibling_or_token()?.into_token()?,
-                syntax::Direction::Next,
-            )?;
+            let mut prev = ident.prev_sibling_or_token()?.into_token()?;
+            let mut following = ident.next_sibling_or_token()?.into_token()?;
             if (prev.kind() == T![,] || prev.kind() == T!['('])
                 && (following.kind() == T![,] || following.kind() == T![')'])
             {
@@ -66,33 +60,28 @@ fn attempt_get_derive(attr: ast::Attr, ident: SyntaxToken) -> WrapUnwrapOption {
             } else {
                 let mut consumed_comma = false;
                 // Collect the path
-                while let Some(prev_token) = algo::skip_trivia_token(prev, syntax::Direction::Prev)
-                {
-                    let kind = prev_token.kind();
-                    if kind == T![,] {
-                        consumed_comma = true;
-                        derive = derive.cover(prev_token.text_range());
-                        break;
-                    } else if kind == T!['('] {
-                        break;
-                    } else {
-                        derive = derive.cover(prev_token.text_range());
+                loop {
+                    match prev.kind() {
+                        T![,] => {
+                            consumed_comma = true;
+                            derive = derive.cover(prev.text_range());
+                            break;
+                        }
+                        T!['('] => break,
+                        _ => derive = derive.cover(prev.text_range()),
                     }
-                    prev = prev_token.prev_sibling_or_token()?.into_token()?;
+                    prev = prev.prev_sibling_or_token()?.into_token()?;
                 }
-                while let Some(next_token) =
-                    algo::skip_trivia_token(following.clone(), syntax::Direction::Next)
-                {
-                    let kind = next_token.kind();
-                    match kind {
+                loop {
+                    match following.kind() {
                         T![,] if !consumed_comma => {
-                            derive = derive.cover(next_token.text_range());
+                            derive = derive.cover(following.text_range());
                             break;
                         }
                         T![')'] | T![,] => break,
-                        _ => derive = derive.cover(next_token.text_range()),
+                        _ => derive = derive.cover(following.text_range()),
                     }
-                    following = next_token.next_sibling_or_token()?.into_token()?;
+                    following = following.next_sibling_or_token()?.into_token()?;
                 }
                 Some(WrapUnwrapOption::WrapDerive { derive, attr: attr.clone() })
             }
@@ -165,7 +154,7 @@ fn wrap_derive(
     attr: ast::Attr,
     derive_element: TextRange,
 ) -> Option<()> {
-    let range = attr.syntax().text_range();
+    let range = attr.syntax().text_range_without_outer_trivia();
     let ast::Meta::TokenTreeMeta(meta) = attr.meta()? else { return None };
     let token_tree = meta.token_tree()?;
     let mut path_text = String::new();
@@ -182,7 +171,7 @@ fn wrap_derive(
         }
 
         if derive_element.contains_range(token.text_range()) {
-            if token.kind() != T![,] && token.kind() != syntax::SyntaxKind::WHITESPACE {
+            if token.kind() != T![,] {
                 path_text.push_str(token.text());
                 cfg_derive_tokens.push(NodeOrToken::Token(token));
             }
@@ -208,8 +197,7 @@ fn wrap_derive(
         editor.replace_with_many(
             attr.syntax(),
             vec![
-                new_derive.syntax().clone().into(),
-                make.whitespace("\n").into(),
+                make.with_trivia_from(new_derive.syntax(), attr.syntax()),
                 cfg_attr.syntax().clone().into(),
             ],
         );
@@ -238,7 +226,10 @@ fn wrap_cfg_attrs(
     attrs: Vec<ast::Attr>,
 ) -> Option<()> {
     let (first_attr, last_attr) = (attrs.first()?, attrs.last()?);
-    let range = first_attr.syntax().text_range().cover(last_attr.syntax().text_range());
+    let range = first_attr
+        .syntax()
+        .text_range_without_outer_trivia()
+        .cover(last_attr.syntax().text_range_without_outer_trivia());
     let handle_source_change = |edit: &mut SourceChangeBuilder| {
         let editor = edit.make_editor(first_attr.syntax());
         let make = editor.make();
@@ -251,7 +242,10 @@ fn wrap_cfg_attrs(
         };
 
         let syntax_range = first_attr.syntax().clone().into()..=last_attr.syntax().clone().into();
-        editor.replace_all(syntax_range, vec![cfg_attr.syntax().clone().into()]);
+        editor.replace_all(
+            syntax_range,
+            vec![make.with_trivia_from(cfg_attr.syntax(), first_attr.syntax())],
+        );
 
         if let Some(snippet_cap) = ctx.config.snippet_cap
             && let Some(cfg_flag) = meta.cfg_predicate()
@@ -276,13 +270,12 @@ fn unwrap_cfg_attr(
     meta: ast::CfgAttrMeta,
 ) -> Option<()> {
     let top_attr = ast::Meta::from(meta.clone()).parent_attr()?;
-    let range = top_attr.syntax().text_range();
+    let range = top_attr.syntax().text_range_without_outer_trivia();
     let inner_metas: Vec<ast::Meta> = meta.metas().collect();
     if inner_metas.is_empty() {
         return None;
     }
     let is_inner = top_attr.excl_token().is_some();
-    let indent = top_attr.indent_level();
     acc.add(
         AssistId::refactor("wrap_unwrap_cfg_attr"),
         "Extract Inner Attributes from `cfg_attr`",
@@ -290,14 +283,17 @@ fn unwrap_cfg_attr(
         |builder: &mut SourceChangeBuilder| {
             let editor = builder.make_editor(top_attr.syntax());
             let make = editor.make();
-            let mut elements = vec![];
-            for (i, meta) in inner_metas.into_iter().enumerate() {
-                if i > 0 {
-                    elements.push(make.whitespace(&format!("\n{indent}")).into());
-                }
-                let attr = if is_inner { make.attr_inner(meta) } else { make.attr_outer(meta) };
-                elements.push(attr.syntax().clone().into());
-            }
+            let elements = inner_metas
+                .into_iter()
+                .enumerate()
+                .map(|(index, meta)| {
+                    let attr = if is_inner { make.attr_inner(meta) } else { make.attr_outer(meta) };
+                    match index {
+                        0 => make.with_trivia_from(attr.syntax(), top_attr.syntax()),
+                        _ => attr.syntax().clone().into(),
+                    }
+                })
+                .collect();
             editor.replace_with_many(top_attr.syntax(), elements);
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
@@ -478,7 +474,7 @@ mod tests {
             }
             "#,
             r#"
-            #[derive( Clone, Copy)]
+            #[derive(Clone, Copy)]
             #[cfg_attr(${0:cfg}, derive(Debug))]
             pub struct Test {
                 test: u32,
@@ -494,7 +490,7 @@ mod tests {
             }
             "#,
             r#"
-            #[derive(Clone,  Copy)]
+            #[derive(Clone, Copy)]
             #[cfg_attr(${0:cfg}, derive(Debug))]
             pub struct Test {
                 test: u32,
@@ -513,7 +509,7 @@ mod tests {
             }
             "#,
             r#"
-            #[derive( Clone, Copy)]
+            #[derive(Clone, Copy)]
             #[cfg_attr(${0:cfg}, derive(std::fmt::Debug))]
             pub struct Test {
                 test: u32,

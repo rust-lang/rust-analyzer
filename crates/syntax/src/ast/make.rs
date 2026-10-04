@@ -16,12 +16,14 @@ mod quote;
 use either::Either;
 use itertools::Itertools;
 use parser::{Edition, T};
-use rowan::NodeOrToken;
+use rowan::{GreenToken, NodeOrToken, SyntaxKind as RSyntaxKind};
 use stdx::{format_to, format_to_acc, never};
 
 use crate::{
-    AstNode, SourceFile, SyntaxKind, SyntaxToken,
+    AstNode, SourceFile, SyntaxKind, SyntaxNode, SyntaxToken,
+    algo::strip_blank_edges,
     ast::{self, Param, make::quote::quote},
+    syntax_node::token_payload,
     utils::is_raw_identifier,
 };
 
@@ -248,7 +250,7 @@ pub fn item_list(body: Option<Vec<ast::Item>>) -> ast::ItemList {
     let body_indent = if is_break_braces { "    " } else { "" };
 
     let body = match body {
-        Some(bd) => bd.iter().map(|elem| elem.to_string()).join("\n\n    "),
+        Some(bd) => bd.iter().map(|elem| fragment_text(elem.syntax())).join("\n\n    "),
         None => String::new(),
     };
     ast_from_text(&format!("mod C {{{body_newline}{body_indent}{body}{body_newline}}}"))
@@ -265,7 +267,7 @@ pub fn assoc_item_list(body: Option<Vec<ast::AssocItem>>) -> ast::AssocItemList 
     let body_indent = if is_break_braces { "    ".to_owned() } else { String::new() };
 
     let body = match body {
-        Some(bd) => bd.iter().map(|elem| elem.to_string()).join("\n\n    "),
+        Some(bd) => bd.iter().map(|elem| fragment_text(elem.syntax())).join("\n\n    "),
         None => String::new(),
     };
     ast_from_text(&format!("impl C for D {{{body_newline}{body_indent}{body}{body_newline}}}"))
@@ -465,7 +467,7 @@ pub fn use_tree(
     add_star: bool,
 ) -> ast::UseTree {
     let mut buf = "use ".to_owned();
-    buf += &path.syntax().to_string();
+    format_to!(buf, "{path}");
     if let Some(use_tree_list) = use_tree_list {
         format_to!(buf, "::{use_tree_list}");
     }
@@ -480,7 +482,7 @@ pub fn use_tree(
 }
 
 pub fn use_tree_list(use_trees: impl IntoIterator<Item = ast::UseTree>) -> ast::UseTreeList {
-    let use_trees = use_trees.into_iter().map(|it| it.syntax().clone()).join(", ");
+    let use_trees = use_trees.into_iter().map(|it| fragment_text(it.syntax())).join(", ");
     ast_from_text(&format!("use {{{use_trees}}};"))
 }
 
@@ -490,7 +492,7 @@ pub fn use_(
     use_tree: ast::UseTree,
 ) -> ast::Use {
     let attrs =
-        attrs.into_iter().fold(String::new(), |mut acc, attr| format_to_acc!(acc, "{}\n", attr));
+        attrs.into_iter().fold(String::new(), |mut acc, attr| format_to_acc!(acc, "{attr}\n"));
     let visibility = match visibility {
         None => String::new(),
         Some(it) => format!("{it} "),
@@ -586,19 +588,28 @@ pub fn hacky_block_expr(
     elements: impl IntoIterator<Item = crate::SyntaxElement>,
     tail_expr: Option<ast::Expr>,
 ) -> ast::BlockExpr {
+    fn breaks(trivia: impl Iterator<Item = SyntaxToken>) -> usize {
+        trivia
+            .take_while(|it| matches!(it.kind(), SyntaxKind::WHITESPACE | SyntaxKind::NEWLINE))
+            .filter(|it| it.kind() == SyntaxKind::NEWLINE)
+            .count()
+    }
     let mut buf = "{\n".to_owned();
+    let mut after = 0;
     for node_or_token in elements.into_iter() {
         match node_or_token {
-            rowan::NodeOrToken::Node(n) => format_to!(buf, "    {n}\n"),
+            rowan::NodeOrToken::Node(n) => {
+                let before = n.first_non_trivia_token().map_or(0, |it| breaks(it.leading_trivia()));
+                for _ in 1..after + before {
+                    buf.push('\n');
+                }
+                after = n.last_non_trivia_token().map_or(0, |it| breaks(it.trailing_trivia()));
+                format_to!(buf, "    {}\n", fragment_text(&n))
+            }
             rowan::NodeOrToken::Token(t) => {
-                let kind = t.kind();
-                if kind == SyntaxKind::COMMENT {
-                    format_to!(buf, "    {t}\n")
-                } else if kind == SyntaxKind::WHITESPACE {
-                    let content = t.text().trim_matches(|c| c != '\n');
-                    if !content.is_empty() {
-                        format_to!(buf, "{}", &content[1..])
-                    }
+                if t.kind() == SyntaxKind::COMMENT {
+                    after = 0;
+                    format_to!(buf, "    {}\n", t.text())
                 }
             }
         }
@@ -747,7 +758,7 @@ pub fn expr_assignment(lhs: ast::Expr, rhs: ast::Expr) -> ast::BinExpr {
     expr_from_text(&format!("{lhs} = {rhs}"))
 }
 fn block_whitespace(after: &impl AstNode) -> &'static str {
-    if after.syntax().text().contains_char('\n') { "\n" } else { " " }
+    if after.syntax().text_without_outer_trivia().contains_char('\n') { "\n" } else { " " }
 }
 pub fn arg_list(args: impl IntoIterator<Item = ast::Expr>) -> ast::ArgList {
     let args = args.into_iter().format(", ");
@@ -995,7 +1006,8 @@ pub fn let_else_stmt(
 
 pub fn expr_stmt(expr: ast::Expr) -> ast::ExprStmt {
     let semi = if expr.is_block_like() { "" } else { ";" };
-    ast_from_text(&format!("fn f() {{ {expr}{semi} (); }}"))
+    let expr = fragment_text(expr.syntax());
+    ast_from_text(&format!("fn f() {{\n{expr}{semi} (); }}"))
 }
 
 pub fn item_const(
@@ -1278,6 +1290,10 @@ pub fn fn_(
         "{attrs}{visibility}{const_literal}{async_literal}{gen_literal}{unsafe_literal}fn {fn_name}{type_params}{params} {ret_type}{where_clause}{body}",
     ))
 }
+pub fn labeled_block_expr(label: ast::Lifetime, stmt_list: ast::StmtList) -> ast::BlockExpr {
+    ast_from_text(&format!("const _: () = {label}: {stmt_list};"))
+}
+
 pub fn struct_(
     visibility: Option<ast::Visibility>,
     strukt_name: ast::Name,
@@ -1386,7 +1402,7 @@ fn expr_from_text_with_edition<E: Into<ast::Expr> + AstNode>(text: &str, edition
             panic!("Failed to make expr node `{node}` from text `{text}`")
         }
     };
-    let node = node.clone_subtree();
+    let node = E::cast(strip_blank_edges(node.syntax(), true)).unwrap();
     assert_eq!(node.syntax().text_range().start(), 0.into());
     node
 }
@@ -1406,27 +1422,55 @@ fn ast_from_text_with_edition<N: AstNode>(text: &str, edition: Edition) -> N {
             panic!("Failed to make ast node `{node}` from text `{text}`")
         }
     };
-    let node = node.clone_subtree();
+    let node = N::cast(strip_blank_edges(node.syntax(), true)).unwrap();
     assert_eq!(node.syntax().text_range().start(), 0.into());
     node
 }
 
 pub fn token(kind: SyntaxKind) -> SyntaxToken {
-    tokens::SOURCE_FILE
+    let token = tokens::SOURCE_FILE
         .tree()
         .syntax()
         .descendants_with_tokens()
         .filter_map(|it| it.into_token())
         .find(|it| it.kind() == kind)
-        .unwrap_or_else(|| panic!("unhandled token: {kind:?}"))
+        .unwrap_or_else(|| panic!("unhandled token: {kind:?}"));
+    token_payload(token.kind(), token.text(), elastic(), elastic())
+}
+
+fn elastic() -> Vec<GreenToken> {
+    let (kind, text) = tokens::ELASTIC_MARKER;
+    vec![GreenToken::new(RSyntaxKind(kind as u16), text)]
+}
+
+fn fragment_text(node: &SyntaxNode) -> String {
+    strip_blank_edges(node, false).to_string()
 }
 
 pub mod tokens {
     use std::sync::LazyLock;
 
-    use parser::Edition;
+    use parser::{Edition, LexedStr};
 
-    use crate::{AstNode, Parse, SourceFile, SyntaxKind::*, SyntaxToken, ast};
+    use super::elastic;
+    use crate::{
+        AstNode, Parse, SourceFile, SyntaxKind, SyntaxKind::*, SyntaxToken, ast,
+        syntax_node::token_payload,
+    };
+
+    pub const ELASTIC_MARKER: (SyntaxKind, &str) = (WHITESPACE, "");
+    pub const ELASTIC_LINE_BREAK: [(SyntaxKind, &str); 2] = [ELASTIC_MARKER, (NEWLINE, "\n")];
+
+    pub fn trivia(text: &str) -> Vec<(SyntaxKind, &str)> {
+        let lexed = LexedStr::new(Edition::CURRENT, text);
+        (0..lexed.len())
+            .map(|index| {
+                let kind = lexed.kind(index);
+                debug_assert!(kind.is_trivia(), "expected whitespace or an ordinary comment");
+                (kind, &text[lexed.text_range(index)])
+            })
+            .collect()
+    }
 
     pub(super) static SOURCE_FILE: LazyLock<Parse<SourceFile>> = LazyLock::new(|| {
         SourceFile::parse(
@@ -1435,16 +1479,11 @@ pub mod tokens {
         )
     });
 
-    pub fn whitespace(text: &str) -> SyntaxToken {
-        assert!(text.trim().is_empty());
-        let sf = SourceFile::parse(text, Edition::CURRENT).ok().unwrap();
-        sf.syntax().first_child_or_token().unwrap().into_token().unwrap()
-    }
-
     pub fn doc_comment(text: &str) -> SyntaxToken {
         assert!(!text.trim().is_empty());
-        let sf = SourceFile::parse(text, Edition::CURRENT).ok().unwrap();
-        sf.syntax().first_child_or_token().unwrap().into_token().unwrap()
+        let (kind, _) = LexedStr::single_token(Edition::CURRENT, text)
+            .expect("a doc comment is a single token");
+        token_payload(kind, text, elastic(), elastic())
     }
 
     pub fn literal(text: &str) -> SyntaxToken {

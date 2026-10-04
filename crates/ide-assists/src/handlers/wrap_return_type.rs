@@ -75,7 +75,7 @@ pub(crate) fn wrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             &GroupLabel("Wrap return type in...".into()),
             kind.assist_id(),
             kind.label(),
-            type_ref.syntax().text_range(),
+            type_ref.syntax().text_range_without_outer_trivia(),
             |builder| {
                 let editor = builder.make_editor(&parent);
                 let make = editor.make();
@@ -125,7 +125,10 @@ pub(crate) fn wrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
                         make.expr_path(make.ident_path(kind.happy_ident())),
                         make.arg_list(iter::once(ret_expr_arg.clone())),
                     );
-                    editor.replace(ret_expr_arg.syntax(), happy_wrapped.syntax());
+                    editor.replace(
+                        ret_expr_arg.syntax(),
+                        make.with_trivia_from(happy_wrapped.syntax(), ret_expr_arg.syntax()),
+                    );
                 }
 
                 editor.replace(type_ref.syntax(), ast_new_return_ty.syntax());
@@ -142,7 +145,8 @@ pub(crate) fn wrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
                         .unwrap();
                     let error_type_arg = args.generic_args().find(|arg| match arg {
                         ast::GenericArg::TypeArg(_) => {
-                            arg.syntax().text() != type_ref.syntax().text()
+                            arg.syntax().text_without_outer_trivia()
+                                != type_ref.syntax().text_without_outer_trivia()
                         }
                         ast::GenericArg::LifetimeArg(_) => false,
                         _ => true,

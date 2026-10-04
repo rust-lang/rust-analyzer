@@ -25,7 +25,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 83..119,
+                        range: 82..120,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -61,7 +61,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 0..81,
+                        range: 0..82,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -97,7 +97,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 0..81,
+                        range: 0..82,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -133,7 +133,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 0..81,
+                        range: 0..82,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -169,7 +169,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 0..81,
+                        range: 0..82,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -205,7 +205,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 83..119,
+                        range: 82..120,
                     },
                     name_ptr: Some(
                         AstPtr(
@@ -241,7 +241,7 @@
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
-                        range: 0..81,
+                        range: 0..82,
                     },
                     name_ptr: Some(
                         AstPtr(

@@ -87,19 +87,18 @@ fn add_vis_to_referenced_module_def(acc: &mut Assists, ctx: &AssistContext<'_, '
                 .syntax()
                 .children_with_tokens()
                 .find(|it| {
-                    !matches!(
-                        it.kind(),
-                        syntax::SyntaxKind::WHITESPACE
-                            | syntax::SyntaxKind::COMMENT
-                            | syntax::SyntaxKind::DOC_COMMENT
-                            | syntax::SyntaxKind::ATTR
-                    )
+                    !matches!(it.kind(), syntax::SyntaxKind::DOC_COMMENT | syntax::SyntaxKind::ATTR)
                 })
                 .unwrap_or_else(|| vis_owner.syntax().first_child_or_token().unwrap());
-
-            editor.insert_all(
+            let first = vis_before.first_non_trivia_token();
+            let leading: String =
+                first.iter().flat_map(|it| it.leading_trivia()).map(|it| it.to_string()).collect();
+            if let Some(first) = &first {
+                editor.splice_leading_trivia(first, .., []);
+            }
+            editor.insert(
                 syntax::syntax_editor::Position::before(vis_before),
-                vec![missing_visibility.syntax().clone().into(), make.whitespace(" ").into()],
+                editor.make().with_leading_trivia(missing_visibility.syntax(), &leading),
             );
         }
 
@@ -168,7 +167,7 @@ fn target_data_for_def(
             target_name = m.name(db);
             let in_file_source = m.declaration_source(db)?;
             let file_id = in_file_source.file_id.original_file(db);
-            let range = in_file_source.value.syntax().text_range();
+            let range = in_file_source.value.syntax().text_range_without_outer_trivia();
             (ast::AnyHasVisibility::new(in_file_source.value), range, file_id.file_id(db))
         }
         // FIXME

@@ -10,7 +10,7 @@ use crate::{NodeOrToken, SyntaxElement, SyntaxNode};
 
 use super::{
     Change, ChangeKind, PositionRepr, SyntaxAnnotation, SyntaxEdit, SyntaxEditor, SyntaxMapping,
-    mapping::MissingMapping,
+    is_ancestor_or_self, mapping::MissingMapping, normalize::normalize,
 };
 
 /// A validated batch of changes in the exact order in which it must execute.
@@ -99,10 +99,7 @@ impl EditPlan {
         for (index, change) in changes.iter().enumerate() {
             let target_tree = change.target_parent().tree_top();
             let regions = regions_by_tree.entry(target_tree).or_default();
-            if let Some(region_index) = regions
-                .iter()
-                .rposition(|region| region.range.contains_range(change.target_range()))
-            {
+            if let Some(region_index) = regions.iter().rposition(|region| region.contains(change)) {
                 regions.truncate(region_index + 1);
                 match regions[region_index].nested_changes {
                     NestedChanges::Remap => {
@@ -289,7 +286,7 @@ impl SyntaxPath {
         let mut node = match element {
             SyntaxElement::Node(node) => node.clone(),
             SyntaxElement::Token(token) => {
-                child_indices.push(token.index());
+                child_indices.push(token.index().expect("checked at editor entry"));
                 token.parent().unwrap()
             }
         };
@@ -491,7 +488,10 @@ impl TreeState {
                     }
                     PositionRepr::After(child) => {
                         let child = self.map_original_element(child);
-                        (child.parent().unwrap(), child.index() + 1)
+                        (
+                            child.parent().unwrap(),
+                            child.index().expect("checked at editor entry") + 1,
+                        )
                     }
                 };
                 self.splice(
@@ -507,7 +507,7 @@ impl TreeState {
             Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => {
                 let target = self.map_original_element(target);
                 let parent = target.parent().unwrap();
-                let index = target.index();
+                let index = target.index().expect("checked at editor entry");
                 self.splice(
                     SyntaxPath::new(&parent.into()),
                     index..index + 1,
@@ -521,7 +521,8 @@ impl TreeState {
                 let parent = start.parent().unwrap();
                 self.splice(
                     SyntaxPath::new(&parent.into()),
-                    start.index()..end.index() + 1,
+                    start.index().expect("checked at editor entry")
+                        ..end.index().expect("checked at editor entry") + 1,
                     replacement,
                     record_as_changed,
                 );
@@ -634,7 +635,8 @@ impl TreeStore {
     fn finish(mut self, old_root: SyntaxNode) -> SyntaxEdit {
         let state =
             self.states.remove(&old_root).unwrap_or_else(|| TreeState::new(old_root.clone()));
-        let new_root = state.root;
+        let changed = state.changed.iter().filter_map(|path| path.resolve(&state.root));
+        let new_root = normalize(state.root.clone(), changed);
 
         let mut changed_elements = state
             .changed
@@ -766,6 +768,7 @@ fn report_intersecting_changes(
 /// A replacement region that can contain later source ordered changeds
 struct ChangedRegion {
     range: TextRange,
+    target: Option<SyntaxNode>,
     change_index: usize,
     nested_changes: NestedChanges,
 }
@@ -784,6 +787,7 @@ impl ChangedRegion {
         match change {
             Change::Replace(SyntaxElement::Node(target), replacement) => Some(Self {
                 range: target.text_range(),
+                target: Some(target.clone()),
                 change_index,
                 nested_changes: if !discarded && matches!(replacement, Some(SyntaxElement::Node(_)))
                 {
@@ -794,6 +798,7 @@ impl ChangedRegion {
             }),
             Change::ReplaceWithMany(SyntaxElement::Node(target), _) => Some(Self {
                 range: target.text_range(),
+                target: Some(target.clone()),
                 change_index,
                 nested_changes: NestedChanges::Discard,
             }),
@@ -802,10 +807,22 @@ impl ChangedRegion {
                     elements.start().text_range().start(),
                     elements.end().text_range().end(),
                 ),
+                target: None,
                 change_index,
                 nested_changes: NestedChanges::Discard,
             }),
             _ => None,
+        }
+    }
+
+    fn contains(&self, change: &Change) -> bool {
+        let range = change.target_range();
+        match (&self.target, change) {
+            (Some(target), _) => is_ancestor_or_self(&change.target_parent(), target),
+            (None, Change::Insert(..) | Change::InsertAll(..)) => {
+                range.start() > self.range.start() && range.end() < self.range.end()
+            }
+            (None, _) => self.range.contains_range(range),
         }
     }
 }

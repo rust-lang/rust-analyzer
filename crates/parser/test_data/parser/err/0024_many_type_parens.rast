@@ -1,7 +1,6 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "f"
     GENERIC_PARAM_LIST
@@ -9,8 +8,7 @@ SOURCE_FILE
       TYPE_PARAM
         NAME
           IDENT "T"
-        COLON ":"
-        WHITESPACE " "
+        COLON ":" [] [WHITESPACE(" ")]
         TYPE_BOUND_LIST
           TYPE_BOUND
             L_PAREN "("
@@ -19,10 +17,8 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Copy"
-            R_PAREN ")"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             L_PAREN "("
             QUESTION "?"
@@ -31,10 +27,8 @@ SOURCE_FILE
                 PATH_SEGMENT
                   NAME_REF
                     IDENT "Sized"
-            R_PAREN ")"
-          WHITESPACE " "
-          PLUS "+"
-          WHITESPACE " "
+            R_PAREN ")" [] [WHITESPACE(" ")]
+          PLUS "+" [] [WHITESPACE(" ")]
           TYPE_BOUND
             L_PAREN "("
             FOR_BINDER
@@ -44,8 +38,7 @@ SOURCE_FILE
                 LIFETIME_PARAM
                   LIFETIME
                     LIFETIME_IDENT "'a"
-                R_ANGLE ">"
-            WHITESPACE " "
+                R_ANGLE ">" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
@@ -61,33 +54,26 @@ SOURCE_FILE
       R_ANGLE ">"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
       IDENT "main"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
             UNDERSCORE "_"
-          COLON ":"
-          WHITESPACE " "
+          COLON ":" [] [WHITESPACE(" ")]
           DYN_TRAIT_TYPE
             TYPE_BOUND_LIST
               TYPE_BOUND
@@ -106,10 +92,8 @@ SOURCE_FILE
                                 PATH_SEGMENT
                                   NAME_REF
                                     IDENT "Copy"
-                            R_PAREN ")"
-              WHITESPACE " "
-              PLUS "+"
-              WHITESPACE " "
+                            R_PAREN ")" [] [WHITESPACE(" ")]
+              PLUS "+" [] [WHITESPACE(" ")]
               TYPE_BOUND
                 L_PAREN "("
                 QUESTION "?"
@@ -118,10 +102,8 @@ SOURCE_FILE
                     PATH_SEGMENT
                       NAME_REF
                         IDENT "Sized"
-                R_PAREN ")"
-              WHITESPACE " "
-              PLUS "+"
-              WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+              PLUS "+" [] [WHITESPACE(" ")]
               TYPE_BOUND
                 L_PAREN "("
                 FOR_BINDER
@@ -131,8 +113,7 @@ SOURCE_FILE
                     LIFETIME_PARAM
                       LIFETIME
                         LIFETIME_IDENT "'a"
-                    R_ANGLE ">"
-                WHITESPACE " "
+                    R_ANGLE ">" [] [WHITESPACE(" ")]
                 PATH_TYPE
                   PATH
                     PATH_SEGMENT
@@ -147,15 +128,12 @@ SOURCE_FILE
                 R_PAREN ")"
         ERROR
           R_ANGLE ">"
-        SEMICOLON ";"
-        WHITESPACE "\n    "
+        SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
             UNDERSCORE "_"
-          COLON ":"
-          WHITESPACE " "
+          COLON ":" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
@@ -175,11 +153,9 @@ SOURCE_FILE
                           NAME_REF
                             IDENT "Sized"
         ERROR
-          R_PAREN ")"
-        WHITESPACE " "
+          R_PAREN ")" [] [WHITESPACE(" ")]
         ERROR
-          PLUS "+"
-        WHITESPACE " "
+          PLUS "+" [] [WHITESPACE(" ")]
         EXPR_STMT
           BIN_EXPR
             BIN_EXPR
@@ -193,8 +169,7 @@ SOURCE_FILE
                       LIFETIME_PARAM
                         LIFETIME
                           LIFETIME_IDENT "'a"
-                      R_ANGLE ">"
-                WHITESPACE " "
+                      R_ANGLE ">" [] [WHITESPACE(" ")]
                 BIN_EXPR
                   BIN_EXPR
                     PATH_EXPR
@@ -206,10 +181,8 @@ SOURCE_FILE
                     ERROR
                       LIFETIME_IDENT "'a"
                   R_ANGLE ">"
-                R_PAREN ")"
-              WHITESPACE " "
-              PLUS "+"
-              WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+              PLUS "+" [] [WHITESPACE(" ")]
               PAREN_EXPR
                 L_PAREN "("
                 PATH_EXPR
@@ -220,15 +193,12 @@ SOURCE_FILE
                 R_PAREN ")"
             R_ANGLE ">"
             ERROR
-              SEMICOLON ";"
-        WHITESPACE "\n    "
+              SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
             UNDERSCORE "_"
-          COLON ":"
-          WHITESPACE " "
+          COLON ":" [] [WHITESPACE(" ")]
           DYN_TRAIT_TYPE
             TYPE_BOUND_LIST
               TYPE_BOUND
@@ -250,8 +220,7 @@ SOURCE_FILE
                                   LIFETIME_PARAM
                                     LIFETIME
                                       LIFETIME_IDENT "'a"
-                                  R_ANGLE ">"
-                              WHITESPACE " "
+                                  R_ANGLE ">" [] [WHITESPACE(" ")]
                               PATH_TYPE
                                 PATH
                                   PATH_SEGMENT
@@ -263,10 +232,8 @@ SOURCE_FILE
                                         LIFETIME
                                           LIFETIME_IDENT "'a"
                                       R_ANGLE ">"
-                            R_PAREN ")"
-              WHITESPACE " "
-              PLUS "+"
-              WHITESPACE " "
+                            R_PAREN ")" [] [WHITESPACE(" ")]
+              PLUS "+" [] [WHITESPACE(" ")]
               TYPE_BOUND
                 L_PAREN "("
                 PATH_TYPE
@@ -274,10 +241,8 @@ SOURCE_FILE
                     PATH_SEGMENT
                       NAME_REF
                         IDENT "Copy"
-                R_PAREN ")"
-              WHITESPACE " "
-              PLUS "+"
-              WHITESPACE " "
+                R_PAREN ")" [] [WHITESPACE(" ")]
+              PLUS "+" [] [WHITESPACE(" ")]
               TYPE_BOUND
                 L_PAREN "("
                 QUESTION "?"
@@ -289,10 +254,9 @@ SOURCE_FILE
                 R_PAREN ")"
         ERROR
           R_ANGLE ">"
-        SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""
 error 88: expected R_ANGLE
 error 121: expected SEMICOLON
 error 121: expected expression, item or let statement

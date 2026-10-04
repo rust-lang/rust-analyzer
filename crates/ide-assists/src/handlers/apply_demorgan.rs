@@ -14,7 +14,7 @@ use syntax::{
         prec::{ExprPrecedence, precedence},
         syntax_factory::SyntaxFactory,
     },
-    syntax_editor::{Position, SyntaxEditor},
+    syntax_editor::SyntaxEditor,
 };
 
 use crate::{AssistContext, AssistId, Assists, utils::invert_boolean_expression};
@@ -205,7 +205,7 @@ pub(crate) fn apply_demorgan_iterator(
     let ast::Expr::ClosureExpr(closure_expr) = arg_expr else { return None };
     let closure_body = closure_expr.body()?;
 
-    let op_range = method_call.syntax().text_range();
+    let op_range = method_call.syntax().text_range_without_outer_trivia();
     let label = format!("Apply De Morgan's law to `Iterator::{}`", name.text());
     acc.add_group(
         &GroupLabel("Apply De Morgan's law".to_owned()),
@@ -247,7 +247,11 @@ pub(crate) fn apply_demorgan_iterator(
                     prefix_expr.op_token().expect("prefix expression always has an operator"),
                 );
             } else {
-                editor.insert(Position::before(method_call.syntax()), make.token(SyntaxKind::BANG));
+                let negated = make.expr_prefix(T![!], method_call.clone().into());
+                editor.replace(
+                    method_call.syntax(),
+                    make.with_trivia_from(negated.syntax(), method_call.syntax()),
+                );
             }
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },

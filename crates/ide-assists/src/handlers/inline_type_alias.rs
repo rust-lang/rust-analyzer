@@ -9,9 +9,9 @@ use ide_db::{
 };
 use itertools::Itertools;
 use syntax::ast::syntax_factory::SyntaxFactory;
-use syntax::syntax_editor::SyntaxEditor;
+use syntax::syntax_editor::{RemoveOptions, SyntaxEditor};
 use syntax::{
-    AstNode, NodeOrToken, SyntaxKind, SyntaxNode, T,
+    AstNode, NodeOrToken, SyntaxNode,
     ast::{self, HasGenericParams, HasName},
 };
 
@@ -37,7 +37,6 @@ use super::inline_call::split_refs_and_uses;
 // ```
 // ->
 // ```
-//
 // fn id(x: i32) -> i32 {
 //     x
 // };
@@ -62,7 +61,7 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_, 
     acc.add(
         AssistId::refactor_inline("inline_type_alias_uses"),
         "Inline type alias into all uses",
-        name.syntax().text_range(),
+        name.syntax().text_range_without_outer_trivia(),
         |builder| {
             let usages = usages.all();
             let mut definition_deleted = false;
@@ -84,11 +83,15 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_, 
                     let target = path_type.syntax().clone();
                     Some((target, replacement))
                 }) {
+                    let replacement = editor.make().with_trivia_from(&replacement, &target);
                     editor.replace(target, replacement);
                 }
 
                 if file_id.file_id(ctx.db()) == ctx.vfs_file_id() {
-                    editor.delete(ast_alias.syntax());
+                    editor.delete_with(
+                        ast_alias.syntax(),
+                        RemoveOptions { add_elastic_marker: true, ..RemoveOptions::KEEP_EXTERIOR },
+                    );
                     definition_deleted = true;
                 }
                 builder.add_file_edits(file_id.file_id(ctx.db()), editor);
@@ -99,7 +102,10 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_, 
             }
             if !definition_deleted {
                 let editor = builder.make_editor(ast_alias.syntax());
-                editor.delete(ast_alias.syntax());
+                editor.delete_with(
+                    ast_alias.syntax(),
+                    RemoveOptions { add_elastic_marker: true, ..RemoveOptions::KEEP_EXTERIOR },
+                );
                 builder.add_file_edits(ctx.vfs_file_id(), editor)
             }
         },
@@ -164,10 +170,11 @@ pub(crate) fn inline_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
     acc.add(
         AssistId::refactor_inline("inline_type_alias"),
         "Inline type alias",
-        alias_instance.syntax().text_range(),
+        alias_instance.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(alias_instance.syntax());
             let replace = replacement.replace_generic(&concrete_type);
+            let replace = editor.make().with_trivia_from(&replace, alias_instance.syntax());
             editor.replace(alias_instance.syntax(), replace);
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
@@ -335,38 +342,10 @@ fn create_replacement(
                     if let Some(lifetime_arg) =
                         old_lifetime.syntax().parent().and_then(ast::LifetimeArg::cast)
                     {
-                        // Remove LifetimeArg and associated comma/whitespace
-                        let lifetime_arg_syntax = lifetime_arg.syntax();
-                        removals.push(NodeOrToken::Node(lifetime_arg_syntax.clone()));
-
-                        // Remove comma and whitespace (look forward then backward)
-                        let comma_and_ws: Vec<_> = lifetime_arg_syntax
-                            .siblings_with_tokens(syntax::Direction::Next)
-                            .skip(1)
-                            .take_while(|it| it.as_token().is_some())
-                            .take_while_inclusive(|it| it.kind() == T![,])
-                            .collect();
-
-                        if comma_and_ws.iter().any(|it| it.kind() == T![,]) {
-                            removals.extend(comma_and_ws);
-                        } else {
-                            // No comma after, try before
-                            let comma_and_ws: Vec<_> = lifetime_arg_syntax
-                                .siblings_with_tokens(syntax::Direction::Prev)
-                                .skip(1)
-                                .take_while(|it| it.as_token().is_some())
-                                .take_while_inclusive(|it| it.kind() == T![,])
-                                .collect();
-                            removals.extend(comma_and_ws);
-                        }
+                        removals.push(NodeOrToken::Node(lifetime_arg.syntax().clone()));
                         continue;
                     }
                     removals.push(NodeOrToken::Node(syntax.clone()));
-                    if let Some(ws) = syntax.next_sibling_or_token()
-                        && ws.kind() == SyntaxKind::WHITESPACE
-                    {
-                        removals.push(ws);
-                    }
                     continue;
                 }
 
@@ -416,7 +395,7 @@ fn create_replacement(
     }
 
     for (old, new) in replacements {
-        editor.replace(old, new);
+        editor.replace(&old, editor.make().with_trivia_from(&new, &old));
     }
 
     for syntax in removals {
@@ -1085,8 +1064,6 @@ fn foo(_: T) {}
             r#"
 struct A<'a, 'b>(pub &'a mut &'b mut ());
 
-
-
 fn foo(_: A) {}
 "#,
         );
@@ -1129,8 +1106,6 @@ fn foo() {
 }
 "#,
                 r#"
-
-
 fn foo() {
     let _: u32 = 3;
     let _: u32 = 4;
@@ -1191,7 +1166,6 @@ fn foo() {
                 r#"
 //- /lib.rs
 mod foo;
-
 
 //- /foo.rs
 fn foo() {

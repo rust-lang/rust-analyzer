@@ -166,7 +166,7 @@ pub(crate) fn complete_type_path<'db>(
                     let arg_idx = arg_list
                         .generic_args()
                         .filter(|arg| {
-                            arg.syntax().text_range().end()
+                            arg.syntax().text_range_without_outer_trivia().end()
                                 < ctx.original_token.text_range().start()
                         })
                         .count();

@@ -18,7 +18,7 @@
             ),
             ptr: SyntaxNodePtr {
                 kind: STRUCT,
-                range: 0..15,
+                range: 0..16,
             },
             name_ptr: Some(
                 AstPtr(

@@ -9,8 +9,7 @@ SOURCE_FILE
       CFG_ATOM
         TRUE_KW "true"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
     POUND "#"
     BANG "!"
@@ -21,5 +20,5 @@ SOURCE_FILE
       CFG_ATOM
         FALSE_KW "false"
       R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+    R_BRACK "]" [] [NEWLINE("\n")]
+  EOF ""

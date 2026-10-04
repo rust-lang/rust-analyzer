@@ -1,16 +1,13 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       PATH_TYPE
         PATH
           PATH_SEGMENT
@@ -26,32 +23,25 @@ SOURCE_FILE
                         PATH
                           PATH_SEGMENT
                             NAME_REF
-                              IDENT "T"
-                    WHITESPACE " "
-                    PLUS "+"
-                    WHITESPACE " "
+                              IDENT "T" [] [WHITESPACE(" ")]
+                    PLUS "+" [] [WHITESPACE(" ")]
                     TYPE_BOUND
                       LIFETIME
                         LIFETIME_IDENT "'f"
-              R_ANGLE ">"
-    WHITESPACE " "
+              R_ANGLE ">" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
       IDENT "foo"
     PARAM_LIST
       L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      R_PAREN ")" [] [WHITESPACE(" ")]
     RET_TYPE
-      THIN_ARROW "->"
-      WHITESPACE " "
+      THIN_ARROW "->" [] [WHITESPACE(" ")]
       PATH_TYPE
         PATH
           PATH_SEGMENT
@@ -61,25 +51,21 @@ SOURCE_FILE
               L_ANGLE "<"
               TYPE_ARG
                 DYN_TRAIT_TYPE
-                  DYN_KW "dyn"
-                  WHITESPACE " "
+                  DYN_KW "dyn" [] [WHITESPACE(" ")]
                   TYPE_BOUND_LIST
                     TYPE_BOUND
                       PATH_TYPE
                         PATH
                           PATH_SEGMENT
                             NAME_REF
-                              IDENT "T"
-                    WHITESPACE " "
-                    PLUS "+"
-                    WHITESPACE " "
+                              IDENT "T" [] [WHITESPACE(" ")]
+                    PLUS "+" [] [WHITESPACE(" ")]
                     TYPE_BOUND
                       LIFETIME
                         LIFETIME_IDENT "'f"
-              R_ANGLE ">"
-    WHITESPACE " "
+              R_ANGLE ">" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF ""

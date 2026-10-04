@@ -35,7 +35,8 @@ macro_rules! f {
     };
 }
 
-struct#0:MacroRules[BE8F, 0]@58..64#1922# MyTraitMap2#0:MacroCall[BE8F, 0]@31..42#ROOT2024# {#0:MacroRules[BE8F, 0]@72..73#1922#
+// +spans+syntaxctxt
+struct#0:MacroRules[BE8F, 0]@58..64#1922# MyTraitMap2#0:MacroCall[BE8F, 0]@32..43#ROOT2024# {#0:MacroRules[BE8F, 0]@72..73#1922#
     map#0:MacroRules[BE8F, 0]@86..89#1922#:#0:MacroRules[BE8F, 0]@89..90#1922# #0:MacroRules[BE8F, 0]@89..90#1922#::#0:MacroRules[BE8F, 0]@91..93#1922#std#0:MacroRules[BE8F, 0]@93..96#1922#::#0:MacroRules[BE8F, 0]@96..98#1922#collections#0:MacroRules[BE8F, 0]@98..109#1922#::#0:MacroRules[BE8F, 0]@109..111#1922#HashSet#0:MacroRules[BE8F, 0]@111..118#1922#<#0:MacroRules[BE8F, 0]@118..119#1922#(#0:MacroRules[BE8F, 0]@119..120#1922#)#0:MacroRules[BE8F, 0]@120..121#1922#>#0:MacroRules[BE8F, 0]@121..122#1922#,#0:MacroRules[BE8F, 0]@122..123#1922#
 }#0:MacroRules[BE8F, 0]@132..133#1922#
 "#]],
@@ -75,12 +76,13 @@ macro_rules! f {
     };
 }
 
-fn#0:MacroCall[BE8F, 0]@30..32#ROOT2024# main#0:MacroCall[BE8F, 0]@33..37#ROOT2024#(#0:MacroCall[BE8F, 0]@37..38#ROOT2024#)#0:MacroCall[BE8F, 0]@38..39#ROOT2024# {#0:MacroCall[BE8F, 0]@40..41#ROOT2024#
-    1#0:MacroCall[BE8F, 0]@50..51#ROOT2024#;#0:MacroCall[BE8F, 0]@51..52#ROOT2024#
-    1.0#0:MacroCall[BE8F, 0]@61..64#ROOT2024#;#0:MacroCall[BE8F, 0]@64..65#ROOT2024#
-    (#0:MacroCall[BE8F, 0]@74..75#ROOT2024#(#0:MacroCall[BE8F, 0]@75..76#ROOT2024#1#0:MacroCall[BE8F, 0]@76..77#ROOT2024#,#0:MacroCall[BE8F, 0]@77..78#ROOT2024# )#0:MacroCall[BE8F, 0]@78..79#ROOT2024#,#0:MacroCall[BE8F, 0]@79..80#ROOT2024# )#0:MacroCall[BE8F, 0]@80..81#ROOT2024#.#0:MacroCall[BE8F, 0]@81..82#ROOT2024#0#0:MacroCall[BE8F, 0]@82..85#ROOT2024#.#0:MacroCall[BE8F, 0]@82..85#ROOT2024#0#0:MacroCall[BE8F, 0]@82..85#ROOT2024#;#0:MacroCall[BE8F, 0]@85..86#ROOT2024#
-    let#0:MacroCall[BE8F, 0]@95..98#ROOT2024# x#0:MacroCall[BE8F, 0]@99..100#ROOT2024# =#0:MacroCall[BE8F, 0]@101..102#ROOT2024# 1#0:MacroCall[BE8F, 0]@103..104#ROOT2024#;#0:MacroCall[BE8F, 0]@104..105#ROOT2024#
-}#0:MacroCall[BE8F, 0]@110..111#ROOT2024#
+// +spans+syntaxctxt
+fn#0:MacroCall[BE8F, 0]@31..33#ROOT2024# main#0:MacroCall[BE8F, 0]@34..38#ROOT2024#(#0:MacroCall[BE8F, 0]@38..39#ROOT2024#)#0:MacroCall[BE8F, 0]@39..40#ROOT2024# {#0:MacroCall[BE8F, 0]@41..42#ROOT2024#
+    1#0:MacroCall[BE8F, 0]@51..52#ROOT2024#;#0:MacroCall[BE8F, 0]@52..53#ROOT2024#
+    1.0#0:MacroCall[BE8F, 0]@62..65#ROOT2024#;#0:MacroCall[BE8F, 0]@65..66#ROOT2024#
+    (#0:MacroCall[BE8F, 0]@75..76#ROOT2024#(#0:MacroCall[BE8F, 0]@76..77#ROOT2024#1#0:MacroCall[BE8F, 0]@77..78#ROOT2024#,#0:MacroCall[BE8F, 0]@78..79#ROOT2024# )#0:MacroCall[BE8F, 0]@79..80#ROOT2024#,#0:MacroCall[BE8F, 0]@80..81#ROOT2024# )#0:MacroCall[BE8F, 0]@81..82#ROOT2024#.#0:MacroCall[BE8F, 0]@82..83#ROOT2024#0#0:MacroCall[BE8F, 0]@83..86#ROOT2024#.#0:MacroCall[BE8F, 0]@83..86#ROOT2024#0#0:MacroCall[BE8F, 0]@83..86#ROOT2024#;#0:MacroCall[BE8F, 0]@86..87#ROOT2024#
+    let#0:MacroCall[BE8F, 0]@96..99#ROOT2024# x#0:MacroCall[BE8F, 0]@100..101#ROOT2024# =#0:MacroCall[BE8F, 0]@102..103#ROOT2024# 1#0:MacroCall[BE8F, 0]@104..105#ROOT2024#;#0:MacroCall[BE8F, 0]@105..106#ROOT2024#
+}#0:MacroCall[BE8F, 0]@111..112#ROOT2024#
 
 
 "#]],
@@ -171,7 +173,7 @@ fn main(foo: ()) {
     }
 
     fn main(foo: ()) {
-        /* error: unresolved macro unresolved */"helloworld!"#0:Fn[15AE, 0]@236..321#ROOT2024#;
+        /* error: unresolved macro unresolved */"helloworld!"#0:Fn[15AE, 0]@237..322#ROOT2024#;
     }
 }
 
@@ -197,7 +199,7 @@ macro_rules! mk_struct {
 #[macro_use]
 mod foo;
 
-struct#1:MacroRules[DB0C, 0]@59..65#1922# Foo#0:MacroCall[DB0C, 0]@32..35#ROOT2024#(#1:MacroRules[DB0C, 0]@70..71#1922#u32#0:MacroCall[DB0C, 0]@41..44#ROOT2024#)#1:MacroRules[DB0C, 0]@74..75#1922#;#1:MacroRules[DB0C, 0]@75..76#1922#
+struct#1:MacroRules[DB0C, 0]@59..65#1922# Foo#0:MacroCall[DB0C, 0]@33..36#ROOT2024#(#1:MacroRules[DB0C, 0]@70..71#1922#u32#0:MacroCall[DB0C, 0]@42..45#ROOT2024#)#1:MacroRules[DB0C, 0]@74..75#1922#;#1:MacroRules[DB0C, 0]@75..76#1922#
 "#]],
     );
 }
@@ -423,6 +425,7 @@ m! { foo, bar }
 macro_rules! m {
     ($($i:ident),*) => ( impl Bar { $(fn $i() {})* } );
 }
+// +syntaxctxt
 impl#\1922# Bar#\1922# {#\1922#
     fn#\1922# foo#\ROOT2024#(#\1922#)#\1922# {#\1922#}#\1922#
     fn#\1922# bar#\ROOT2024#(#\1922#)#\1922# {#\1922#}#\1922#
@@ -526,6 +529,7 @@ m! { 1 + 2 }
 macro_rules! m {
     ($ i:expr) => { fn bar() { $ i * 3; } }
 }
+// +tree
 fn bar() {
     (1+2)*3;
 }
@@ -646,6 +650,7 @@ macro_rules! structs {
     ($($i:ident),*) => { $(struct $i { field: u32 } )* }
 }
 
+// +tree
 struct Foo {
     field: u32
 }
@@ -1736,6 +1741,7 @@ m!(C("0"));
 macro_rules! m {
     ($k:expr) => { fn f() { K::$k; } }
 }
+// +tree +errors
 /* parse error: expected identifier, `self`, `super`, `crate`, or `Self` */
 /* parse error: expected SEMICOLON */
 /* parse error: expected SEMICOLON */

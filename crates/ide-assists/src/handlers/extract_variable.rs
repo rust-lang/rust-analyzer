@@ -6,12 +6,9 @@ use ide_db::{
     syntax_helpers::{LexedStr, suggest_name},
 };
 use syntax::{
-    Direction, NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T, TextRange,
-    algo::{ancestors_at_offset, skip_trivia_token},
-    ast::{
-        self, AstNode,
-        edit::{AstNodeEdit, IndentLevel},
-    },
+    NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T, TextRange,
+    algo::ancestors_at_offset,
+    ast::{self, AstNode, edit::AstNodeEdit},
     hacks::parse_expr_from_str,
     syntax_editor::{Element, Position},
 };
@@ -171,7 +168,10 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             _ => false,
         };
     let module = ctx.sema.scope(analysis.syntax())?.module();
-    let target = to_replace.start().text_range().cover(to_replace.end().text_range());
+    let target = to_replace
+        .start()
+        .text_range_without_outer_trivia()
+        .cover(to_replace.end().text_range_without_outer_trivia());
     let needs_mut = match &parent {
         Some(ast::Expr::RefExpr(expr)) => expr.mut_token().is_some(),
         _ => needs_adjust && !needs_ref && ty.as_ref().is_some_and(|ty| ty.is_mutable_reference()),
@@ -272,23 +272,7 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
 
                 match &anchor {
                     Anchor::Before(place) => {
-                        let prev_ws = place.prev_sibling_or_token().and_then(|it| it.into_token());
-                        let indent_to = IndentLevel::from_node(place);
-
-                        // Adjust ws to insert depending on if this is all inline or on separate lines
-                        let trailing_ws = if prev_ws.is_some_and(|it| it.text().starts_with('\n')) {
-                            format!("\n{indent_to}")
-                        } else {
-                            " ".to_owned()
-                        };
-
-                        editor.insert_all(
-                            Position::before(place),
-                            vec![
-                                new_stmt.syntax().clone().into(),
-                                make.whitespace(&trailing_ws).into(),
-                            ],
-                        );
+                        editor.insert(Position::before(place), new_stmt.syntax());
 
                         editor.replace_all(to_replace, vec![name_expr.syntax().syntax_element()]);
                     }
@@ -332,8 +316,8 @@ fn extract_token_range_of(
     let first = node.token_at_offset(range.start()).right_biased()?;
     let last = node.token_at_offset(range.end()).left_biased()?;
 
-    let first = skip_trivia_token(first, Direction::Next)?;
-    let last = skip_trivia_token(last, Direction::Next)?;
+    let first = if !first.is_trivia() { first } else { first.next_non_trivia_token()? };
+    let last = if !last.is_trivia() { last } else { last.next_non_trivia_token()? };
 
     if first.text_range().ordering(last.text_range()).is_gt() {
         return None;
@@ -1375,7 +1359,10 @@ fn main() {
 "#,
             r#"
 fn main() {
-    let lambda = |x: u32| { let $0var_name = x * 2; var_name };
+    let lambda = |x: u32| {
+        let $0var_name = x * 2;
+        var_name
+    };
 }
 "#,
             "Extract into variable",
@@ -1519,9 +1506,8 @@ fn foo() -> u32 {
 "#,
             r#"
 fn foo() -> u32 {
-
-
     let $0var_name = 2 + 2;
+
     return var_name;
 }
 "#,
@@ -1538,8 +1524,8 @@ fn foo() -> u32 {
 "#,
             r#"
 fn foo() -> u32 {
+    let $0var_name = 2 + 2;
 
-        let $0var_name = 2 + 2;
         return var_name;
 }
 "#,
@@ -1561,11 +1547,11 @@ fn foo() -> u32 {
             r#"
 fn foo() -> u32 {
     let foo = 1;
+    let $0var_name = 2 + 2;
 
     // bar
 
 
-    let $0var_name = 2 + 2;
     return var_name;
 }
 "#,
@@ -2122,8 +2108,8 @@ const FOO: i32 = foo($0100$0);
 const fn foo(x: i32) -> i32 {
     x
 }
-
 const $0X: i32 = 100;
+
 const FOO: i32 = foo(X);
 "#,
             "Extract into constant",
@@ -2225,8 +2211,8 @@ const FOO: i32 = foo($0100$0);
 const fn foo(x: i32) -> i32 {
     x
 }
-
 static $0X: i32 = 100;
+
 const FOO: i32 = foo(X);
 "#,
             "Extract into static",

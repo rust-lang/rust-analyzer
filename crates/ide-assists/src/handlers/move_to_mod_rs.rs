@@ -25,7 +25,8 @@ pub(crate) fn move_to_mod_rs(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
     let module = ctx.sema.file_to_module_def(ctx.vfs_file_id())?;
     // Enable this assist if the user select all "meaningful" content in the source file
     let trimmed_selected_range = trimmed_text_range(&source_file, ctx.selection_trimmed());
-    let trimmed_file_range = trimmed_text_range(&source_file, source_file.syntax().text_range());
+    let trimmed_file_range =
+        trimmed_text_range(&source_file, source_file.syntax().text_range_without_outer_trivia());
     if module.is_mod_rs(ctx.db()) {
         cov_mark::hit!(already_mod_rs);
         return None;
@@ -35,7 +36,7 @@ pub(crate) fn move_to_mod_rs(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
         return None;
     }
 
-    let target = source_file.syntax().text_range();
+    let target = source_file.syntax().text_range_without_outer_trivia();
     let module_name = module.name(ctx.db())?.as_str().to_smolstr();
     let path = format!("./{module_name}/mod.rs");
     let dst = AnchoredPathBuf { anchor: ctx.vfs_file_id(), path };

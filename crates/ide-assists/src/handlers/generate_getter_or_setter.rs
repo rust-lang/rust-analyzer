@@ -405,7 +405,7 @@ fn parse_record_field(
         format_to!(fn_name, "_mut");
     }
 
-    let target = record_field.syntax().text_range();
+    let target = record_field.syntax().text_range_without_outer_trivia();
 
     Some(RecordFieldInfo { field_name, field_ty, fn_name, target })
 }
@@ -467,9 +467,9 @@ fn build_source_change(
         None,
         Some(make.assoc_item_list(items)),
     );
-    editor.insert_all(
+    editor.insert(
         Position::after(assist_info.strukt.syntax()),
-        vec![make.whitespace("\n\n").into(), impl_def.syntax().clone().into()],
+        editor.make().prepend_leading_trivia(impl_def.syntax(), "\n"),
     );
 
     if let Some(cap) = ctx.config.snippet_cap
@@ -1025,7 +1025,8 @@ impl<T: Clone> Person<T> {
     fn $0set_data(&mut self, data: T) {
         self.data = data;
     }
-}"#,
+}
+"#,
         );
     }
 
@@ -1062,7 +1063,8 @@ impl<T: Clone> Person<T> {
     pub(crate) fn $0set_data(&mut self, data: T) {
         self.data = data;
     }
-}"#,
+}
+"#,
         );
     }
 

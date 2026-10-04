@@ -1,7 +1,6 @@
 use syntax::{
-    Direction, T,
-    algo::non_trivia_sibling,
-    ast::{self, AstNode},
+    T,
+    ast::{self, AstNode, edit::AstNodeEdit},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -24,8 +23,8 @@ pub(crate) fn flip_trait_bound(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
     // Make sure we're in a `TypeBoundList`
     let parent = ast::TypeBoundList::cast(plus.parent()?)?;
 
-    let before = non_trivia_sibling(plus.clone().into(), Direction::Prev)?.into_node()?;
-    let after = non_trivia_sibling(plus.clone().into(), Direction::Next)?.into_node()?;
+    let before = ast::TypeBound::cast(plus.prev_sibling_or_token()?.into_node()?)?;
+    let after = ast::TypeBound::cast(plus.next_sibling_or_token()?.into_node()?)?;
 
     let target = plus.text_range();
     acc.add(
@@ -34,8 +33,9 @@ pub(crate) fn flip_trait_bound(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
         target,
         |builder| {
             let editor = builder.make_editor(parent.syntax());
-            editor.replace(before.clone(), after.clone());
-            editor.replace(after, before);
+            let (first, second) = (before.detached(), after.detached());
+            editor.replace(before.syntax(), second.syntax());
+            editor.replace(after.syntax(), first.syntax());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

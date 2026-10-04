@@ -1,6 +1,7 @@
 use ide_db::SymbolKind;
 use syntax::{
-    AstNode, AstToken, NodeOrToken, SourceFile, SyntaxNode, SyntaxToken, TextRange, WalkEvent,
+    AstNode, AstToken, NodeOrToken, SourceFile, SyntaxNode, SyntaxToken, TextRange, TextSize,
+    WalkEvent,
     ast::{self, HasAttrs, HasGenericParams, HasName},
     match_ast,
 };
@@ -45,12 +46,35 @@ pub(crate) fn file_structure(
     file: &SourceFile,
     config: &FileStructureConfig,
 ) -> Vec<StructureNode> {
-    let mut res = Vec::new();
-    let mut stack = Vec::new();
+    let mut res: Vec<StructureNode> = Vec::new();
+    let mut stack: Vec<usize> = Vec::new();
+    let mut seen = TextSize::default();
+
+    let mut regions = |trivia: &mut dyn Iterator<Item = SyntaxToken>,
+                       stack: &[usize],
+                       res: &mut Vec<StructureNode>| {
+        for piece in trivia {
+            if piece.text_range().start() < seen {
+                continue;
+            }
+            seen = piece.text_range().end();
+            if let Some(mut symbol) = structure_token(piece) {
+                symbol.parent = stack
+                    .iter()
+                    .rev()
+                    .copied()
+                    .find(|&it| res[it].node_range.contains_range(symbol.node_range));
+                res.push(symbol);
+            }
+        }
+    };
 
     for event in file.syntax().preorder_with_tokens() {
         match event {
             WalkEvent::Enter(NodeOrToken::Node(node)) => {
+                if let Some(token) = node.first_non_trivia_token() {
+                    regions(&mut token.leading_trivia(), &stack, &mut res);
+                }
                 if let Some(mut symbol) = structure_node(&node, config) {
                     symbol.parent = stack.last().copied();
                     stack.push(res.len());
@@ -63,17 +87,13 @@ pub(crate) fn file_structure(
                 }
             }
             WalkEvent::Enter(NodeOrToken::Token(token)) => {
-                if let Some(mut symbol) = structure_token(token) {
-                    symbol.parent = stack.last().copied();
-                    stack.push(res.len());
-                    res.push(symbol);
-                }
+                regions(
+                    &mut token.leading_trivia().chain(token.trailing_trivia()),
+                    &stack,
+                    &mut res,
+                );
             }
-            WalkEvent::Leave(NodeOrToken::Token(token)) => {
-                if structure_token(token).is_some() {
-                    stack.pop().unwrap();
-                }
-            }
+            WalkEvent::Leave(NodeOrToken::Token(_)) => (),
         }
     }
     res
@@ -107,8 +127,8 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
         Some(StructureNode {
             parent: None,
             label: name.text().to_owned(),
-            navigation_range: name.syntax().text_range(),
-            node_range: node.syntax().text_range(),
+            navigation_range: name.syntax().text_range_without_outer_trivia(),
+            node_range: node.syntax().text_range_without_outer_trivia(),
             kind,
             detail,
             deprecated: node.attrs().filter_map(|x| x.simple_name()).any(|x| x == "deprecated"),
@@ -117,20 +137,17 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
 
     fn collapse_ws(node: &SyntaxNode, output: &mut String) {
         let mut can_insert_ws = false;
-        node.text().for_each_chunk(|chunk| {
-            for line in chunk.lines() {
-                let line = line.trim();
-                if line.is_empty() {
-                    if can_insert_ws {
-                        output.push(' ');
-                        can_insert_ws = false;
-                    }
-                } else {
-                    output.push_str(line);
-                    can_insert_ws = true;
-                }
+        for line in node.text_without_outer_trivia().to_string().lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
             }
-        })
+            if can_insert_ws {
+                output.push(' ');
+            }
+            output.push_str(line);
+            can_insert_ws = true;
+        }
     }
 
     match_ast! {
@@ -172,12 +189,12 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
                 let target_type = it.self_ty()?;
                 let target_trait = it.trait_();
                 let label = match target_trait {
-                    None => format!("impl {}", target_type.syntax().text()),
+                    None => format!("impl {target_type}"),
                     Some(t) => {
                         format!("impl {}{} for {}",
-                            it.excl_token().map(|x| x.to_string()).unwrap_or_default(),
-                            t.syntax().text(),
-                            target_type.syntax().text(),
+                            it.excl_token().map(|x| x.text().to_owned()).unwrap_or_default(),
+                            t,
+                            target_type,
                         )
                     }
                 };
@@ -185,8 +202,8 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
                 let node = StructureNode {
                     parent: None,
                     label,
-                    navigation_range: target_type.syntax().text_range(),
-                    node_range: it.syntax().text_range(),
+                    navigation_range: target_type.syntax().text_range_without_outer_trivia(),
+                    node_range: it.syntax().text_range_without_outer_trivia(),
                     kind: StructureNodeKind::SymbolKind(SymbolKind::Impl),
                     detail: None,
                     deprecated: false,
@@ -206,8 +223,8 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
                 let node = StructureNode {
                     parent: None,
                     label,
-                    navigation_range: pat.syntax().text_range(),
-                    node_range: it.syntax().text_range(),
+                    navigation_range: pat.syntax().text_range_without_outer_trivia(),
+                    node_range: it.syntax().text_range_without_outer_trivia(),
                     kind: StructureNodeKind::SymbolKind(SymbolKind::Local),
                     detail: it.ty().map(|ty| ty.to_string()),
                     deprecated: false,
@@ -224,8 +241,8 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
                 Some(StructureNode {
                     parent: None,
                     label,
-                    navigation_range: abi.syntax().text_range(),
-                    node_range: it.syntax().text_range(),
+                    navigation_range: abi.syntax().text_range_without_outer_trivia(),
+                    node_range: it.syntax().text_range_without_outer_trivia(),
                     kind: StructureNodeKind::ExternBlock,
                     detail: None,
                     deprecated: false,
@@ -649,19 +666,6 @@ fn let_statements() {
                     },
                     StructureNode {
                         parent: None,
-                        label: "m",
-                        navigation_range: 599..600,
-                        node_range: 574..637,
-                        kind: SymbolKind(
-                            Module,
-                        ),
-                        detail: None,
-                        deprecated: false,
-                    },
-                    StructureNode {
-                        parent: Some(
-                            22,
-                        ),
                         label: "dontpanic",
                         navigation_range: 574..594,
                         node_range: 574..594,
@@ -670,8 +674,19 @@ fn let_statements() {
                         deprecated: false,
                     },
                     StructureNode {
+                        parent: None,
+                        label: "m",
+                        navigation_range: 599..600,
+                        node_range: 595..637,
+                        kind: SymbolKind(
+                            Module,
+                        ),
+                        detail: None,
+                        deprecated: false,
+                    },
+                    StructureNode {
                         parent: Some(
-                            22,
+                            23,
                         ),
                         label: "f",
                         navigation_range: 606..607,
@@ -686,11 +701,11 @@ fn let_statements() {
                     },
                     StructureNode {
                         parent: Some(
-                            22,
+                            23,
                         ),
                         label: "g",
                         navigation_range: 629..630,
-                        node_range: 613..635,
+                        node_range: 626..635,
                         kind: SymbolKind(
                             Function,
                         ),

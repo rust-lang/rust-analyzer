@@ -1,7 +1,12 @@
+use std::iter::successors;
+
 use itertools::Itertools;
 use syntax::{
-    AstToken, SyntaxToken, TextRange,
-    ast::{self, CommentKind, CommentShape, Whitespace, edit::IndentLevel},
+    AstToken, Direction,
+    SyntaxKind::{NEWLINE, WHITESPACE},
+    TextRange,
+    algo::adjacent_comment,
+    ast::{self, CommentKind, CommentShape, edit::IndentLevel},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -24,8 +29,11 @@ use crate::{AssistContext, AssistId, Assists};
 pub(crate) fn convert_comment_block(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let comment = ctx.find_token_at_offset::<ast::AnyComment>()?;
     // Only allow comments which are alone on their line
-    if let Some(prev) = comment.syntax().prev_token() {
-        Whitespace::cast(prev).filter(|w| w.text().contains('\n'))?;
+    if successors(comment.syntax().prev_token(), |it| it.prev_token())
+        .find(|it| it.kind() != WHITESPACE)
+        .is_some_and(|it| it.kind() != NEWLINE)
+    {
+        return None;
     }
 
     match comment.shape() {
@@ -109,28 +117,17 @@ fn line_to_block(acc: &mut Assists, comment: ast::AnyComment) -> Option<()> {
 /// be joined.
 pub(crate) fn relevant_line_comments(comment: &ast::AnyComment) -> Vec<ast::AnyComment> {
     let expected_kind = comment.kind();
-    let same_kind = |c: &ast::AnyComment| c.kind() == expected_kind;
-
-    // These tokens are allowed to exist between comments
-    let skippable = |not: &SyntaxToken| {
-        Whitespace::cast(not.clone()).map(|w| !w.spans_multiple_lines()).unwrap_or(false)
+    let run = |direction| {
+        successors(Some(comment.syntax().clone()), move |it| adjacent_comment(it, direction))
+            .skip(1)
+            .map_while(ast::AnyComment::cast)
+            .take_while(|it| it.kind() == expected_kind)
     };
 
-    // Find all preceding comments (in reverse order) that have the same prefix
-    let prev_comments = std::iter::successors(Some(comment.syntax().clone()), |it| it.prev_token())
-        .filter(|s| !skippable(s))
-        .map_while(ast::AnyComment::cast)
-        .take_while(same_kind)
-        .skip(1); // skip the first element so we don't duplicate it in next_comments
-
-    let next_comments = std::iter::successors(Some(comment.syntax().clone()), |it| it.next_token())
-        .filter(|s| !skippable(s))
-        .map_while(ast::AnyComment::cast)
-        .take_while(same_kind);
-
-    let mut comments: Vec<_> = prev_comments.collect();
+    let mut comments: Vec<_> = run(Direction::Prev).collect();
     comments.reverse();
-    comments.extend(next_comments);
+    comments.push(comment.clone());
+    comments.extend(run(Direction::Next));
     comments
 }
 

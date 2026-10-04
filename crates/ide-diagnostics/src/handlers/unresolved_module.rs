@@ -49,7 +49,7 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::UnresolvedModule) -> Option<
                         initial_contents: "".to_owned(),
                     }
                     .into(),
-                    unresolved_module.syntax().text_range(),
+                    unresolved_module.syntax().text_range_without_outer_trivia(),
                 )
             })
             .collect(),

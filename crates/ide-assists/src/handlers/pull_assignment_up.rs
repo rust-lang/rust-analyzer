@@ -68,8 +68,9 @@ pub(crate) fn pull_assignment_up(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
     {
         return None;
     }
-    let target = tgt.syntax().text_range();
+    let target = tgt.syntax().text_range_without_outer_trivia();
 
+    let base = tgt.syntax().text_range().start();
     let (editor, edit_tgt) = SyntaxEditor::new(tgt.syntax().clone());
     let assignments: Vec<_> = collector
         .assignments
@@ -78,11 +79,11 @@ pub(crate) fn pull_assignment_up(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
             Some((
                 find_node_at_range::<ast::BinExpr>(
                     &edit_tgt,
-                    stmt.syntax().text_range() - target.start(),
+                    stmt.syntax().text_range_without_outer_trivia() - base,
                 )?,
                 find_node_at_range::<ast::Expr>(
                     &edit_tgt,
-                    rhs.syntax().text_range() - target.start(),
+                    rhs.syntax().text_range_without_outer_trivia() - base,
                 )?,
             ))
         })
@@ -95,7 +96,7 @@ pub(crate) fn pull_assignment_up(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         {
             stmt = parent.clone();
         }
-        editor.replace(stmt, rhs.syntax());
+        editor.replace(&stmt, editor.make().with_trivia_from(rhs.syntax(), &stmt));
     }
     let new_tgt_root = editor.finish().new_root().clone();
     let new_tgt = ast::Expr::cast(new_tgt_root)?;
@@ -109,7 +110,7 @@ pub(crate) fn pull_assignment_up(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
             let assign_expr = make.expr_assignment(collector.common_lhs, new_tgt.clone());
             let assign_stmt = make.expr_stmt(assign_expr.into());
 
-            editor.replace(tgt.syntax(), assign_stmt.syntax());
+            editor.replace(tgt.syntax(), make.with_trivia_from(assign_stmt.syntax(), tgt.syntax()));
             edit.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

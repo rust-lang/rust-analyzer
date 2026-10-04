@@ -70,10 +70,10 @@ pub fn callable_for_token<'db>(
     let offset = token.text_range().start();
     // Find the calling expression and its NameRef
     let parent = token.parent()?;
-    let calling_node = parent
-        .ancestors()
-        .filter_map(ast::CallableExpr::cast)
-        .find(|it| it.arg_list().is_some_and(|it| it.syntax().text_range().contains(offset)))?;
+    let calling_node = parent.ancestors().filter_map(ast::CallableExpr::cast).find(|it| {
+        it.arg_list()
+            .is_some_and(|it| it.syntax().text_range_without_outer_trivia().contains(offset))
+    })?;
 
     callable_for_node(sema, &calling_node, offset)
 }
@@ -84,7 +84,7 @@ pub fn callable_for_arg_list<'db>(
     arg_list: ast::ArgList,
     at: TextSize,
 ) -> Option<(hir::Callable<'db>, Option<usize>)> {
-    debug_assert!(arg_list.syntax().text_range().contains(at));
+    debug_assert!(arg_list.syntax().text_range_without_outer_trivia().contains(at));
     let callable = arg_list.syntax().parent().and_then(ast::CallableExpr::cast)?;
     callable_for_node(sema, &callable, at)
 }
@@ -176,7 +176,9 @@ pub fn generic_def_for_node(
 fn into_comma(it: NodeOrToken<SyntaxNode, SyntaxToken>) -> Option<SyntaxToken> {
     let token = match it {
         NodeOrToken::Token(it) => it,
-        NodeOrToken::Node(node) if node.kind() == SyntaxKind::ERROR => node.first_token()?,
+        NodeOrToken::Node(node) if node.kind() == SyntaxKind::ERROR => {
+            node.first_non_trivia_token()?
+        }
         NodeOrToken::Node(_) => return None,
     };
     (token.kind() == T![,]).then_some(token)

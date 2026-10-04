@@ -1,10 +1,7 @@
 use ide_db::assists::AssistId;
 use itertools::Itertools;
 use syntax::{
-    AstNode, SyntaxElement,
-    SyntaxKind::WHITESPACE,
-    T,
-    algo::previous_non_trivia_token,
+    AstNode, T,
     ast::{
         self, HasArgList, HasLoopBody, HasName, RangeItem, edit::AstNodeEdit,
         syntax_factory::SyntaxFactory,
@@ -58,19 +55,12 @@ pub(crate) fn convert_range_for_to_while(
     acc.add(
         AssistId::refactor("convert_range_for_to_while"),
         description,
-        for_.syntax().text_range(),
+        for_.syntax().text_range_without_outer_trivia(),
         |builder| {
             let make = editor.make();
-            let indent = for_.indent_level();
             let pat = make.ident_pat(pat.ref_token().is_some(), true, name.clone());
             let let_stmt = make.let_stmt(pat.into(), None, Some(start));
-            editor.insert_all(
-                Position::before(for_.syntax()),
-                vec![
-                    let_stmt.syntax().syntax_element(),
-                    make.whitespace(&format!("\n{}", indent)).syntax_element(),
-                ],
-            );
+            editor.insert(Position::before(for_.syntax()), let_stmt.syntax());
 
             let mut elements = vec![];
 
@@ -82,7 +72,6 @@ pub(crate) fn convert_range_for_to_while(
             if let Some(end) = end {
                 elements.extend([
                     make.token(T![while]).syntax_element(),
-                    make.whitespace(" ").syntax_element(),
                     make.expr_bin(var_expr.clone(), op, end).syntax().syntax_element(),
                 ]);
             } else {
@@ -95,11 +84,7 @@ pub(crate) fn convert_range_for_to_while(
             );
 
             let op = ast::BinaryOp::Assignment { op: Some(ast::ArithOp::Add) };
-            let incrementer = vec![
-                make.whitespace(&format!("\n{}", indent + 1)).syntax_element(),
-                make.expr_bin(var_expr, op, step).syntax().syntax_element(),
-                make.token(T![;]).syntax_element(),
-            ];
+            let incrementer = make.expr_stmt(make.expr_bin(var_expr, op, step).into());
             process_loop_body(body, label, &editor, incrementer);
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
@@ -129,10 +114,10 @@ fn process_loop_body(
     body: ast::StmtList,
     label: Option<ast::Label>,
     editor: &SyntaxEditor,
-    incrementer: Vec<SyntaxElement>,
+    incrementer: ast::ExprStmt,
 ) -> Option<()> {
     let make = editor.make();
-    let last = previous_non_trivia_token(body.r_curly_token()?)?.syntax_element();
+    let r_curly = body.r_curly_token()?;
 
     let new_body = body.indent(1.into());
     let mut continues = vec![];
@@ -144,14 +129,12 @@ fn process_loop_body(
     );
 
     if continues.is_empty() {
-        editor.insert_all(Position::after(last), incrementer);
+        editor.insert(Position::before(r_curly), incrementer.syntax());
         return Some(());
     }
 
-    let mut children = body
-        .syntax()
-        .children_with_tokens()
-        .filter(|it| !matches!(it.kind(), WHITESPACE | T!['{'] | T!['}']));
+    let mut children =
+        body.syntax().children_with_tokens().filter(|it| !matches!(it.kind(), T!['{'] | T!['}']));
     let first = children.next()?;
     let block_content = first.clone()..=children.last().unwrap_or(first);
 
@@ -159,19 +142,17 @@ fn process_loop_body(
     let break_expr = make.expr_break(Some(continue_label.clone()), None);
     let (new_edit, _) = SyntaxEditor::new(new_body.syntax().clone());
     for continue_expr in &continues {
-        new_edit.replace(continue_expr.syntax(), break_expr.syntax());
+        let break_expr =
+            new_edit.make().with_trivia_from(break_expr.syntax(), continue_expr.syntax());
+        new_edit.replace(continue_expr.syntax(), break_expr);
     }
-    let new_body = new_edit.finish().new_root().clone();
-    let elements = itertools::chain(
-        [
-            continue_label.syntax().syntax_element(),
-            make.token(T![:]).syntax_element(),
-            make.whitespace(" ").syntax_element(),
-            new_body.syntax_element(),
-        ],
-        incrementer,
-    );
-    editor.replace_all(block_content, elements.collect());
+    let new_body = ast::StmtList::cast(new_edit.finish().new_root().clone())?;
+    let block = make.labeled_block_expr(continue_label, new_body);
+    let elements = vec![
+        make.expr_stmt(block.into()).syntax().syntax_element(),
+        incrementer.syntax().syntax_element(),
+    ];
+    editor.replace_all(block_content, elements);
 
     Some(())
 }

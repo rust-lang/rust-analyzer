@@ -56,7 +56,7 @@ mod tests {
         check_assist(
             split_import,
             "use crate:$0:db::{RootDatabase, FileSymbol}",
-            "use crate::{db::{RootDatabase, FileSymbol}}",
+            "use crate::{db::{RootDatabase, FileSymbol}}\n",
         )
     }
 

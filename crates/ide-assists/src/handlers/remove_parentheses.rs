@@ -1,4 +1,4 @@
-use syntax::{AstNode, SyntaxKind, T, ast, syntax_editor::Position};
+use syntax::{AstNode, SyntaxKind, T, ast};
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -34,7 +34,7 @@ pub(crate) fn remove_parentheses(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         return None;
     }
 
-    let target = parens.syntax().text_range();
+    let target = parens.syntax().text_range_without_outer_trivia();
     acc.add(
         AssistId::refactor("remove_parentheses"),
         "Remove redundant parentheses",
@@ -42,18 +42,14 @@ pub(crate) fn remove_parentheses(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         |builder| {
             let editor = builder.make_editor(parens.syntax());
             let make = editor.make();
-            let prev_token = parens.syntax().first_token().and_then(|it| it.prev_token());
-            let need_to_add_ws = match prev_token {
-                Some(it) => {
-                    let tokens = [T![&], T![!], T!['('], T!['['], T!['{']];
-                    it.kind() != SyntaxKind::WHITESPACE && !tokens.contains(&it.kind())
-                }
-                None => false,
-            };
-            if need_to_add_ws {
-                editor.insert(Position::before(parens.syntax()), make.whitespace(" "));
+            let expr = make.with_trivia_from(expr.syntax(), parens.syntax());
+            if parens.syntax().trivia_before().next().is_none()
+                && let Some(prev) = parens.syntax().prev_non_trivia_token()
+                && !matches!(prev.kind(), T![&] | T![!] | T!['('] | T!['['] | T!['{'])
+            {
+                editor.splice_trailing_trivia(&prev, .., [(SyntaxKind::WHITESPACE, " ")]);
             }
-            editor.replace(parens.syntax(), expr.syntax());
+            editor.replace(parens.syntax(), expr);
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

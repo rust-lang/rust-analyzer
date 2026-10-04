@@ -132,11 +132,11 @@ impl Field {
         let (name, range, ty) = match f {
             Either::Left(f) => {
                 let name = f.name()?.to_string();
-                (name, f.syntax().text_range(), f.ty()?)
+                (name, f.syntax().text_range_without_outer_trivia(), f.ty()?)
             }
             Either::Right((f, l)) => {
                 let name = l.fields().position(|it| it == f)?.to_string();
-                (name, f.syntax().text_range(), f.ty()?)
+                (name, f.syntax().text_range_without_outer_trivia(), f.ty()?)
             }
         };
 
@@ -242,7 +242,7 @@ impl Struct {
                 field.range,
                 |builder| {
                     builder.insert(
-                        self.strukt.syntax().text_range().end(),
+                        self.strukt.syntax().text_range_without_outer_trivia().end(),
                         format!("\n\n{}", delegate.syntax()),
                     );
                 },
@@ -519,7 +519,7 @@ fn remove_useless_where_clauses(editor: &SyntaxEditor, delegate: &ast::Impl) {
         pred.syntax()
             .descendants_with_tokens()
             .filter_map(|e| e.into_token())
-            .any(|e| e.kind() == SyntaxKind::IDENT && live_generics.contains(&e.to_string()))
+            .any(|e| e.kind() == SyntaxKind::IDENT && live_generics.contains(e.text()))
             .not()
     };
 

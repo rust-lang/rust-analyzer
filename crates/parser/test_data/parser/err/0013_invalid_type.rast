@@ -1,21 +1,18 @@
 SOURCE_FILE
   STRUCT
     VISIBILITY
-      PUB_KW "pub"
-    WHITESPACE " "
-    STRUCT_KW "struct"
-    WHITESPACE " "
+      PUB_KW "pub" [] [WHITESPACE(" ")]
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
       IDENT "Cache"
     TUPLE_FIELD_LIST
-      L_PAREN "("
-      WHITESPACE "\n    "
+      L_PAREN "(" [] [NEWLINE("\n")]
       TUPLE_FIELD
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "RefCell"
+                IDENT "RefCell" [WHITESPACE("    ")] []
               GENERIC_ARG_LIST
                 L_ANGLE "<"
                 TYPE_ARG
@@ -25,27 +22,24 @@ SOURCE_FILE
                         NAME_REF
                           IDENT "HashMap"
                         GENERIC_ARG_LIST
-                          L_ANGLE "<"
-                          WHITESPACE "\n        "
+                          L_ANGLE "<" [] [NEWLINE("\n")]
                           TYPE_ARG
                             PATH_TYPE
                               PATH
                                 PATH_SEGMENT
                                   NAME_REF
-                                    IDENT "TypeId"
-                          COMMA ","
-                          WHITESPACE "\n        "
+                                    IDENT "TypeId" [WHITESPACE("        ")] []
+                          COMMA "," [] [NEWLINE("\n")]
                           TYPE_ARG
                             PATH_TYPE
                               PATH
                                 PATH_SEGMENT
                                   NAME_REF
-                                    IDENT "Box"
+                                    IDENT "Box" [WHITESPACE("        ")] []
                                   GENERIC_ARG_LIST
                                     L_ANGLE "<"
   ERROR
-    AT "@"
-  WHITESPACE " "
+    AT "@" [] [WHITESPACE(" ")]
   ERROR
     PATH
       PATH_SEGMENT
@@ -54,18 +48,16 @@ SOURCE_FILE
   ERROR
     R_ANGLE ">"
   ERROR
-    COMMA ","
-  WHITESPACE "\n    "
+    COMMA "," [] [NEWLINE("\n")]
   ERROR
-    R_ANGLE ">"
+    R_ANGLE ">" [WHITESPACE("    ")] []
   ERROR
-    R_ANGLE ">"
-  WHITESPACE "\n"
+    R_ANGLE ">" [] [NEWLINE("\n")]
   ERROR
     R_PAREN ")"
   ERROR
-    SEMICOLON ";"
-  WHITESPACE "\n\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [NEWLINE("\n")] []
 error 67: expected R_ANGLE
 error 67: expected R_ANGLE
 error 67: expected R_ANGLE

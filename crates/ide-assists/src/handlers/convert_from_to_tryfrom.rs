@@ -1,7 +1,7 @@
 use ide_db::{famous_defs::FamousDefs, traits::resolve_target_trait};
-use syntax::ast::edit::IndentLevel;
+use syntax::T;
 use syntax::ast::{self, AstNode, HasGenericArgs, HasName, syntax_factory::SyntaxFactory};
-use syntax::syntax_editor::{Element, Position};
+use syntax::syntax_editor::Position;
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -75,7 +75,7 @@ pub(crate) fn convert_from_to_tryfrom(
     acc.add(
         AssistId::refactor_rewrite("convert_from_to_tryfrom"),
         "Convert From to TryFrom",
-        impl_.syntax().text_range(),
+        impl_.syntax().text_range_without_outer_trivia(),
         |builder| {
             let editor = builder.make_editor(impl_.syntax());
             let make = editor.make();
@@ -105,15 +105,12 @@ pub(crate) fn convert_from_to_tryfrom(
                 editor.add_annotation(ty.syntax(), placeholder);
             }
 
-            let indent = IndentLevel::from_token(&associated_l_curly) + 1;
-            editor.insert_all(
-                Position::after(associated_l_curly),
-                vec![
-                    make.whitespace(&format!("\n{indent}")).syntax_element(),
-                    error_type.syntax().syntax_element(),
-                    make.whitespace("\n").syntax_element(),
-                ],
-            );
+            if let Some(next) =
+                associated_l_curly.next_non_trivia_token().filter(|it| it.kind() != T!['}'])
+            {
+                editor.prepend_leading_trivia(next, "\n");
+            }
+            editor.insert(Position::after(associated_l_curly), error_type.syntax());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

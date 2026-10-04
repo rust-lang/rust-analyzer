@@ -1,6 +1,7 @@
 use syntax::{
-    AstNode, AstToken,
-    ast::{self, HasAttrs, edit::AstNodeEdit},
+    AstNode,
+    ast::{self, HasAttrs, make},
+    syntax_editor::Position,
 };
 
 use crate::{AssistContext, AssistId, Assists, utils::test_related_attribute_syn};
@@ -27,38 +28,38 @@ pub(crate) fn toggle_ignore(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
     let attr: ast::Attr = ctx.find_node_at_offset()?;
     let func = attr.syntax().parent().and_then(ast::Fn::cast)?;
     let attr = test_related_attribute_syn(&func)?;
-    let indent = attr.indent_level();
 
     match has_ignore_attribute(&func) {
         None => acc.add(
             AssistId::refactor("toggle_ignore"),
             "Ignore this test",
-            attr.syntax().text_range(),
+            attr.syntax().text_range_without_outer_trivia(),
             |builder| {
-                builder.insert(attr.syntax().text_range().end(), format!("\n{indent}#[ignore]"))
+                let editor = builder.make_editor(attr.syntax());
+                let make = editor.make();
+                let ignore = make.attr_outer(make::meta_path(make.ident_path("ignore")));
+                let ignore = make.with_elastic_line_break(ignore.syntax());
+                editor.insert(Position::after(attr.syntax()), ignore);
+                builder.add_file_edits(ctx.vfs_file_id(), editor);
             },
         ),
         Some(ignore_attr) => acc.add(
             AssistId::refactor("toggle_ignore"),
             "Re-enable this test",
-            ignore_attr.syntax().text_range(),
+            ignore_attr.syntax().text_range_without_outer_trivia(),
             |builder| {
-                builder.delete(ignore_attr.syntax().text_range());
-                let whitespace = ignore_attr
-                    .syntax()
-                    .next_sibling_or_token()
-                    .and_then(|x| x.into_token())
-                    .and_then(ast::Whitespace::cast);
-                if let Some(whitespace) = whitespace {
-                    builder.delete(whitespace.syntax().text_range());
-                }
+                let editor = builder.make_editor(ignore_attr.syntax());
+                editor.delete(ignore_attr.syntax());
+                builder.add_file_edits(ctx.vfs_file_id(), editor);
             },
         ),
     }
 }
 
 fn has_ignore_attribute(fn_def: &ast::Fn) -> Option<ast::Attr> {
-    fn_def.attrs().find(|attr| attr.path().is_some_and(|it| it.syntax().text() == "ignore"))
+    fn_def.attrs().find(|attr| {
+        attr.path().is_some_and(|it| it.syntax().text_without_outer_trivia() == "ignore")
+    })
 }
 
 #[cfg(test)]

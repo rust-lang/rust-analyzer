@@ -47,9 +47,8 @@ use smallvec::{SmallVec, smallvec};
 use span::{FileId, SyntaxContext};
 use stdx::{TupleExt, always};
 use syntax::{
-    AstNode, AstPtr, AstToken, Direction, SmolStr, SmolStrBuilder, SyntaxElement, SyntaxKind,
-    SyntaxNode, SyntaxNodePtr, SyntaxToken, T, TextRange, TextSize,
-    algo::skip_trivia_token,
+    AstNode, AstPtr, AstToken, SmolStr, SmolStrBuilder, SyntaxElement, SyntaxKind, SyntaxNode,
+    SyntaxNodePtr, SyntaxToken, T, TextRange, TextSize,
     ast::{self, HasAttrs as _, HasGenericParams},
 };
 
@@ -273,7 +272,12 @@ impl<DB: HirDatabase + ?Sized> Semantics<'_, DB> {
     ) -> impl Iterator<Item = ast::NameLike> + 'slf {
         node.token_at_offset(offset)
             .map(move |token| self.descend_into_macros_no_opaque(token, true))
-            .map(|descendants| descendants.into_iter().filter_map(move |it| it.value.parent()))
+            .map(|descendants| {
+                descendants
+                    .into_iter()
+                    .filter(|it| !it.value.is_trivia())
+                    .filter_map(move |it| it.value.parent())
+            })
             // re-order the tokens from token_at_offset by returning the ancestors with the smaller first nodes first
             // See algo::ancestors_at_offset, which uses the same approach
             .kmerge_by(|left, right| left.text_range().len().lt(&right.text_range().len()))
@@ -1011,9 +1015,8 @@ impl<'db> SemanticsImpl<'db> {
         // This might not be the correct way to do this, but it works for now
         let mut res = smallvec![];
         let tokens = (|| {
-            // FIXME: the trivia skipping should not be necessary
-            let first = skip_trivia_token(node.syntax().first_token()?, Direction::Next)?;
-            let last = skip_trivia_token(node.syntax().last_token()?, Direction::Prev)?;
+            let first = node.syntax().first_non_trivia_token()?;
+            let last = node.syntax().last_non_trivia_token()?;
             Some((first, last))
         })();
         let (first, last) = match tokens {
@@ -1030,7 +1033,7 @@ impl<'db> SemanticsImpl<'db> {
                 &mut |InFile { value, .. }, _ctx| {
                     if let Some(node) = value
                         .parent_ancestors()
-                        .take_while(|it| it.text_range() == value.text_range())
+                        .take_while(|it| it.text_range_without_outer_trivia() == value.text_range())
                         .find_map(N::cast)
                     {
                         res.push(node)
@@ -1060,7 +1063,7 @@ impl<'db> SemanticsImpl<'db> {
                             .tree_top()
                             .covering_element(range)
                             .ancestors()
-                            .take_while(|it| it.text_range() == range)
+                            .take_while(|it| it.text_range_without_outer_trivia() == range)
                             .find_map(N::cast);
                         if let Some(node) = node {
                             res.push(node);
@@ -1607,7 +1610,7 @@ impl<'db> SemanticsImpl<'db> {
         &self,
         token: SyntaxToken,
     ) -> impl Iterator<Item = SyntaxNode> + Clone + '_ {
-        token.parent().into_iter().flat_map(move |parent| self.ancestors_with_macros(parent))
+        token.owning_node().into_iter().flat_map(move |parent| self.ancestors_with_macros(parent))
     }
 
     /// Iterates the ancestors of the given node, climbing up macro expansions while doing so.

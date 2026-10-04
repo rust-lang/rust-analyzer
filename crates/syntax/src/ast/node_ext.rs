@@ -16,7 +16,7 @@ use crate::{
         self, AnyComment, AstNode, AstToken, CommentShape, HasAttrs, HasGenericArgs,
         HasGenericParams, HasName, HasTypeBounds, SyntaxNode, support,
     },
-    syntax_editor::SyntaxEditor,
+    syntax_editor::{RemoveOptions, SyntaxEditor},
 };
 
 use super::{GenericParam, RangeItem, RangeOp};
@@ -43,7 +43,7 @@ impl ast::NameRef {
     }
 
     pub fn token_kind(&self) -> SyntaxKind {
-        self.syntax().first_token().map_or(SyntaxKind::ERROR, |it| it.kind())
+        self.syntax().first_non_trivia_token().map_or(SyntaxKind::ERROR, |it| it.kind())
     }
 }
 
@@ -58,7 +58,9 @@ fn text_of_first_token(node: &SyntaxNode) -> &str {
 fn into_comma(it: NodeOrToken<SyntaxNode, SyntaxToken>) -> Option<SyntaxToken> {
     let token = match it {
         NodeOrToken::Token(it) => it,
-        NodeOrToken::Node(node) if node.kind() == SyntaxKind::ERROR => node.first_token()?,
+        NodeOrToken::Node(node) if node.kind() == SyntaxKind::ERROR => {
+            node.first_non_trivia_token()?
+        }
         NodeOrToken::Node(_) => return None,
     };
     (token.kind() == T![,]).then_some(token)
@@ -201,7 +203,9 @@ impl ast::Meta {
             _ => {
                 let path = self.path()?;
                 match (path.segment(), path.qualifier()) {
-                    (Some(segment), None) => Some(segment.syntax().first_token()?.text().into()),
+                    (Some(segment), None) => {
+                        Some(segment.syntax().first_non_trivia_token()?.text().into())
+                    }
                     _ => None,
                 }
             }
@@ -284,7 +288,7 @@ impl ast::DocComment {
 
     pub fn token(&self) -> AnyComment {
         self.syntax
-            .first_token()
+            .first_non_trivia_token()
             .and_then(ast::AnyComment::cast)
             .expect("`ast::DocComment` must have a comment token")
     }
@@ -468,9 +472,15 @@ impl ast::UseTreeList {
     pub fn has_inner_comment(&self) -> bool {
         self.syntax()
             .children_with_tokens()
-            .filter_map(|it| it.into_token())
-            .find_map(ast::Comment::cast)
-            .is_some()
+            .filter(|child| child.kind() != T!['{'])
+            .filter_map(|child| child.first_non_trivia_token())
+            .any(|first| {
+                let before_first =
+                    first.prev_non_trivia_token().into_iter().flat_map(|it| it.trailing_trivia());
+                before_first
+                    .chain(first.leading_trivia())
+                    .any(|it| it.kind() == SyntaxKind::COMMENT)
+            })
     }
 
     pub fn comma(&self) -> impl Iterator<Item = SyntaxToken> {
@@ -502,11 +512,16 @@ impl ast::UseTreeList {
 
         let remove_brace_in_use_tree_list = |u: &ast::UseTreeList| {
             if has_single_subtree_that_is_not_self(u) {
+                let options =
+                    RemoveOptions { add_elastic_marker: true, ..RemoveOptions::KEEP_LEADING };
                 if let Some(a) = u.l_curly_token() {
-                    editor.delete(a)
+                    if let Some(next) = a.next_non_trivia_token() {
+                        editor.splice_leading_trivia(&next, .., []);
+                    }
+                    editor.delete_with(a, options)
                 }
                 if let Some(a) = u.r_curly_token() {
-                    editor.delete(a)
+                    editor.delete_with(a, options)
                 }
                 u.comma().for_each(|u| editor.delete(u));
             }
@@ -1219,8 +1234,7 @@ impl From<ast::AssocItem> for ast::AnyHasAttrs {
 impl ast::OrPat {
     pub fn leading_pipe(&self) -> Option<SyntaxToken> {
         self.syntax
-            .children_with_tokens()
-            .find(|it| !it.kind().is_trivia())
+            .first_child_or_token()
             .and_then(NodeOrToken::into_token)
             .filter(|it| it.kind() == T![|])
     }
@@ -1269,14 +1283,8 @@ impl Iterator for TokenTreeChildren {
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.find_map(|item| match item {
             NodeOrToken::Node(node) => ast::TokenTree::cast(node).map(NodeOrToken::Node),
-            NodeOrToken::Token(token) => {
-                let kind = token.kind();
-                (!matches!(
-                    kind,
-                    SyntaxKind::WHITESPACE | SyntaxKind::COMMENT | T![')'] | T![']'] | T!['}']
-                ))
-                .then_some(NodeOrToken::Token(token))
-            }
+            NodeOrToken::Token(token) => (!matches!(token.kind(), T![')'] | T![']'] | T!['}']))
+                .then_some(NodeOrToken::Token(token)),
         })
     }
 }

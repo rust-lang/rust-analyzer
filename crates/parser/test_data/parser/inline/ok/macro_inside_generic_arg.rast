@@ -1,12 +1,9 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "A"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "A" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
@@ -32,5 +29,5 @@ SOURCE_FILE
                     UNDERSCORE "_"
                     R_BRACK "]"
             R_ANGLE ">"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF ""

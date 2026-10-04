@@ -54,6 +54,5 @@ pub fn prettify_macro_expansion(
             }
             Some(replacement.clone())
         },
-        |_| (),
     )
 }

@@ -6,10 +6,8 @@ use std::cmp::Ordering;
 
 use hir::Semantics;
 use syntax::{
-    NodeOrToken, SyntaxKind, SyntaxNode,
-    ast::{
-        self, AstNode, HasAttrs, HasModuleItem, HasVisibility, PathSegmentKind, edit::IndentLevel,
-    },
+    NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, T,
+    ast::{self, AstNode, HasAttrs, HasModuleItem, HasVisibility, PathSegmentKind},
     syntax_editor::{Position, SyntaxEditor},
 };
 
@@ -178,11 +176,11 @@ pub fn insert_uses_with_editor(
             .flat_map(|path| {
                 let use_tree = make.use_tree(path, None, None, false);
                 let use_item = make.use_(None, None, use_tree);
-                [use_item.syntax().clone().into(), make.whitespace("\n").into()]
+                [use_item.syntax().clone().into()]
             })
-            .chain([make.whitespace("\n").into()])
             .collect();
         syntax_editor.insert_all(Position::first_child_of(scope.as_syntax_node()), elements);
+        syntax_editor.prepend_leading_trivia(scope.as_syntax_node(), "\n");
         return;
     }
 
@@ -459,18 +457,14 @@ fn insert_use_with_editor_(
         if let Some((.., node)) = post_insert {
             cov_mark::hit!(insert_group);
             // insert our import before that element
-            return syntax_editor.insert_all(
-                Position::before(node),
-                vec![use_item.syntax().clone().into(), make.whitespace("\n").into()],
-            );
+            syntax_editor.insert(Position::before(&node), use_item.syntax());
+            return;
         }
         if let Some(node) = last {
             cov_mark::hit!(insert_group_last);
             // there is no element after our new import, so append it to the end of the group
-            return syntax_editor.insert_all(
-                Position::after(node),
-                vec![make.whitespace("\n").into(), use_item.syntax().clone().into()],
-            );
+            syntax_editor.insert(Position::after(node), use_item.syntax());
+            return;
         }
 
         // the group we were looking for actually doesn't exist, so insert
@@ -482,18 +476,19 @@ fn insert_use_with_editor_(
             .find(|(use_tree, ..)| ImportGroup::new(use_tree) > group);
         if let Some((.., node)) = post_group {
             cov_mark::hit!(insert_group_new_group);
-            syntax_editor.insert_all(
+            syntax_editor.insert(
                 Position::before(&node),
-                vec![use_item.syntax().clone().into(), make.whitespace("\n\n").into()],
+                make.prepend_leading_trivia(use_item.syntax(), "\n"),
             );
+            syntax_editor.prepend_leading_trivia(&node, "\n");
             return;
         }
         // there is no such group, so append after the last one
         if let Some(node) = last {
             cov_mark::hit!(insert_group_no_group);
-            syntax_editor.insert_all(
-                Position::after(&node),
-                vec![make.whitespace("\n\n").into(), use_item.syntax().clone().into()],
+            syntax_editor.insert(
+                Position::after(node),
+                make.prepend_leading_trivia(use_item.syntax(), "\n"),
             );
             return;
         }
@@ -501,75 +496,82 @@ fn insert_use_with_editor_(
         // There exists a group, so append to the end of it
         if let Some((_, node)) = path_node_iter.last() {
             cov_mark::hit!(insert_no_grouping_last);
-            syntax_editor.insert_all(
-                Position::after(node),
-                vec![make.whitespace("\n").into(), use_item.syntax().clone().into()],
-            );
+            syntax_editor.insert(Position::after(node), use_item.syntax());
             return;
         }
     }
 
     let l_curly = match &scope.kind {
         ImportScopeKind::File(_) => None,
-        // don't insert the imports before the item list/block expr's opening curly brace
         ImportScopeKind::Module(item_list) => item_list.l_curly_token(),
-        // don't insert the imports before the item list's opening curly brace
         ImportScopeKind::Block(block) => block.l_curly_token(),
     };
-    // there are no imports in this file at all
-    // so put the import after all inner module attributes and possible license header comments
-    if let Some(last_inner_element) = scope_syntax
-        .children_with_tokens()
-        // skip the curly brace
-        .skip(l_curly.is_some() as usize)
-        .take_while(|child| match child {
-            NodeOrToken::Node(node) => {
-                is_inner_attribute(node.clone()) && ast::Item::cast(node.clone()).is_none()
-            }
-            NodeOrToken::Token(token) => {
-                [SyntaxKind::WHITESPACE, SyntaxKind::COMMENT, SyntaxKind::SHEBANG]
-                    .contains(&token.kind())
-            }
-        })
-        .filter(|child| child.as_token().is_none_or(|t| t.kind() != SyntaxKind::WHITESPACE))
-        .last()
-    {
+    // there are no imports in this scope at all, so put the import after all inner
+    // attributes and header comments, but before the comments attached to the first item
+    let mut children =
+        scope_syntax.children_with_tokens().skip(l_curly.is_some() as usize).peekable();
+    let inner = |child: &SyntaxElement| match child {
+        NodeOrToken::Node(node) => {
+            is_inner_attribute(node.clone()) && ast::Item::cast(node.clone()).is_none()
+        }
+        NodeOrToken::Token(token) => token.kind() == SyntaxKind::SHEBANG,
+    };
+    let after_inner = children.peek().is_some_and(inner);
+    let first = children
+        .find(|child| !inner(child))
+        .filter(|it| !matches!(it.kind(), T!['}'] | SyntaxKind::EOF));
+    let only_header = first.is_none()
+        && scope_syntax
+            .last_token()
+            .is_some_and(|it| it.prev_token().is_some_and(|it| it.kind() == SyntaxKind::COMMENT));
+    if after_inner {
         cov_mark::hit!(insert_empty_inner_attr);
-        let indent = if l_curly.is_some() {
-            IndentLevel::from_node(scope_syntax) + 1
-        } else {
-            IndentLevel::zero()
-        };
-        syntax_editor.insert_all(
-            Position::after(&last_inner_element),
-            vec![
-                make.whitespace(&format!("\n\n{indent}")).into(),
-                use_item.syntax().clone().into(),
-            ],
-        );
-    } else {
+    } else if first.is_none() {
         match l_curly {
-            Some(b) => {
-                cov_mark::hit!(insert_empty_module);
-                let indent = IndentLevel::from_node(scope_syntax) + 1;
-                syntax_editor.insert_all(
-                    Position::after(&b),
-                    vec![
-                        make.whitespace(&format!("\n{indent}")).into(),
-                        use_item.syntax().clone().into(),
-                        make.whitespace("\n").into(),
-                    ],
-                );
-            }
-            None => {
-                cov_mark::hit!(insert_empty_file);
-                syntax_editor.insert_all(
-                    Position::first_child_of(scope_syntax),
-                    vec![use_item.syntax().clone().into(), make.whitespace("\n\n").into()],
-                );
-            }
+            Some(_) => cov_mark::hit!(insert_empty_module),
+            None => cov_mark::hit!(insert_empty_file),
         }
     }
+    let banner_token = match &first {
+        Some(first) => first.first_non_trivia_token(),
+        None => scope_syntax.last_token().filter(|_| only_header),
+    };
+    let leading: Vec<_> = banner_token.iter().flat_map(|it| it.leading_trivia()).collect();
+    let (mut banner_len, mut blank_line) = (0, true);
+    for (index, it) in leading.iter().enumerate() {
+        match it.kind() {
+            SyntaxKind::NEWLINE if blank_line => banner_len = index + 1,
+            SyntaxKind::NEWLINE => blank_line = true,
+            SyntaxKind::WHITESPACE => (),
+            _ => blank_line = false,
+        }
+    }
+    if only_header {
+        banner_len = leading.len();
+    }
+    let banner = &leading[..banner_len];
+    let use_item = match &banner_token {
+        Some(token) if banner.iter().any(|it| it.kind() == SyntaxKind::COMMENT) => {
+            let banner: String = banner.iter().map(|it| it.text()).collect();
+            syntax_editor.splice_leading_trivia(token, ..banner_len, []);
+            make.prepend_leading_trivia(use_item.syntax(), &format!("{}\n\n", banner.trim_end()))
+        }
+        _ if after_inner => make.prepend_leading_trivia(use_item.syntax(), "\n"),
+        _ => use_item.syntax().clone().into(),
+    };
+    let position = match first {
+        Some(first) => {
+            syntax_editor.prepend_leading_trivia(&first, "\n");
+            Position::before(first)
+        }
+        None => match scope_syntax.last_child_or_token() {
+            Some(last) if matches!(last.kind(), T!['}'] | SyntaxKind::EOF) => {
+                Position::before(last)
+            }
+            _ => Position::last_child_of(scope_syntax),
+        },
+    };
+    syntax_editor.insert(position, use_item);
 }
 
 fn is_inner_attribute(node: SyntaxNode) -> bool {

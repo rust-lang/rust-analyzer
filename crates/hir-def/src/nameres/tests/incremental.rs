@@ -552,8 +552,7 @@ m!(Z);
         "#]],
     );
 
-    let new_text = r#"
-m!(X);
+    let new_text = r#"m!(X);
 fn quux() { 92 }
 m!(Y);
 m!(Z);
