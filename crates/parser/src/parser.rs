@@ -41,6 +41,11 @@ pub(crate) struct Parser<'t> {
 
 const PARSER_STEP_LIMIT: usize = if cfg!(debug_assertions) { 150_000 } else { 15_000_000 };
 
+/// Upper bound for `Parser::nth`/`nth_at` lookahead. `check_trait_front_matter` needs
+/// up to 8 tokens (`impl ( crate ) const unsafe auto trait`); `Input::kind` already returns
+/// `EOF` past the end, so this is just a sanity bound, not a buffer-size limit.
+const MAX_LOOKAHEAD: usize = 8;
+
 impl<'t> Parser<'t> {
     pub(super) fn new(inp: &'t Input) -> Parser<'t> {
         Parser {
@@ -56,6 +61,14 @@ impl<'t> Parser<'t> {
         (self.events, self.errors)
     }
 
+    /// Offset of the current token in the input.
+    ///
+    /// Only meant for checking whether a sub-parser made progress, so that a loop calling
+    /// it can't spin forever; don't use it to make parsing decisions.
+    pub(crate) fn pos(&self) -> usize {
+        self.pos
+    }
+
     /// Returns the kind of the current token.
     /// If parser has already reached the end of input,
     /// the special `EOF` kind is returned.
@@ -66,7 +79,7 @@ impl<'t> Parser<'t> {
     /// Lookahead operation: returns the kind of the next nth
     /// token.
     pub(crate) fn nth(&self, n: usize) -> SyntaxKind {
-        assert!(n <= 3);
+        assert!(n <= MAX_LOOKAHEAD);
 
         let steps = self.steps.get();
         assert!((steps as usize) < PARSER_STEP_LIMIT, "the parser seems stuck");

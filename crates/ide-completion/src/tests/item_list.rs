@@ -211,6 +211,64 @@ fn after_visibility_unsafe() {
 }
 
 #[test]
+fn after_fn_qualifiers() {
+    check_with_base_items(
+        r#"async unsafe $0"#,
+        expect![[r#"
+            kw fn
+            kw impl
+            kw impl for
+            kw trait
+        "#]],
+    );
+    check_with_base_items(
+        r#"const unsafe $0"#,
+        expect![[r#"
+            kw async
+            kw extern
+            kw fn
+            kw impl
+            kw impl for
+            kw trait
+        "#]],
+    );
+    check_with_base_items(
+        r#"unsafe extern "C" $0"#,
+        expect![[r#"
+            kw async
+            kw fn
+            kw impl
+            kw impl for
+            kw trait
+        "#]],
+    );
+    check_with_base_items(
+        r#"pub async unsafe $0"#,
+        expect![[r#"
+            kw fn
+            kw trait
+        "#]],
+    );
+    check_with_base_items(
+        r#"fn f() { async unsafe $0 }"#,
+        expect![[r#"
+            kw fn
+            kw impl
+            kw impl for
+            kw trait
+        "#]],
+    );
+}
+
+#[test]
+fn after_default() {
+    // FIXME: nothing is offered after `default` yet, since `QualifierCtx` doesn't track it.
+    check_with_base_items(r#"impl T for S { default $0 }"#, expect![[r#""#]]);
+    check_with_base_items(r#"impl T for S { default unsafe $0 }"#, expect![[r#""#]]);
+    check_with_base_items(r#"default $0"#, expect![[r#""#]]);
+}
+
+#[test]
 fn after_abi() {
     check_with_base_items(
         r#"extern "C" $0"#,

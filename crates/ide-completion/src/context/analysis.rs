@@ -1125,8 +1125,16 @@ fn classify_name_ref<'db>(
             let is_inbetween = match &item {
                 ast::Item::Const(it) => it.body().is_none() && it.semicolon_token().is_none(),
                 ast::Item::Enum(it) => it.variant_list().is_none(),
-                ast::Item::ExternBlock(it) => it.extern_item_list().is_none(),
-                ast::Item::Fn(it) => it.body().is_none() && it.semicolon_token().is_none(),
+                // `extern` blocks never take `for`/`where` (the only things
+                // `complete_for_and_where` offers), so treating an incomplete one as
+                // "inbetween decl and body" here would only suppress the general item
+                // completions below without suggesting anything in their place.
+                ast::Item::ExternBlock(_) => false,
+                // Without a `fn` token this is only a run of qualifiers (`async unsafe $0`),
+                // not a signature, so there's no decl for the cursor to sit after yet.
+                ast::Item::Fn(it) => {
+                    it.fn_token().is_some() && it.body().is_none() && it.semicolon_token().is_none()
+                }
                 ast::Item::Impl(it) => it.assoc_item_list().is_none(),
                 ast::Item::Module(it) => it.item_list().is_none() && it.semicolon_token().is_none(),
                 ast::Item::Static(it) => it.body().is_none(),
@@ -1715,7 +1723,18 @@ fn classify_name_ref<'db>(
         if let Some(top) = top_node {
             if let Some(NodeOrToken::Node(error_node)) =
                 syntax::algo::non_trivia_sibling(top.clone().into(), syntax::Direction::Prev)
-                && error_node.kind() == SyntaxKind::ERROR
+                && (error_node.kind() == SyntaxKind::ERROR
+                    // `extern $0` / `extern "C" $0`: the parser now commits to an
+                    // EXTERN_BLOCK as soon as it sees `extern` (matching rustc), even
+                    // without the brace that would make it well-formed. Such a
+                    // brace-less extern block can only be the in-progress edit at the
+                    // cursor, never a genuinely complete preceding item, so it's safe to
+                    // treat like the ERROR node case above for qualifier extraction.
+                    || ast::ExternBlock::cast(error_node.clone())
+                        .is_some_and(|it| it.extern_item_list().is_none())
+                    // `async unsafe $0`: likewise, the parser commits to an FN as soon as it
+                    // sees function qualifiers, before the `fn` keyword itself is typed.
+                    || ast::Fn::cast(error_node.clone()).is_some_and(|it| it.fn_token().is_none()))
             {
                 for token in error_node.children_with_tokens().filter_map(NodeOrToken::into_token) {
                     match token.kind() {

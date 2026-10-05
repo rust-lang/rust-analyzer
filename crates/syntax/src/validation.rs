@@ -25,6 +25,9 @@ pub(crate) fn validate(root: &SyntaxNode, errors: &mut Vec<SyntaxError>) {
     // * Add validation of doc comments are being attached to nodes
 
     for node in root.descendants() {
+        if let Some(item) = ast::Item::cast(node.clone()) {
+            validate_default_keyword(item, errors);
+        }
         match_ast! {
             match node {
                 ast::Literal(it) => validate_literal(it, errors),
@@ -430,6 +433,28 @@ fn validate_macro_rules(mac: ast::MacroRules, errors: &mut Vec<SyntaxError>) {
         errors.push(SyntaxError::new(
             "visibilities are not allowed on `macro_rules!` items",
             vis.syntax().text_range(),
+        ));
+    }
+}
+
+fn validate_default_keyword(item: ast::Item, errors: &mut Vec<SyntaxError>) {
+    // rustc: `error_on_unconsumed_default`. The parser accepts `default` in front of any item,
+    // as rustc's does, but only these item kinds have a place for it.
+    if matches!(
+        item,
+        ast::Item::Fn(_) | ast::Item::Const(_) | ast::Item::TypeAlias(_) | ast::Item::Impl(_)
+    ) {
+        return;
+    }
+    if let Some(default) = item
+        .syntax()
+        .children_with_tokens()
+        .filter_map(|it| it.into_token())
+        .find(|it| it.kind() == T![default])
+    {
+        errors.push(SyntaxError::new(
+            "`default` is only allowed on `fn`, `const`, `type` and `impl` items",
+            default.text_range(),
         ));
     }
 }

@@ -80,8 +80,7 @@ pub(crate) mod entry {
             paths::type_path(p);
         }
         pub(crate) fn item(p: &mut Parser<'_>) {
-            // We can set `is_in_extern=true`, because it only allows `safe fn`, and there is no ambiguity here.
-            items::item_or_macro(p, true, true);
+            items::item_or_macro(p, true);
         }
         // Parse a meta item , which excluded [], e.g : #[ MetaItem ]
         pub(crate) fn meta_item(p: &mut Parser<'_>) {

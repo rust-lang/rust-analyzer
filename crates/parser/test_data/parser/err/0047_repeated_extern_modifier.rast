@@ -1,15 +1,15 @@
 SOURCE_FILE
-  ERROR
+  EXTERN_BLOCK
     ABI
       EXTERN_KW "extern"
       WHITESPACE " "
       STRING "\"C\""
   WHITESPACE " "
-  ERROR
+  EXTERN_BLOCK
     ABI
       EXTERN_KW "extern"
       WHITESPACE " "
       STRING "\"C\""
   WHITESPACE "\n"
-error 10: expected fn, trait or impl
-error 21: expected fn, trait or impl
+error 10: expected `{`
+error 21: expected `{`

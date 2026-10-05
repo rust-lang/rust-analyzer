@@ -1,0 +1,59 @@
+SOURCE_FILE@0..80
+  STRUCT@0..17
+    DEFAULT_KW@0..7 "default"
+    WHITESPACE@7..8 " "
+    STRUCT_KW@8..14 "struct"
+    WHITESPACE@14..15 " "
+    NAME@15..16
+      IDENT@15..16 "S"
+    SEMICOLON@16..17 ";"
+  WHITESPACE@17..18 "\n"
+  MODULE@18..34
+    DEFAULT_KW@18..25 "default"
+    WHITESPACE@25..26 " "
+    MOD_KW@26..29 "mod"
+    WHITESPACE@29..30 " "
+    NAME@30..31
+      IDENT@30..31 "m"
+    WHITESPACE@31..32 " "
+    ITEM_LIST@32..34
+      L_CURLY@32..33 "{"
+      R_CURLY@33..34 "}"
+  WHITESPACE@34..35 "\n"
+  STATIC@35..60
+    DEFAULT_KW@35..42 "default"
+    WHITESPACE@42..43 " "
+    STATIC_KW@43..49 "static"
+    WHITESPACE@49..50 " "
+    NAME@50..51
+      IDENT@50..51 "X"
+    COLON@51..52 ":"
+    WHITESPACE@52..53 " "
+    PATH_TYPE@53..55
+      PATH@53..55
+        PATH_SEGMENT@53..55
+          NAME_REF@53..55
+            IDENT@53..55 "u8"
+    WHITESPACE@55..56 " "
+    EQ@56..57 "="
+    WHITESPACE@57..58 " "
+    LITERAL@58..59
+      INT_NUMBER@58..59 "0"
+    SEMICOLON@59..60 ";"
+  WHITESPACE@60..61 "\n"
+  TRAIT@61..79
+    DEFAULT_KW@61..68 "default"
+    WHITESPACE@68..69 " "
+    TRAIT_KW@69..74 "trait"
+    WHITESPACE@74..75 " "
+    NAME@75..76
+      IDENT@75..76 "T"
+    WHITESPACE@76..77 " "
+    ASSOC_ITEM_LIST@77..79
+      L_CURLY@77..78 "{"
+      R_CURLY@78..79 "}"
+  WHITESPACE@79..80 "\n"
+error 0..7: `default` is only allowed on `fn`, `const`, `type` and `impl` items
+error 18..25: `default` is only allowed on `fn`, `const`, `type` and `impl` items
+error 35..42: `default` is only allowed on `fn`, `const`, `type` and `impl` items
+error 61..68: `default` is only allowed on `fn`, `const`, `type` and `impl` items

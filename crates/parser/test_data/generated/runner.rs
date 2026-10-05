@@ -153,11 +153,19 @@ mod ok {
         run_and_expect_no_errors("test_data/parser/inline/ok/const_arg_negative_number.rs");
     }
     #[test]
+    fn const_async_gen_fn() {
+        run_and_expect_no_errors("test_data/parser/inline/ok/const_async_gen_fn.rs");
+    }
+    #[test]
     fn const_block_pat() {
         run_and_expect_no_errors("test_data/parser/inline/ok/const_block_pat.rs");
     }
     #[test]
     fn const_closure() { run_and_expect_no_errors("test_data/parser/inline/ok/const_closure.rs"); }
+    #[test]
+    fn const_closure_not_item() {
+        run_and_expect_no_errors("test_data/parser/inline/ok/const_closure_not_item.rs");
+    }
     #[test]
     fn const_item() { run_and_expect_no_errors("test_data/parser/inline/ok/const_item.rs"); }
     #[test]
@@ -175,8 +183,20 @@ mod ok {
         run_and_expect_no_errors("test_data/parser/inline/ok/const_param_default_path.rs");
     }
     #[test]
+    fn const_static_closure_not_item() {
+        run_and_expect_no_errors("test_data/parser/inline/ok/const_static_closure_not_item.rs");
+    }
+    #[test]
+    fn const_trait_and_impl() {
+        run_and_expect_no_errors("test_data/parser/inline/ok/const_trait_and_impl.rs");
+    }
+    #[test]
     fn const_trait_bound() {
         run_and_expect_no_errors("test_data/parser/inline/ok/const_trait_bound.rs");
+    }
+    #[test]
+    fn const_unsafe_auto_trait() {
+        run_and_expect_no_errors("test_data/parser/inline/ok/const_unsafe_auto_trait.rs");
     }
     #[test]
     fn const_where_clause() {
@@ -195,12 +215,20 @@ mod ok {
         run_and_expect_no_errors("test_data/parser/inline/ok/crate_visibility_in.rs");
     }
     #[test]
+    fn default_and_safe_stmt_expr() {
+        run_and_expect_no_errors("test_data/parser/inline/ok/default_and_safe_stmt_expr.rs");
+    }
+    #[test]
     fn default_async_fn() {
         run_and_expect_no_errors("test_data/parser/inline/ok/default_async_fn.rs");
     }
     #[test]
     fn default_async_unsafe_fn() {
         run_and_expect_no_errors("test_data/parser/inline/ok/default_async_unsafe_fn.rs");
+    }
+    #[test]
+    fn default_fn_front_matter() {
+        run_and_expect_no_errors("test_data/parser/inline/ok/default_fn_front_matter.rs");
     }
     #[test]
     fn default_item() { run_and_expect_no_errors("test_data/parser/inline/ok/default_item.rs"); }
@@ -383,6 +411,10 @@ mod ok {
     fn include_bytes() { run_and_expect_no_errors("test_data/parser/inline/ok/include_bytes.rs"); }
     #[test]
     fn index_expr() { run_and_expect_no_errors("test_data/parser/inline/ok/index_expr.rs"); }
+    #[test]
+    fn item_front_matter() {
+        run_and_expect_no_errors("test_data/parser/inline/ok/item_front_matter.rs");
+    }
     #[test]
     fn label() { run_and_expect_no_errors("test_data/parser/inline/ok/label.rs"); }
     #[test]
@@ -760,6 +792,8 @@ mod ok {
     #[test]
     fn unit_type() { run_and_expect_no_errors("test_data/parser/inline/ok/unit_type.rs"); }
     #[test]
+    fn unsafe_static() { run_and_expect_no_errors("test_data/parser/inline/ok/unsafe_static.rs"); }
+    #[test]
     fn use_item() { run_and_expect_no_errors("test_data/parser/inline/ok/use_item.rs"); }
     #[test]
     fn use_tree() { run_and_expect_no_errors("test_data/parser/inline/ok/use_tree.rs"); }
@@ -841,8 +875,16 @@ mod err {
         );
     }
     #[test]
+    fn const_qualified_extern_block() {
+        run_and_expect_errors("test_data/parser/inline/err/const_qualified_extern_block.rs");
+    }
+    #[test]
     fn crate_visibility_empty_recover() {
         run_and_expect_errors("test_data/parser/inline/err/crate_visibility_empty_recover.rs");
+    }
+    #[test]
+    fn default_and_safe_stmt_are_paths() {
+        run_and_expect_errors("test_data/parser/inline/err/default_and_safe_stmt_are_paths.rs");
     }
     #[test]
     fn empty_param_slot() {
@@ -851,8 +893,20 @@ mod err {
     #[test]
     fn empty_segment() { run_and_expect_errors("test_data/parser/inline/err/empty_segment.rs"); }
     #[test]
+    fn fn_duplicate_visibility() {
+        run_and_expect_errors("test_data/parser/inline/err/fn_duplicate_visibility.rs");
+    }
+    #[test]
     fn fn_pointer_type_missing_fn() {
         run_and_expect_errors("test_data/parser/inline/err/fn_pointer_type_missing_fn.rs");
+    }
+    #[test]
+    fn fn_qualifier_order() {
+        run_and_expect_errors("test_data/parser/inline/err/fn_qualifier_order.rs");
+    }
+    #[test]
+    fn fn_qualifiers_without_fn() {
+        run_and_expect_errors("test_data/parser/inline/err/fn_qualifiers_without_fn.rs");
     }
     #[test]
     fn fn_ret_recovery() {
@@ -884,12 +938,24 @@ mod err {
     #[test]
     fn generic_static() { run_and_expect_errors("test_data/parser/inline/err/generic_static.rs"); }
     #[test]
+    fn impl_qualifier_recovery() {
+        run_and_expect_errors("test_data/parser/inline/err/impl_qualifier_recovery.rs");
+    }
+    #[test]
+    fn impl_restriction_without_trait() {
+        run_and_expect_errors("test_data/parser/inline/err/impl_restriction_without_trait.rs");
+    }
+    #[test]
     fn impl_type() { run_and_expect_errors("test_data/parser/inline/err/impl_type.rs"); }
     #[test]
     fn invalid_question_for_type_trait_bound() {
         run_and_expect_errors(
             "test_data/parser/inline/err/invalid_question_for_type_trait_bound.rs",
         );
+    }
+    #[test]
+    fn item_modifier_recovery() {
+        run_and_expect_errors("test_data/parser/inline/err/item_modifier_recovery.rs");
     }
     #[test]
     fn key_ident_cfg_predicate() {

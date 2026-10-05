@@ -343,7 +343,7 @@ pub mod clone {
     macro_rules! impl_clone {
         ($($t:ty)*) => {
             $(
-                impl const Clone for $t {
+                const impl Clone for $t {
                     fn clone(&self) -> Self {
                         *self
                     }
@@ -874,7 +874,7 @@ pub mod ops {
 
             #[stable(feature = "rust1", since = "1.0.0")]
             #[rustc_const_unstable(feature = "const_fn_trait_ref_impls", issue = "101803")]
-            impl<A: Tuple, F: ?Sized> const Fn<A> for &F
+            const impl<A: Tuple, F: ?Sized> Fn<A> for &F
             where
                 F: [const] Fn<A>,
             {
@@ -885,7 +885,7 @@ pub mod ops {
 
             #[stable(feature = "rust1", since = "1.0.0")]
             #[rustc_const_unstable(feature = "const_fn_trait_ref_impls", issue = "101803")]
-            impl<A: Tuple, F: ?Sized> const FnMut<A> for &F
+            const impl<A: Tuple, F: ?Sized> FnMut<A> for &F
             where
                 F: [const] Fn<A>,
             {
@@ -896,7 +896,7 @@ pub mod ops {
 
             #[stable(feature = "rust1", since = "1.0.0")]
             #[rustc_const_unstable(feature = "const_fn_trait_ref_impls", issue = "101803")]
-            impl<A: Tuple, F: ?Sized> const FnOnce<A> for &F
+            const impl<A: Tuple, F: ?Sized> FnOnce<A> for &F
             where
                 F: [const] Fn<A>,
             {
@@ -909,7 +909,7 @@ pub mod ops {
 
             #[stable(feature = "rust1", since = "1.0.0")]
             #[rustc_const_unstable(feature = "const_fn_trait_ref_impls", issue = "101803")]
-            impl<A: Tuple, F: ?Sized> const FnMut<A> for &mut F
+            const impl<A: Tuple, F: ?Sized> FnMut<A> for &mut F
             where
                 F: [const] FnMut<A>,
             {
@@ -920,7 +920,7 @@ pub mod ops {
 
             #[stable(feature = "rust1", since = "1.0.0")]
             #[rustc_const_unstable(feature = "const_fn_trait_ref_impls", issue = "101803")]
-            impl<A: Tuple, F: ?Sized> const FnOnce<A> for &mut F
+            const impl<A: Tuple, F: ?Sized> FnOnce<A> for &mut F
             where
                 F: [const] FnMut<A>,
             {
@@ -1133,7 +1133,7 @@ pub mod ops {
             }
         }
 
-        impl<T> const Residual<T> for Option<Infallible> {
+        const impl<T> Residual<T> for Option<Infallible> {
             type TryType = Option<T>;
         }
         // endregion:option
@@ -1166,7 +1166,7 @@ pub mod ops {
             }
         }
 
-        impl<T, E> const Residual<T> for Result<Infallible, E> {
+        const impl<T, E> Residual<T> for Result<Infallible, E> {
             type TryType = Result<T, E>;
         }
         // endregion:from
@@ -1190,7 +1190,7 @@ pub mod ops {
     // region:builtin_impls
     macro_rules! add_impl {
         ($($t:ty)*) => ($(
-            impl const Add for $t {
+            const impl Add for $t {
                 type Output = $t;
                 fn add(self, other: $t) -> $t { self + other }
             }
@@ -1224,7 +1224,7 @@ pub mod ops {
     // region:builtin_impls
     macro_rules! not_impl {
         ($($t:ty)*) => ($(
-            impl const Not for $t {
+            const impl Not for $t {
                 type Output = $t;
                 fn not(self) -> $t { !self }
             }
@@ -1235,7 +1235,7 @@ pub mod ops {
 
     macro_rules! neg_impl {
         ($($t:ty)*) => ($(
-            impl const Neg for $t {
+            const impl Neg for $t {
                 type Output = $t;
                 fn neg(self) -> $t { -self }
             }
@@ -1525,7 +1525,7 @@ pub mod fmt {
     macro_rules! impl_debug {
         ($($t:ty)*) => {
             $(
-                impl const Debug for $t {
+                const impl Debug for $t {
                     fn fmt(&self, _f: &mut Formatter<'_>) -> Result {
                         Ok(())
                     }
@@ -1567,12 +1567,12 @@ pub mod slice {
     }
 
     // region:default
-    impl<T> const Default for &[T] {
+    const impl<T> Default for &[T] {
         fn default() -> Self {
             &[]
         }
     }
-    impl<T> const Default for &mut [T] {
+    const impl<T> Default for &mut [T] {
         fn default() -> Self {
             &mut []
         }
@@ -2330,7 +2330,7 @@ pub mod pat {
         fn sub_one(self) -> Self;
     }
 
-    impl const RangePattern for u8 {
+    const impl RangePattern for u8 {
         const MIN: u8 = 0;
         const MAX: u8 = 0xFF;
         fn sub_one(self) -> Self {
@@ -2342,7 +2342,7 @@ pub mod pat {
         }
     }
 
-    impl const RangePattern for i32 {
+    const impl RangePattern for i32 {
         const MIN: i32 = 0x80_00_00_00;
         const MAX: i32 = 0x7F_FF_FF_FF;
         fn sub_one(self) -> Self {

@@ -1,0 +1,53 @@
+SOURCE_FILE
+  FN
+    FN_KW "fn"
+    WHITESPACE " "
+    NAME
+      IDENT "wrap"
+    PARAM_LIST
+      L_PAREN "("
+      R_PAREN ")"
+    WHITESPACE " "
+    BLOCK_EXPR
+      STMT_LIST
+        L_CURLY "{"
+        WHITESPACE "\n    "
+        CLOSURE_EXPR
+          CONST_KW "const"
+          WHITESPACE " "
+          MOVE_KW "move"
+          WHITESPACE " "
+          PARAM_LIST
+            PIPE "|"
+            PARAM
+              IDENT_PAT
+                NAME
+                  IDENT "a"
+            PIPE "|"
+          WHITESPACE " "
+          CALL_EXPR
+            PATH_EXPR
+              PATH
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "NeverShortCircuit"
+            ARG_LIST
+              L_PAREN "("
+              CALL_EXPR
+                PATH_EXPR
+                  PATH
+                    PATH_SEGMENT
+                      NAME_REF
+                        IDENT "f"
+                ARG_LIST
+                  L_PAREN "("
+                  PATH_EXPR
+                    PATH
+                      PATH_SEGMENT
+                        NAME_REF
+                          IDENT "a"
+                  R_PAREN ")"
+              R_PAREN ")"
+        WHITESPACE "\n"
+        R_CURLY "}"
+  WHITESPACE "\n"
