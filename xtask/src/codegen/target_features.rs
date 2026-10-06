@@ -1,6 +1,6 @@
 //! Extracts the list of target feature implications from rustc_target to a generated file that rust-analyzer can use for implications.
 
-use std::{collections::HashSet, fs, iter::repeat};
+use std::{collections::BTreeSet, fs, iter::repeat};
 
 use itertools::Itertools;
 use xshell::Shell;
@@ -38,7 +38,7 @@ type ImpliedFeatures = &'static [&'static str];
     // Identifiers of all <ARCH>_FEATURES arrays in rustc_target
     let mut array_names = vec![];
     // Identifiers of all Unstable(sym::<unstable feature gate>) feature gates
-    let mut unstable_feature_gates = HashSet::new();
+    let mut unstable_feature_gates = BTreeSet::new();
 
     // Whether or not the line iterator is currently in the middle of a feature list array
     let mut currently_in_feature_list = false;
@@ -82,7 +82,7 @@ mod sym {
 "#,
     );
     sym.extend(unstable_feature_gates);
-    sym.push_str("}\n// spellchecker:off\n");
+    sym.push_str("}\n// spellchecker:on\n");
     contents.push_str(&sym);
 
     let contents = add_preamble(crate::flags::CodegenType::TargetFeatures, reformat(contents));
