@@ -96,13 +96,13 @@ mod sym {
     );
 }
 
-/// Extract the identifier of a feature list `const <ARCH>_FEATURES:` or `static <ARCH_FEATURES>:` to a list entry <IDENT>,
+/// Extract the identifier of a feature list `const $ARCH_FEATURES:` or `static $ARCH_FEATURES:` to a list entry `$ARCH_FEATURES,`
 fn extract_list_ident_to_array_entry(line: &str) -> Option<String> {
     let ident = line.split_once(' ')?.1.split_once(':')?.0;
     Some(format!("{ident},\n"))
 }
 
-/// Extract the identifier from `Unstable(sym::<ident>)` and create a new mock identifier with it
+/// Extract the identifier from `Unstable(sym::$IDENT)` and create a new mock identifier with it
 fn extract_to_unstable_feature_gate(line: &str) -> Option<String> {
     let ident = line.split_once("Unstable(sym::")?.1.split_once(')')?.0;
 
