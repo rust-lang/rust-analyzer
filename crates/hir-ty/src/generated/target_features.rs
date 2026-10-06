@@ -925,36 +925,36 @@ pub(super) static TARGET_FEATURE_IMPLICATIONS_RAW: &[&[(&str, Stability, Implied
 
 #[expect(non_upper_case_globals, reason = "stubs for rustc_target")]
 mod sym {
-    pub(in super::super) const lahfsahf_target_feature: () = ();
-    pub(in super::super) const prfchw_target_feature: () = ();
-    pub(in super::super) const powerpc_target_feature: () = ();
-    pub(in super::super) const m68k_target_feature: () = ();
-    pub(in super::super) const bpf_target_feature: () = ();
-    pub(in super::super) const arm_target_feature: () = ();
-    pub(in super::super) const hexagon_target_feature: () = ();
-    pub(in super::super) const avr_target_feature: () = ();
-    pub(in super::super) const xop_target_feature: () = ();
-    pub(in super::super) const x87_target_feature: () = ();
-    pub(in super::super) const mips_target_feature: () = ();
-    pub(in super::super) const nvptx_target_feature: () = ();
-    pub(in super::super) const rtm_target_feature: () = ();
-    pub(in super::super) const sparc_target_feature: () = ();
-    pub(in super::super) const movdiri_target_feature: () = ();
-    pub(in super::super) const aarch64_ver_target_feature: () = ();
     pub(in super::super) const aarch64_unstable_target_feature: () = ();
-    pub(in super::super) const fma4_target_feature: () = ();
-    pub(in super::super) const riscv_target_feature: () = ();
-    pub(in super::super) const s390x_target_feature: () = ();
-    pub(in super::super) const xtensa_target_feature: () = ();
-    pub(in super::super) const loongarch_target_feature: () = ();
-    pub(in super::super) const x86_amx_intrinsics: () = ();
+    pub(in super::super) const aarch64_ver_target_feature: () = ();
     pub(in super::super) const apx_target_feature: () = ();
-    pub(in super::super) const csky_target_feature: () = ();
+    pub(in super::super) const arm_target_feature: () = ();
+    pub(in super::super) const avr_target_feature: () = ();
     pub(in super::super) const avx10_target_feature: () = ();
-    pub(in super::super) const ermsb_target_feature: () = ();
+    pub(in super::super) const bpf_target_feature: () = ();
     pub(in super::super) const clflushopt_target_feature: () = ();
+    pub(in super::super) const csky_target_feature: () = ();
+    pub(in super::super) const ermsb_target_feature: () = ();
+    pub(in super::super) const fma4_target_feature: () = ();
+    pub(in super::super) const hexagon_target_feature: () = ();
+    pub(in super::super) const lahfsahf_target_feature: () = ();
+    pub(in super::super) const loongarch_target_feature: () = ();
+    pub(in super::super) const m68k_target_feature: () = ();
+    pub(in super::super) const mips_target_feature: () = ();
     pub(in super::super) const movdir64b_target_feature: () = ();
-    pub(in super::super) const wasm_target_feature: () = ();
+    pub(in super::super) const movdiri_target_feature: () = ();
     pub(in super::super) const movrs_target_feature: () = ();
+    pub(in super::super) const nvptx_target_feature: () = ();
+    pub(in super::super) const powerpc_target_feature: () = ();
+    pub(in super::super) const prfchw_target_feature: () = ();
+    pub(in super::super) const riscv_target_feature: () = ();
+    pub(in super::super) const rtm_target_feature: () = ();
+    pub(in super::super) const s390x_target_feature: () = ();
+    pub(in super::super) const sparc_target_feature: () = ();
+    pub(in super::super) const wasm_target_feature: () = ();
+    pub(in super::super) const x86_amx_intrinsics: () = ();
+    pub(in super::super) const x87_target_feature: () = ();
+    pub(in super::super) const xop_target_feature: () = ();
+    pub(in super::super) const xtensa_target_feature: () = ();
 }
-// spellchecker:off
+// spellchecker:on
