@@ -30,6 +30,7 @@ pub use self::{int::*, valtree::*};
 
 pub type ConstKind<'db> = rustc_type_ir::ConstKind<DbInterner<'db>>;
 pub type UnevaluatedConst<'db> = rustc_type_ir::UnevaluatedConst<DbInterner<'db>>;
+pub type UnevaluatedConstKind<'db> = rustc_type_ir::UnevaluatedConstKind<DbInterner<'db>>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Const<'db> {

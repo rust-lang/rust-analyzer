@@ -60,7 +60,7 @@ use crate::{
         AliasTy, Allocation, Clause, ClauseKind, Const, ConstKind, DbInterner,
         ExistentialPredicate, FnSig, GenericArg, GenericArgKind, GenericArgs, ParamEnv, PolyFnSig,
         Region, Term, TermId, TermKind, TraitPredicate, TraitRef, Ty, TyKind, TypingMode,
-        Unnormalized, ValTree,
+        UnevaluatedConst, UnevaluatedConstKind, Unnormalized, ValTree,
         abi::Safety,
         infer::{DbInternerInferExt, traits::ObligationCause},
     },
@@ -767,8 +767,12 @@ impl<'db> HirDisplay<'db> for Const<'db> {
                 Ok(())
             }
             ConstKind::Value(value) => render_const_scalar_from_valtree(f, value.ty, value.value),
-            ConstKind::Unevaluated(unev) => {
-                let c = unev.def.0;
+            ConstKind::Unevaluated(UnevaluatedConst {
+                kind: UnevaluatedConstKind::Anon { def_id },
+                args,
+                ..
+            }) => {
+                let c = def_id.0;
                 let generic_def = match c {
                     GeneralConstId::ConstId(id) => {
                         match &ConstSignature::of(f.db, id).name {
@@ -794,10 +798,11 @@ impl<'db> HirDisplay<'db> for Const<'db> {
                     }
                 };
                 if let Some(generic_def) = generic_def {
-                    hir_fmt_generics(f, unev.args.as_slice(), Some(generic_def), None)?;
+                    hir_fmt_generics(f, args.as_slice(), Some(generic_def), None)?;
                 }
                 Ok(())
             }
+            ConstKind::Unevaluated(_) => unimplemented!(),
             ConstKind::Error(..) => f.write_char('_'),
             ConstKind::Expr(..) => write!(f, "<const-expr>"),
         }

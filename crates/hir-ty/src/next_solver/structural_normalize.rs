@@ -30,7 +30,7 @@ impl<'db> At<'_, 'db> {
     ) -> Result<Term<'db>, Vec<NextSolverError<'db>>> {
         assert!(!term.is_infer(), "should have resolved vars before calling");
 
-        if term.to_alias_term(self.infcx.interner).is_none() {
+        if term.to_alias_term().is_none() {
             return Ok(term);
         }
 

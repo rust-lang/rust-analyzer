@@ -75,7 +75,8 @@ use crate::{
         GenericArgKind, GenericArgs, ParamConst, ParamEnv, PatList, Pattern, PolyFnSig, Predicate,
         Region, RegionKind, StoredClauses, StoredConst, StoredEarlyBinder, StoredGenericArg,
         StoredGenericArgs, StoredPolyFnSig, StoredTraitRef, StoredTy, TraitPredicate, TraitRef, Ty,
-        Tys, Unnormalized, abi::Safety, default_types, mk_param, util::BottomUpFolder,
+        Tys, UnevaluatedConstKind, Unnormalized, abi::Safety, default_types, mk_param,
+        util::BottomUpFolder,
     },
 };
 
@@ -498,7 +499,8 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
 
         if let Ok(konst) = konst
             && let ConstKind::Unevaluated(konst) = konst.kind()
-            && let GeneralConstId::AnonConstId(konst) = konst.def.0
+            && let UnevaluatedConstKind::Anon { def_id } = konst.kind
+            && let GeneralConstId::AnonConstId(konst) = def_id.0
         {
             self.defined_anon_consts.push(konst);
         }

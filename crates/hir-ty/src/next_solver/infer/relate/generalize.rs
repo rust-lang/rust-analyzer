@@ -643,14 +643,15 @@ impl<'db> TypeRelation<DbInterner<'db>> for Generalizer<'_, 'db> {
             //
             // FIXME: remove this branch once `structurally_relate_consts` is fully
             // structural.
-            ConstKind::Unevaluated(UnevaluatedConst { def, args }) => {
+            ConstKind::Unevaluated(UnevaluatedConst { kind, args, .. }) => {
                 let args = self.relate_with_variance(
                     Variance::Invariant,
                     VarianceDiagInfo::default(),
                     args,
                     args,
                 )?;
-                Ok(Const::new_unevaluated(self.infcx.interner, UnevaluatedConst { def, args }))
+                let interner = self.infcx.interner;
+                Ok(Const::new_unevaluated(interner, UnevaluatedConst::new(interner, kind, args)))
             }
             ConstKind::Placeholder(placeholder) => {
                 if self.for_universe.can_name(placeholder.universe) {

@@ -50,7 +50,7 @@ use crate::{
         ImplOrTraitAssocTyId, InherentAssocConstId, InherentAssocTermId, InherentAssocTyId,
         LateParamRegion, OpaqueTyIdWrapper, OpaqueTypeKey, RegionAssumptions, ScalarInt,
         SimplifiedType, SolverContext, SolverDefIds, TermId, TraitAssocConstId, TraitAssocTermId,
-        TraitAssocTyId, TraitIdWrapper, TypeAliasIdWrapper, UnevaluatedConst,
+        TraitAssocTyId, TraitIdWrapper, TypeAliasIdWrapper, UnevaluatedConst, UnevaluatedConstKind,
         util::{ItemBounds, impl_super_outlives},
     },
 };
@@ -1130,13 +1130,13 @@ impl<'db> Interner for DbInterner<'db> {
             // rustc creates an `AnonConst` for consts, and evaluates them with CTFE (normalizing projections
             // via selection, similar to ours `find_matching_impl()`, and not with the trait solver), so mimic it.
             SolverDefId::ConstId(def_id) => {
-                AliasTermKind::UnevaluatedConst { def_id: GeneralConstIdWrapper(def_id.into()) }
+                AliasTermKind::AnonConst { def_id: GeneralConstIdWrapper(def_id.into()) }
             }
             SolverDefId::StaticId(def_id) => {
-                AliasTermKind::UnevaluatedConst { def_id: GeneralConstIdWrapper(def_id.into()) }
+                AliasTermKind::AnonConst { def_id: GeneralConstIdWrapper(def_id.into()) }
             }
             SolverDefId::AnonConstId(def_id) => {
-                AliasTermKind::UnevaluatedConst { def_id: GeneralConstIdWrapper(def_id.into()) }
+                AliasTermKind::AnonConst { def_id: GeneralConstIdWrapper(def_id.into()) }
             }
             _ => unimplemented!("Unexpected alias: {:?}", def_id),
         }
@@ -1997,7 +1997,11 @@ impl<'db> Interner for DbInterner<'db> {
         };
         EarlyBinder::bind(Const::new_unevaluated(
             self,
-            UnevaluatedConst { def: GeneralConstIdWrapper(id), args: GenericArgs::empty() },
+            UnevaluatedConst::new(
+                self,
+                UnevaluatedConstKind::Anon { def_id: GeneralConstIdWrapper(id) },
+                GenericArgs::empty(),
+            ),
         ))
     }
 
@@ -2021,6 +2025,23 @@ impl<'db> Interner for DbInterner<'db> {
                 AliasTyKind::Opaque { def_id: def_id.into() }
             }
             _ => unreachable!(),
+        }
+    }
+
+    fn unevaluated_const_kind_from_def_id(self, def_id: Self::DefId) -> UnevaluatedConstKind<'db> {
+        match def_id {
+            // rustc creates an `AnonConst` for consts, and evaluates them with CTFE (normalizing projections
+            // via selection, similar to ours `find_matching_impl()`, and not with the trait solver), so mimic it.
+            SolverDefId::ConstId(def_id) => {
+                UnevaluatedConstKind::Anon { def_id: GeneralConstIdWrapper(def_id.into()) }
+            }
+            SolverDefId::StaticId(def_id) => {
+                UnevaluatedConstKind::Anon { def_id: GeneralConstIdWrapper(def_id.into()) }
+            }
+            SolverDefId::AnonConstId(def_id) => {
+                UnevaluatedConstKind::Anon { def_id: GeneralConstIdWrapper(def_id.into()) }
+            }
+            kind => panic!("unexpected SolverDefId in UnevaluatedConst: {kind:?}"),
         }
     }
 

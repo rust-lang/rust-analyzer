@@ -43,7 +43,8 @@ use crate::{
     method_resolution::{is_dyn_method, lookup_impl_const},
     next_solver::{
         AliasTy, Allocation, AllocationData, Const, ConstKind, DbInterner, ErrorGuaranteed,
-        GenericArgs, Region, StoredTy, Ty, TyKind, TypingMode, UnevaluatedConst, ValTree,
+        GenericArgs, Region, StoredTy, Ty, TyKind, TypingMode, UnevaluatedConst,
+        UnevaluatedConstKind, ValTree,
         infer::{DbInternerInferExt, InferCtxt, traits::ObligationCause},
         obligation_ctxt::ObligationCtxt,
     },
@@ -1969,8 +1970,12 @@ impl<'a, 'db> Evaluator<'a, 'db> {
     ) -> Result<'db, Interval> {
         match konst.kind() {
             ConstKind::Value(value) => self.allocate_valtree_in_heap(value.ty, value.value),
-            ConstKind::Unevaluated(UnevaluatedConst { def: const_id, args: subst }) => {
-                let mut id = const_id.0;
+            ConstKind::Unevaluated(UnevaluatedConst {
+                kind: UnevaluatedConstKind::Anon { def_id },
+                args: subst,
+                ..
+            }) => {
+                let mut id = def_id.0;
                 let mut subst = subst;
                 if let GeneralConstId::ConstId(c) = id {
                     let (c, s) = lookup_impl_const(&self.infcx, self.param_env.param_env, c, subst);

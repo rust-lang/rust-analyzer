@@ -103,6 +103,7 @@ use crate::{
     next_solver::{
         AliasTy, Const, ConstKind, DbInterner, GenericArgs, Region, StoredFnSig, StoredGenericArg,
         StoredGenericArgs, StoredTerm, StoredTy, StoredTys, Term, TermRefIdPacked, Ty, TyKind, Tys,
+        UnevaluatedConstKind,
         abi::Safety,
         default_types,
         infer::{InferCtxt, ObligationInspector, traits::ObligationCause},
@@ -2012,7 +2013,8 @@ impl<'db> InferenceContext<'db> {
 
         if let Ok(konst) = konst
             && let ConstKind::Unevaluated(konst) = konst.kind()
-            && let GeneralConstId::AnonConstId(konst) = konst.def.0
+            && let UnevaluatedConstKind::Anon { def_id } = konst.kind
+            && let GeneralConstId::AnonConstId(konst) = def_id.0
         {
             self.defined_anon_consts.borrow_mut().push(konst);
         } else {

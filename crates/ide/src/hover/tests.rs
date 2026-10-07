@@ -6483,8 +6483,6 @@ const FOO$0: (&str, &str) = {
     );
 }
 
-// FIXME(next-solver): this fails to normalize the const, probably due to the solver
-// refusing to give the impl because of the error type.
 #[test]
 fn hover_const_eval_in_generic_trait() {
     // Doesn't compile, but we shouldn't crash.
@@ -6506,16 +6504,12 @@ fn test() {
             *FOO*
 
             ```rust
-            ra_test_fixture::Trait
+            ra_test_fixture::S
             ```
 
             ```rust
-            const FOO: bool = false
+            const FOO: bool = true
             ```
-
-            ---
-
-            `Self` = `S<{unknown}>`
         "#]],
     );
 }

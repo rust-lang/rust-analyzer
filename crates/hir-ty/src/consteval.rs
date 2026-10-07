@@ -22,9 +22,9 @@ use crate::{
     lower::LoweringMode,
     mir::{IsSigned, MirEvalError, MirLowerError, pad16},
     next_solver::{
-        Allocation, Const, ConstKind, Consts, DbInterner, DefaultAny, GenericArgs, ParamConst,
-        ScalarInt, StoredAllocation, StoredEarlyBinder, StoredGenericArgs, Ty, TyKind,
-        UnevaluatedConst, ValTreeKind, default_types,
+        Allocation, Const, ConstKind, Consts, DbInterner, DefaultAny, GeneralConstIdWrapper,
+        GenericArgs, ParamConst, ScalarInt, StoredAllocation, StoredEarlyBinder, StoredGenericArgs,
+        Ty, TyKind, UnevaluatedConst, UnevaluatedConstKind, ValTreeKind, default_types,
     },
     traits::StoredParamEnvAndCrate,
 };
@@ -212,21 +212,25 @@ pub fn try_const_usize<'db>(db: &'db dyn HirDatabase, c: Const<'db>) -> Option<u
         ConstKind::Infer(_) => None,
         ConstKind::Bound(_, _) => None,
         ConstKind::Placeholder(_) => None,
-        ConstKind::Unevaluated(unevaluated_const) => match unevaluated_const.def.0 {
-            GeneralConstId::ConstId(id) => {
-                let subst = unevaluated_const.args;
-                let ec = db.const_eval(id, subst, None).ok()?;
-                Some(allocation_as_usize(ec))
-            }
-            GeneralConstId::StaticId(id) => {
-                let ec = db.const_eval_static(id).ok()?;
-                Some(allocation_as_usize(ec))
-            }
-            GeneralConstId::AnonConstId(id) => {
-                let subst = unevaluated_const.args;
-                let ec = db.anon_const_eval(id, subst, None).ok()?;
-                Some(allocation_as_usize(ec))
-            }
+        ConstKind::Unevaluated(unevaluated_const) => match unevaluated_const.kind {
+            UnevaluatedConstKind::Anon { def_id } => match def_id.0 {
+                GeneralConstId::ConstId(id) => {
+                    let subst = unevaluated_const.args;
+                    let ec = db.const_eval(id, subst, None).ok()?;
+                    Some(allocation_as_usize(ec))
+                }
+                GeneralConstId::StaticId(id) => {
+                    let ec = db.const_eval_static(id).ok()?;
+                    Some(allocation_as_usize(ec))
+                }
+                GeneralConstId::AnonConstId(id) => {
+                    let subst = unevaluated_const.args;
+                    let ec = db.anon_const_eval(id, subst, None).ok()?;
+                    Some(allocation_as_usize(ec))
+                }
+            },
+            // FIXME: implement support for other kinds
+            _ => None,
         },
         ConstKind::Value(val) => {
             if val.ty == default_types().types.usize {
@@ -250,21 +254,25 @@ pub fn try_const_isize<'db>(db: &'db dyn HirDatabase, c: Const<'db>) -> Option<i
         ConstKind::Infer(_) => None,
         ConstKind::Bound(_, _) => None,
         ConstKind::Placeholder(_) => None,
-        ConstKind::Unevaluated(unevaluated_const) => match unevaluated_const.def.0 {
-            GeneralConstId::ConstId(id) => {
-                let subst = unevaluated_const.args;
-                let ec = db.const_eval(id, subst, None).ok()?;
-                Some(allocation_as_isize(ec))
-            }
-            GeneralConstId::StaticId(id) => {
-                let ec = db.const_eval_static(id).ok()?;
-                Some(allocation_as_isize(ec))
-            }
-            GeneralConstId::AnonConstId(id) => {
-                let subst = unevaluated_const.args;
-                let ec = db.anon_const_eval(id, subst, None).ok()?;
-                Some(allocation_as_isize(ec))
-            }
+        ConstKind::Unevaluated(unevaluated_const) => match unevaluated_const.kind {
+            UnevaluatedConstKind::Anon { def_id } => match def_id.0 {
+                GeneralConstId::ConstId(id) => {
+                    let subst = unevaluated_const.args;
+                    let ec = db.const_eval(id, subst, None).ok()?;
+                    Some(allocation_as_isize(ec))
+                }
+                GeneralConstId::StaticId(id) => {
+                    let ec = db.const_eval_static(id).ok()?;
+                    Some(allocation_as_isize(ec))
+                }
+                GeneralConstId::AnonConstId(id) => {
+                    let subst = unevaluated_const.args;
+                    let ec = db.anon_const_eval(id, subst, None).ok()?;
+                    Some(allocation_as_isize(ec))
+                }
+            },
+            // FIXME: implement support for other kinds
+            _ => None,
         },
         ConstKind::Value(val) => {
             if val.ty == default_types().types.isize {
@@ -324,7 +332,14 @@ pub(crate) fn path_to_const<'a, 'db>(
         | ValueNs::EnumVariantId(_) => return Err(CreateConstError::ResolveToNonConst),
     };
     let args = GenericArgs::empty();
-    Ok(Const::new_unevaluated(interner, UnevaluatedConst { def: konst.into(), args }))
+    Ok(Const::new_unevaluated(
+        interner,
+        UnevaluatedConst::new(
+            interner,
+            UnevaluatedConstKind::new_from_def_id(interner, konst.into()),
+            args,
+        ),
+    ))
 }
 
 /// `forbid_params_after` and `allow_anon_const_using_generic_params` fill a similar role, but are not the same.
@@ -401,7 +416,11 @@ pub(crate) fn create_anon_const<'a, 'db>(
             };
             Ok(Const::new_unevaluated(
                 interner,
-                UnevaluatedConst { def: GeneralConstId::AnonConstId(konst).into(), args },
+                UnevaluatedConst::new(
+                    interner,
+                    UnevaluatedConstKind::Anon { def_id: GeneralConstIdWrapper(konst.into()) },
+                    args,
+                ),
             ))
         }
     }

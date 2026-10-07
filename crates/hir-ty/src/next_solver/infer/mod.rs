@@ -919,6 +919,7 @@ impl<'db> InferCtxt<'db> {
             TypingMode::Coherence | TypingMode::PostAnalysis => false,
             TypingMode::Borrowck { defining_opaque_types: _ } => unimplemented!(),
             TypingMode::PostBorrowckAnalysis { defined_opaque_types: _ } => unimplemented!(),
+            TypingMode::Codegen => unimplemented!(),
         }
     }
 
