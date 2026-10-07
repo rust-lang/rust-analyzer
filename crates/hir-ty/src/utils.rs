@@ -124,8 +124,8 @@ pub fn detect_variant_from_bytes(
                 TagEncoding::Niche { untagged_variant, niche_variants, niche_start } => {
                     // Compute the variant this niche value/"tag" corresponds to. With niche layout,
                     // discriminant (encoded in niche/tag) and variant index are the same.
-                    let variants_start = niche_variants.start().0;
-                    let variants_end = niche_variants.end().0;
+                    let variants_start = niche_variants.start.0;
+                    let variants_end = niche_variants.last.0;
 
                     // Match rustc's Sub, which uses overflowing_sub().
                     // https://github.com/rust-lang/rust/blob/e023590de407f417e0f3da675a372eca7acf60c6/compiler/rustc_const_eval/src/interpret/operator.rs#L256
