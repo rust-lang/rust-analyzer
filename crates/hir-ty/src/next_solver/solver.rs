@@ -20,8 +20,8 @@ use crate::{
     next_solver::{
         AliasTy, AnyImplId, CanonicalVarKind, Clause, ClauseKind, CoercePredicate, ErrorGuaranteed,
         GenericArgs, ImplOrTraitAssocTermId, OpaqueTyIdWrapper, ParamEnv, Predicate, PredicateKind,
-        RegionConstraint, SubtypePredicate, TermId, TraitAssocTermId, Ty, TyKind, TypingMode,
-        UnevaluatedConst, fold::fold_tys, util::sizedness_fast_path,
+        RegionConstraint, SubtypePredicate, TermId, TermKind, TraitAssocTermId, TraitRef, Ty,
+        TyKind, TypingMode, UnevaluatedConst, fold::fold_tys, util::sizedness_fast_path,
     },
 };
 
@@ -86,18 +86,38 @@ impl<'db> SolverDelegate for SolverContext<'db> {
 
     fn well_formed_goals(
         &self,
-        _param_env: ParamEnv<'db>,
-        _arg: <Self::Interner as rustc_type_ir::Interner>::Term,
-    ) -> Option<
-        Vec<
-            rustc_type_ir::solve::Goal<
-                Self::Interner,
-                <Self::Interner as rustc_type_ir::Interner>::Predicate,
-            >,
-        >,
-    > {
-        // FIXME(next-solver):
-        None
+        param_env: ParamEnv<'db>,
+        arg: <Self::Interner as rustc_type_ir::Interner>::Term,
+    ) -> Option<Vec<Goal<'db, Predicate<'db>>>> {
+        let interner = self.cx();
+        let ty = match self.shallow_resolve_term(arg).kind() {
+            TermKind::Ty(t) => t,
+            _ => return None,
+        };
+        let sized_trait = interner.lang_items().Sized?;
+        match ty.kind() {
+            TyKind::Tuple(tys) => {
+                let n = tys.len();
+                let mut goals = Vec::with_capacity(n * 2);
+                for (i, t) in tys.iter().enumerate() {
+                    if i + 1 < n {
+                        goals.push(Goal::new(
+                            interner,
+                            param_env,
+                            TraitRef::new(interner, sized_trait.into(), [t]),
+                        ));
+                    }
+                    goals.push(Goal::new(interner, param_env, ClauseKind::WellFormed(t.into())));
+                }
+                Some(goals)
+            }
+            TyKind::Array(t, _) | TyKind::Slice(t) => Some(vec![
+                Goal::new(interner, param_env, TraitRef::new(interner, sized_trait.into(), [t])),
+                Goal::new(interner, param_env, ClauseKind::WellFormed(t.into())),
+            ]),
+            // FIXME(next-solver): only tuples, arrays, and slices are handled here
+            _ => None,
+        }
     }
 
     fn make_deduplicated_region_constraints(
