@@ -381,10 +381,7 @@ impl<'db> rustc_type_ir::inherent::Const<DbInterner<'db>> for Const<'db> {
         Const::new(interner, ConstKind::Placeholder(param))
     }
 
-    fn new_unevaluated(
-        interner: DbInterner<'db>,
-        uv: rustc_type_ir::UnevaluatedConst<DbInterner<'db>>,
-    ) -> Self {
+    fn new_unevaluated(interner: DbInterner<'db>, uv: UnevaluatedConst<'db>) -> Self {
         Const::new(interner, ConstKind::Unevaluated(uv))
     }
 
