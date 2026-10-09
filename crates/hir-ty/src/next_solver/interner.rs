@@ -1248,7 +1248,7 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn recursion_limit(self) -> usize {
-        50
+        128
     }
 
     fn is_type_const(self, _def_id: Self::DefId) -> bool {

@@ -25,6 +25,36 @@ fn test() {
 }
 
 #[test]
+fn await_nested_future() {
+    let () = stdx::thread::spawn(
+        stdx::thread::ThreadIntent::Worker,
+        "await_nested_future".to_owned(),
+        || {
+            check_types(
+                r#"
+//- minicore: future
+use core::future::Future;
+struct Base;
+impl Future for Base { type Output = usize; }
+struct Wrapper<F>(F);
+impl<F: Future> Future for Wrapper<F> { type Output = F::Output; }
+type F2<F> = Wrapper<Wrapper<F>>;
+type F4<F> = F2<F2<F>>;
+type F8<F> = F4<F4<F>>;
+type F16<F> = F8<F8<F>>;
+type F32<F> = F16<F16<F>>;
+async fn run(future: F32<Base>) {
+    let result = future.await;
+     // ^^^^^^ usize
+}
+"#,
+            )
+        },
+    )
+    .join();
+}
+
+#[test]
 fn infer_async() {
     check_types(
         r#"
