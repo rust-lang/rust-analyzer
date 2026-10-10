@@ -106,7 +106,11 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, 
         Vec<(ast::Pat, bool)>,
         bool,
         bool,
-    ) = if let Some(enum_def) = resolve_enum_def(&ctx.sema, &expr, self_ty.as_ref()) {
+    ) = if let Some(from_witnesses) =
+        missing_pats_from_witnesses(ctx, &make, &match_expr, &expr, module, self_ty.as_ref(), cfg)
+    {
+        from_witnesses
+    } else if let Some(enum_def) = resolve_enum_def(&ctx.sema, &expr, self_ty.as_ref()) {
         let is_non_exhaustive = enum_def.is_non_exhaustive(ctx.db(), module.krate(ctx.db()));
 
         let variants = enum_def.variants(ctx.db());
@@ -458,6 +462,200 @@ fn is_variant_missing(existing_pats: &[Pat], var: &Pat) -> bool {
     !existing_pats.iter().any(|pat| does_pat_match_variant(pat, var))
 }
 
+/// Builds the missing arms out of the patterns the exhaustiveness checker reports as uncovered.
+///
+/// The checker is a better judge of what is missing than comparing the generated patterns with
+/// the existing arms textually: it looks inside patterns, and it compares variants by identity
+/// rather than by the path they happen to be written with. It cannot describe values of every
+/// type though, so `None` is returned when it has nothing to say and the caller should fall
+/// back to enumerating the variants of the scrutinee's type.
+fn missing_pats_from_witnesses(
+    ctx: &AssistContext<'_, '_>,
+    make: &SyntaxFactory,
+    match_expr: &MatchExpr,
+    expr: &ast::Expr,
+    module: hir::Module,
+    self_ty: Option<&hir::Type<'_>>,
+    cfg: FindPathConfig,
+) -> Option<(Vec<(ast::Pat, bool)>, bool, bool)> {
+    let witnesses = ctx.sema.missing_match_arm_patterns(match_expr, true)?;
+    if witnesses.is_empty() {
+        // The match is already exhaustive, so there is nothing to add.
+        return Some((Vec::new(), false, false));
+    }
+    // The checker describes what is missing as briefly as it can, which is not always something
+    // we can write down. A witness made up of nothing but wildcards is what it reports for a
+    // match with no arms to narrow things down, and for types whose values it cannot enumerate
+    // such as integers and arrays.
+    if witnesses.iter().all(is_wildcard_only) {
+        return None;
+    }
+    // Tuples are filled in with every combination of the variants of their elements, which is
+    // more than the shortest description of what is missing.
+    if witnesses.iter().any(|witness| matches!(witness, hir::UncoveredPattern::Tuple(_))) {
+        return None;
+    }
+
+    // `Self` stands for the type being matched on, so it is only an option for the variants of
+    // that type, and only when the two agree on their generic arguments.
+    let self_enum = match resolve_enum_def(&ctx.sema, expr, self_ty) {
+        Some(ExtendedEnum::Enum { enum_, use_self: true }) => Some(enum_),
+        _ => None,
+    };
+
+    let mut is_non_exhaustive = false;
+    let mut has_hidden_variants = false;
+    let mut missing_pats = Vec::with_capacity(witnesses.len());
+    for witness in &witnesses {
+        if witness.is_wildcard() {
+            // Whatever is left of a `#[non_exhaustive]` enum, which only a catch-all arm covers.
+            is_non_exhaustive = true;
+            continue;
+        }
+        let is_hidden = is_hidden_witness(ctx, module, witness);
+        has_hidden_variants |= is_hidden;
+        missing_pats
+            .push((build_witness_pat(ctx, make, module, self_enum, cfg, witness)?, is_hidden));
+    }
+
+    let db = ctx.db();
+    let option_enum = FamousDefs(&ctx.sema, module.krate(db)).core_option_Option();
+    let is_option_variant = |witness: &hir::UncoveredPattern| match witness {
+        hir::UncoveredPattern::Variant { variant: hir::Variant::EnumVariant(variant), .. } => {
+            Some(variant.parent_enum(db)) == option_enum
+        }
+        _ => false,
+    };
+    if option_enum.is_some() && witnesses.iter().all(is_option_variant) {
+        // Match `Some` variant first.
+        cov_mark::hit!(option_order);
+        missing_pats.reverse();
+    }
+
+    Some((missing_pats, is_non_exhaustive, has_hidden_variants))
+}
+
+/// Whether a pattern puts no constraint at all on the value it stands for.
+fn is_wildcard_only(witness: &hir::UncoveredPattern) -> bool {
+    match witness {
+        hir::UncoveredPattern::Wildcard => true,
+        hir::UncoveredPattern::Bool(_) | hir::UncoveredPattern::Variant { .. } => false,
+        hir::UncoveredPattern::Ref(inner) => is_wildcard_only(inner),
+        hir::UncoveredPattern::Tuple(fields) => fields.iter().all(is_wildcard_only),
+    }
+}
+
+/// Whether a pattern names a variant that other crates are not supposed to see, and which is
+/// therefore left to the catch-all arm.
+fn is_hidden_witness(
+    ctx: &AssistContext<'_, '_>,
+    module: hir::Module,
+    witness: &hir::UncoveredPattern,
+) -> bool {
+    let db = ctx.db();
+    match witness {
+        hir::UncoveredPattern::Wildcard | hir::UncoveredPattern::Bool(_) => false,
+        hir::UncoveredPattern::Ref(inner) => is_hidden_witness(ctx, module, inner),
+        hir::UncoveredPattern::Tuple(fields) => {
+            fields.iter().any(|field| is_hidden_witness(ctx, module, field))
+        }
+        hir::UncoveredPattern::Variant { variant, fields } => {
+            let variant_is_hidden = matches!(variant, hir::Variant::EnumVariant(variant)
+                if variant.attrs(db).is_doc_hidden()
+                    && variant.module(db).krate(db) != module.krate(db));
+            variant_is_hidden || fields.iter().any(|field| is_hidden_witness(ctx, module, field))
+        }
+    }
+}
+
+fn build_witness_pat(
+    ctx: &AssistContext<'_, '_>,
+    make: &SyntaxFactory,
+    module: hir::Module,
+    self_enum: Option<hir::Enum>,
+    cfg: FindPathConfig,
+    witness: &hir::UncoveredPattern,
+) -> Option<ast::Pat> {
+    let db = ctx.db();
+    let build_fields = |fields: &[hir::UncoveredPattern]| {
+        fields
+            .iter()
+            .map(|field| build_witness_pat(ctx, make, module, self_enum, cfg, field))
+            .collect::<Option<Vec<_>>>()
+    };
+
+    match witness {
+        hir::UncoveredPattern::Wildcard => Some(make.wildcard_pat().into()),
+        hir::UncoveredPattern::Bool(value) => {
+            Some(make.literal_pat(if *value { "true" } else { "false" }).into())
+        }
+        hir::UncoveredPattern::Tuple(fields) => Some(make.tuple_pat(build_fields(fields)?).into()),
+        // Match ergonomics let a reference be matched by the pattern for the value behind it, so
+        // the reference is left implicit to match the arms that are already there.
+        hir::UncoveredPattern::Ref(inner) => {
+            build_witness_pat(ctx, make, module, self_enum, cfg, inner)
+        }
+        hir::UncoveredPattern::Variant { variant, fields } => {
+            // A variant whose fields put no constraint on the value is what the variant
+            // enumeration would have produced, so build it the same way to keep the generated
+            // names and the shorthand record syntax.
+            if fields.iter().all(hir::UncoveredPattern::is_wildcard)
+                && let hir::Variant::EnumVariant(variant) = *variant
+            {
+                let use_self = self_enum == Some(variant.parent_enum(db));
+                return build_pat(
+                    ctx,
+                    make,
+                    module,
+                    ExtendedVariant::Variant { variant, use_self },
+                    cfg,
+                );
+            }
+
+            let (kind, def) = match *variant {
+                hir::Variant::EnumVariant(variant) => (variant.kind(db), ModuleDef::from(variant)),
+                hir::Variant::Struct(strukt) => {
+                    (strukt.kind(db), ModuleDef::from(Adt::Struct(strukt)))
+                }
+                // A union is matched a single field at a time, so there is no arm that covers
+                // the rest of it.
+                hir::Variant::Union(_) => return None,
+            };
+            let edition = module.krate(db).edition(db);
+            let path = match *variant {
+                hir::Variant::EnumVariant(variant)
+                    if self_enum == Some(variant.parent_enum(db)) =>
+                {
+                    make.path_from_segments(
+                        [
+                            make.path_segment(make.name_ref_self_ty()),
+                            make.path_segment(
+                                make.name_ref(&variant.name(db).display(db, edition).to_smolstr()),
+                            ),
+                        ],
+                        false,
+                    )
+                }
+                _ => mod_path_to_ast_with_factory(make, &module.find_path(db, def, cfg)?, edition),
+            };
+
+            let pat: ast::Pat = match kind {
+                hir::StructKind::Unit => make.path_pat(path),
+                hir::StructKind::Tuple => make.tuple_struct_pat(path, build_fields(fields)?).into(),
+                hir::StructKind::Record => {
+                    let names = variant.fields(db);
+                    let fields = names.iter().zip(build_fields(fields)?).map(|(name, pat)| {
+                        make.record_pat_field(make.name_ref(name.name(db).as_str()), pat)
+                    });
+                    make.record_pat_with_fields(path, make.record_pat_field_list(fields, None))
+                        .into()
+                }
+            };
+            Some(pat)
+        }
+    }
+}
+
 fn is_empty_expr(e: ast::Expr) -> bool {
     match e {
         ast::Expr::BlockExpr(b) => b.statements().next().is_none() && b.tail_expr().is_none(),
@@ -651,8 +849,9 @@ fn build_pat(
 mod tests {
     use crate::AssistConfig;
     use crate::tests::{
-        TEST_CONFIG, check_assist, check_assist_not_applicable, check_assist_target,
-        check_assist_unresolved, check_assist_with_config, check_assist_with_label,
+        TEST_CONFIG, TEST_CONFIG_NO_SNIPPET_CAP, check_assist, check_assist_no_snippet_cap,
+        check_assist_not_applicable, check_assist_target, check_assist_unresolved,
+        check_assist_with_config, check_assist_with_label,
     };
 
     use super::add_missing_match_arms;
@@ -1100,7 +1299,8 @@ fn main() {
         A::Es(B::Xs) => (),
         A::As => ${1:todo!()},
         A::Bs => ${2:todo!()},
-        A::Cs => ${3:todo!()},$0
+        A::Cs => ${3:todo!()},
+        A::Es(B::Ys) => ${4:todo!()},$0
     }
 }
 "#,
@@ -1451,8 +1651,7 @@ fn main() {
 
     #[test]
     fn add_missing_match_arms_partial_with_deep_pattern() {
-        // Fixme: cannot handle deep patterns
-        check_assist_not_applicable(
+        check_assist(
             add_missing_match_arms,
             r#"
 //- minicore: option
@@ -1460,6 +1659,15 @@ fn main() {
     match $0Some(true) {
         Some(true) => {}
         None => {}
+    }
+}
+"#,
+            r#"
+fn main() {
+    match Some(true) {
+        Some(true) => {}
+        None => {}
+        Some(false) => ${1:todo!()},$0
     }
 }
 "#,
@@ -2584,6 +2792,705 @@ impl<T> Foo<T> {
     }
 }
             "#,
+        );
+    }
+
+    /// The tests below assert the exact text `todo!()` for missing arms, which needs snippet
+    /// support turned off; see [`TEST_CONFIG_NO_SNIPPET_CAP`].
+    #[track_caller]
+    fn check(ra_fixture_before: &str, ra_fixture_after: &str) {
+        check_assist_no_snippet_cap(add_missing_match_arms, ra_fixture_before, ra_fixture_after);
+    }
+
+    #[track_caller]
+    fn check_preferring_self_ty(ra_fixture_before: &str, ra_fixture_after: &str) {
+        let config = AssistConfig { prefer_self_ty: true, ..TEST_CONFIG_NO_SNIPPET_CAP };
+        check_assist_with_config(
+            add_missing_match_arms,
+            config,
+            ra_fixture_before,
+            ra_fixture_after,
+        );
+    }
+
+    #[track_caller]
+    fn check_not_applicable(ra_fixture: &str) {
+        check_assist_not_applicable(add_missing_match_arms, ra_fixture);
+    }
+
+    #[test]
+    fn literal_subpattern_does_not_cover_its_variant() {
+        check(
+            r#"
+    //- minicore: option
+    fn main() {
+        match Some(true)$0 {
+            Some(true) => {}
+            None => {}
+        }
+    }
+    "#,
+            r#"
+    fn main() {
+        match Some(true) {
+            Some(true) => {}
+            None => {}
+            Some(false) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn nested_variant_subpattern_does_not_cover_its_variant() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A(Inner), B }
+
+    fn main(outer: Outer) {
+        match outer$0 {
+            Outer::A(Inner::X) => {}
+            Outer::B => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A(Inner), B }
+
+    fn main(outer: Outer) {
+        match outer {
+            Outer::A(Inner::X) => {}
+            Outer::B => {}
+            Outer::A(Inner::Y) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn nested_record_variant_names_its_fields() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A { inner: Inner }, B }
+
+    fn main(outer: Outer) {
+        match outer$0 {
+            Outer::A { inner: Inner::X } => {}
+            Outer::B => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A { inner: Inner }, B }
+
+    fn main(outer: Outer) {
+        match outer {
+            Outer::A { inner: Inner::X } => {}
+            Outer::B => {}
+            Outer::A { inner: Inner::Y } => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn record_variant_fields_are_offered_in_declaration_order() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Flag { On, Off }
+    enum Outer { A { inner: Inner, flag: Flag }, B }
+
+    fn main(outer: Outer) {
+        match outer$0 {
+            Outer::A { inner: Inner::X, flag: Flag::On } => {}
+            Outer::A { inner: Inner::X, flag: Flag::Off } => {}
+            Outer::A { inner: Inner::Y, flag: Flag::On } => {}
+            Outer::B => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Flag { On, Off }
+    enum Outer { A { inner: Inner, flag: Flag }, B }
+
+    fn main(outer: Outer) {
+        match outer {
+            Outer::A { inner: Inner::X, flag: Flag::On } => {}
+            Outer::A { inner: Inner::X, flag: Flag::Off } => {}
+            Outer::A { inner: Inner::Y, flag: Flag::On } => {}
+            Outer::B => {}
+            Outer::A { inner: Inner::Y, flag: Flag::Off } => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn or_pattern_arm_covers_only_what_its_alternatives_match() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A(Inner), B }
+
+    fn main(outer: Outer) {
+        match outer$0 {
+            Outer::A(Inner::X) | Outer::B => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A(Inner), B }
+
+    fn main(outer: Outer) {
+        match outer {
+            Outer::A(Inner::X) | Outer::B => {}
+            Outer::A(Inner::Y) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn catch_all_arm_is_expanded_into_the_uncovered_patterns() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A, B(Inner) }
+
+    fn main(outer: Outer) {
+        match outer$0 {
+            Outer::B(Inner::X) => {}
+            _ => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A, B(Inner) }
+
+    fn main(outer: Outer) {
+        match outer {
+            Outer::B(Inner::X) => {}
+            Outer::A => todo!(),
+            Outer::B(Inner::Y) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn binding_arm_that_matches_anything_is_expanded_too() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A, B(Inner) }
+
+    fn main(outer: Outer) {
+        match outer$0 {
+            Outer::B(Inner::X) => {}
+            rest => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A, B(Inner) }
+
+    fn main(outer: Outer) {
+        match outer {
+            Outer::B(Inner::X) => {}
+            rest => {}
+            Outer::A => todo!(),
+            Outer::B(Inner::Y) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn variant_reached_through_two_paths_is_only_offered_once() {
+        check(
+            r#"
+    mod outer {
+        pub mod inner {
+            pub enum Foo { A, B }
+        }
+        pub use inner::Foo;
+    }
+    use outer::Foo;
+
+    fn main(foo: Foo) {
+        match foo$0 {
+            outer::inner::Foo::A => {}
+        }
+    }
+    "#,
+            r#"
+    mod outer {
+        pub mod inner {
+            pub enum Foo { A, B }
+        }
+        pub use inner::Foo;
+    }
+    use outer::Foo;
+
+    fn main(foo: Foo) {
+        match foo {
+            outer::inner::Foo::A => {}
+            Foo::B => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn self_qualified_arms_cover_their_variants() {
+        check_not_applicable(
+            r#"
+    enum Foo { A, B }
+
+    impl Foo {
+        fn f(self) {
+            match self$0 {
+                Self::A => {}
+                Self::B => {}
+            }
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn struct_field_that_is_not_covered_is_offered() {
+        check(
+            r#"
+    enum Foo { A, B }
+    struct Wrapper { foo: Foo }
+
+    fn main(wrapper: Wrapper) {
+        match wrapper$0 {
+            Wrapper { foo: Foo::A } => {}
+        }
+    }
+    "#,
+            r#"
+    enum Foo { A, B }
+    struct Wrapper { foo: Foo }
+
+    fn main(wrapper: Wrapper) {
+        match wrapper {
+            Wrapper { foo: Foo::A } => {}
+            Wrapper { foo: Foo::B } => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn uncovered_bool_field_is_offered() {
+        check(
+            r#"
+    enum Foo { A(bool), B }
+
+    fn main(foo: Foo) {
+        match foo$0 {
+            Foo::A(true) => {}
+            Foo::B => {}
+        }
+    }
+    "#,
+            r#"
+    enum Foo { A(bool), B }
+
+    fn main(foo: Foo) {
+        match foo {
+            Foo::A(true) => {}
+            Foo::B => {}
+            Foo::A(false) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn deeply_nested_uncovered_pattern_is_offered() {
+        check(
+            r#"
+    enum Innermost { P, Q }
+    enum Inner { X(Innermost), Y }
+    enum Outer { A(Inner), B }
+
+    fn main(outer: Outer) {
+        match outer$0 {
+            Outer::A(Inner::X(Innermost::P)) => {}
+            Outer::A(Inner::Y) => {}
+            Outer::B => {}
+        }
+    }
+    "#,
+            r#"
+    enum Innermost { P, Q }
+    enum Inner { X(Innermost), Y }
+    enum Outer { A(Inner), B }
+
+    fn main(outer: Outer) {
+        match outer {
+            Outer::A(Inner::X(Innermost::P)) => {}
+            Outer::A(Inner::Y) => {}
+            Outer::B => {}
+            Outer::A(Inner::X(Innermost::Q)) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn only_the_variant_that_is_missing_is_offered() {
+        check(
+            r#"
+    enum Foo { A, B, C }
+
+    impl Foo {
+        fn f(self) {
+            match self$0 {
+                Self::A => {}
+                Self::B => {}
+            }
+        }
+    }
+    "#,
+            r#"
+    enum Foo { A, B, C }
+
+    impl Foo {
+        fn f(self) {
+            match self {
+                Self::A => {}
+                Self::B => {}
+                Foo::C => todo!(),
+            }
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn uncovered_combination_of_two_fields_is_offered() {
+        check(
+            r#"
+    enum Flag { On, Off }
+    enum Inner { X, Y }
+    enum Foo { A(Flag, Inner), B }
+
+    fn main(foo: Foo) {
+        match foo$0 {
+            Foo::A(Flag::On, Inner::X) => {}
+            Foo::A(Flag::On, Inner::Y) => {}
+            Foo::A(Flag::Off, Inner::X) => {}
+            Foo::B => {}
+        }
+    }
+    "#,
+            r#"
+    enum Flag { On, Off }
+    enum Inner { X, Y }
+    enum Foo { A(Flag, Inner), B }
+
+    fn main(foo: Foo) {
+        match foo {
+            Foo::A(Flag::On, Inner::X) => {}
+            Foo::A(Flag::On, Inner::Y) => {}
+            Foo::A(Flag::Off, Inner::X) => {}
+            Foo::B => {}
+            Foo::A(Flag::Off, Inner::Y) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn nested_pattern_inside_a_tuple_struct_is_offered() {
+        check(
+            r#"
+    enum Foo { A, B }
+    struct Wrapper(Foo);
+
+    fn main(wrapper: Wrapper) {
+        match wrapper$0 {
+            Wrapper(Foo::A) => {}
+        }
+    }
+    "#,
+            r#"
+    enum Foo { A, B }
+    struct Wrapper(Foo);
+
+    fn main(wrapper: Wrapper) {
+        match wrapper {
+            Wrapper(Foo::A) => {}
+            Wrapper(Foo::B) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn guarded_arm_does_not_cover_the_pattern_it_names() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A(Inner), B }
+
+    fn main(outer: Outer, cond: bool) {
+        match outer$0 {
+            Outer::A(Inner::X) => {}
+            Outer::A(Inner::Y) if cond => {}
+            Outer::B => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A(Inner), B }
+
+    fn main(outer: Outer, cond: bool) {
+        match outer {
+            Outer::A(Inner::X) => {}
+            Outer::A(Inner::Y) if cond => {}
+            Outer::B => {}
+            Outer::A(Inner::Y) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn arms_added_around_a_guarded_arm_keep_declaration_order() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A, B, C, D(Inner) }
+
+    fn main(outer: Outer, cond: bool) {
+        match outer$0 {
+            Outer::B if cond => {}
+            Outer::D(Inner::X) => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A, B, C, D(Inner) }
+
+    fn main(outer: Outer, cond: bool) {
+        match outer {
+            Outer::B if cond => {}
+            Outer::D(Inner::X) => {}
+            Outer::A => todo!(),
+            Outer::B => todo!(),
+            Outer::C => todo!(),
+            Outer::D(Inner::Y) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn uncovered_pattern_behind_a_reference_is_offered() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A(Inner), B }
+
+    fn main(outer: &Outer) {
+        match outer$0 {
+            Outer::A(Inner::X) => {}
+            Outer::B => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A(Inner), B }
+
+    fn main(outer: &Outer) {
+        match outer {
+            Outer::A(Inner::X) => {}
+            Outer::B => {}
+            Outer::A(Inner::Y) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn uncovered_tuple_field_of_a_variant_is_offered() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A((bool, Inner)), B }
+
+    fn main(outer: Outer) {
+        match outer$0 {
+            Outer::A((true, _)) => {}
+            Outer::A((false, Inner::X)) => {}
+            Outer::B => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Outer { A((bool, Inner)), B }
+
+    fn main(outer: Outer) {
+        match outer {
+            Outer::A((true, _)) => {}
+            Outer::A((false, Inner::X)) => {}
+            Outer::B => {}
+            Outer::A((false, Inner::Y)) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn uncovered_arms_are_written_with_self_when_that_is_preferred() {
+        check_preferring_self_ty(
+            r#"
+    enum Inner { X, Y }
+    enum Foo { A(Inner), B }
+
+    impl Foo {
+        fn f(self) {
+            match self$0 {
+                Self::A(Inner::X) => {}
+                Self::B => {}
+            }
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Foo { A(Inner), B }
+
+    impl Foo {
+        fn f(self) {
+            match self {
+                Self::A(Inner::X) => {}
+                Self::B => {}
+                Self::A(Inner::Y) => todo!(),
+            }
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn uncovered_variants_inside_an_option_are_offered() {
+        check(
+            r#"
+    //- minicore: option
+    enum Inner { X, Y }
+
+    fn main(value: Option<Inner>) {
+        match value$0 {
+            Some(Inner::X) => {}
+            None => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+
+    fn main(value: Option<Inner>) {
+        match value {
+            Some(Inner::X) => {}
+            None => {}
+            Some(Inner::Y) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn uncovered_pattern_in_a_self_referential_enum_is_offered() {
+        check(
+            r#"
+    enum Inner { X, Y }
+    enum Tree { Leaf(Inner), Node(&'static Tree) }
+
+    fn main(tree: Tree) {
+        match tree$0 {
+            Tree::Leaf(Inner::X) => {}
+            Tree::Node(_) => {}
+        }
+    }
+    "#,
+            r#"
+    enum Inner { X, Y }
+    enum Tree { Leaf(Inner), Node(&'static Tree) }
+
+    fn main(tree: Tree) {
+        match tree {
+            Tree::Leaf(Inner::X) => {}
+            Tree::Node(_) => {}
+            Tree::Leaf(Inner::Y) => todo!(),
+        }
+    }
+    "#,
+        );
+    }
+
+    #[test]
+    fn hidden_variants_still_get_a_catch_all_next_to_the_uncovered_pattern() {
+        check(
+            r#"
+    //- /main.rs crate:main deps:e
+    fn main(value: ::e::E) {
+        match value$0 {
+            e::E::A(true) => {}
+        }
+    }
+    //- /e.rs crate:e
+    pub enum E { A(bool), #[doc(hidden)] B }
+    "#,
+            r#"
+    fn main(value: ::e::E) {
+        match value {
+            e::E::A(true) => {}
+            e::E::A(false) => todo!(),
+            _ => todo!(),
+        }
+    }
+    "#,
         );
     }
 }
