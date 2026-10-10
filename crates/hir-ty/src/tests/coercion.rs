@@ -1148,3 +1148,99 @@ fn main() {
 "#,
     );
 }
+
+#[test]
+fn tuple_wf_expectation_dyn_send() {
+    check_no_mismatches(
+        r#"
+//- minicore: coerce_unsized, send
+use core::{marker::Unsize, ops::CoerceUnsized};
+
+struct Box<T: ?Sized>(*const T);
+impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Box<U>> for Box<T> {}
+impl<T> Box<T> {
+    fn new(t: T) -> Self { loop {} }
+}
+
+fn foo<T>(x: (T, ())) -> Box<T> {
+    Box::new(x.0)
+}
+
+fn main() {
+    let _: Box<dyn Send> = foo((match () { () => () }, ()));
+}
+"#,
+    );
+}
+
+#[test]
+fn tuple_wf_last_field_unsized_ok() {
+    check_no_mismatches(
+        r#"
+//- minicore: coerce_unsized, send
+use core::{marker::Unsize, ops::CoerceUnsized};
+
+struct Box<T: ?Sized>(*const T);
+impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Box<U>> for Box<T> {}
+impl<T> Box<T> {
+    fn new(t: T) -> Self { loop {} }
+}
+
+fn foo<T>(x: (i32, T)) -> Box<T> {
+    Box::new(x.1)
+}
+
+fn main() {
+    let _: Box<dyn Send> = foo((0, match () { () => () }));
+}
+"#,
+    );
+}
+
+#[test]
+fn tuple_wf_unit_tuple() {
+    check_no_mismatches(
+        r#"
+//- minicore: coerce_unsized, send
+use core::{marker::Unsize, ops::CoerceUnsized};
+
+struct Box<T: ?Sized>(*const T);
+impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Box<U>> for Box<T> {}
+impl<T> Box<T> {
+    fn new(t: T) -> Self { loop {} }
+}
+
+fn foo<T>(x: (T,)) -> Box<T> {
+    Box::new(x.0)
+}
+
+fn main() {
+    let _: Box<dyn Send> = foo((match () { () => () },));
+}
+"#,
+    );
+}
+
+#[test]
+fn array_wf_expectation_dyn_send() {
+    check_no_mismatches(
+        r#"
+//- minicore: coerce_unsized, send
+use core::{marker::Unsize, ops::CoerceUnsized};
+
+struct Box<T: ?Sized>(*const T);
+impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Box<U>> for Box<T> {}
+impl<T> Box<T> {
+    fn new(t: T) -> Self { loop {} }
+}
+
+fn foo<T>(x: (T, ())) -> Box<T> {
+    Box::new(x.0)
+}
+
+fn main() {
+    let _: Box<dyn Send> = foo(([match () { () => 0i32 }], ()));
+}
+"#,
+    );
+}
