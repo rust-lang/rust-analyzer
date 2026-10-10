@@ -36,7 +36,7 @@ thread_local!(static IN_SCOPE: RefCell<bool> = const { RefCell::new(false) });
 ///   '';
 /// }
 /// $ set -x CPUPROFILE_FREQUENCY 1000
-/// $ nix-shell --run 'cargo test --release --package rust-analyzer --lib -- benchmarks::benchmark_integrated_highlighting --exact --nocapture'
+/// $ nix-shell --run 'cargo test --release --package rust-analyzer --lib -- benchmarks::benchmark_integrated_highlighting --exact --no-capture'
 /// $ pprof -svg target/release/deps/rust_analyzer-8739592dc93d63cb crates/rust-analyzer/out.profile > profile.svg
 /// ```
 ///
