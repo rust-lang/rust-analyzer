@@ -119,7 +119,7 @@ use std::sync::LazyLock;
 
 use hir::{Crate, DisplayTarget, InFile, MacroCallIdExt, Semantics, diagnostics::AnyDiagnostic};
 use ide_db::{
-    FileId, FileRange, FxHashMap, FxHashSet, RootDatabase, Severity, SnippetCap,
+    FileId, FileRange, FxHashMap, FxHashSet, RootDatabase, Severity, WorkspaceSnippetCap,
     assists::{Assist, AssistId, AssistResolveStrategy, ExprFillDefaultMode},
     base_db::{ReleaseChannel, all_crates, toolchain_channel},
     generated::lints::{CLIPPY_LINT_GROUPS, DEFAULT_LINT_GROUPS, DEFAULT_LINTS, Lint, LintGroup},
@@ -279,7 +279,7 @@ pub struct DiagnosticsConfig {
     pub expr_fill_default: ExprFillDefaultMode,
     pub style_lints: bool,
     // FIXME: We may want to include a whole `AssistConfig` here
-    pub snippet_cap: Option<SnippetCap>,
+    pub snippet_cap: Option<WorkspaceSnippetCap>,
     pub insert_use: InsertUseConfig,
     pub prefer_no_std: bool,
     pub prefer_prelude: bool,
@@ -301,7 +301,7 @@ impl DiagnosticsConfig {
             disabled: Default::default(),
             expr_fill_default: Default::default(),
             style_lints: true,
-            snippet_cap: SnippetCap::new(true),
+            snippet_cap: WorkspaceSnippetCap::new(true),
             insert_use: InsertUseConfig {
                 granularity: ImportGranularity::Item,
                 enforce_granularity: false,
