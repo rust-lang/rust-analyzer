@@ -258,12 +258,24 @@ fn add_missing_ok_or_some(
         }
     }
 
+    // Prefer wrapping a block's tail expression so we produce
+    // `else { Some(123) }` instead of `else Some({ 123 })` (invalid / surprising).
+    // See https://github.com/rust-lang/rust-analyzer/issues/23378
+    let wrap_range = if let Expr::BlockExpr(block) = &expr {
+        match block.tail_expr().and_then(|tail| ctx.sema.original_range_opt(tail.syntax())) {
+            Some(fr) if fr.file_id.file_id(ctx.db()) == file_id => fr.range,
+            _ => expr_range,
+        }
+    } else {
+        expr_range
+    };
+
     let mut builder = TextEdit::builder();
-    builder.insert(expr_range.start(), format!("{variant_name}("));
-    builder.insert(expr_range.end(), ")".to_owned());
+    builder.insert(wrap_range.start(), format!("{variant_name}("));
+    builder.insert(wrap_range.end(), ")".to_owned());
     let source_change = SourceChange::from_text_edit(file_id, builder.finish());
     let name = format!("Wrap in {variant_name}");
-    acc.push(fix("wrap_in_constructor", &name, source_change, expr_range));
+    acc.push(fix("wrap_in_constructor", &name, source_change, wrap_range));
     Some(())
 }
 
@@ -1081,6 +1093,50 @@ fn div(x: i32, y: i32) -> Option<i32> {
     } else {
         None
     }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn wrap_in_some_if_else_inferred_assignment_block_tail() {
+        // Regression test for https://github.com/rust-lang/rust-analyzer/issues/23378
+        // When the type mismatch is on the else block (inferred from the other branch),
+        // wrap the tail expression, not the entire block.
+        check_fix(
+            r#"
+//- minicore: option
+fn main() {
+    let x = if true { None } else { 123$0 };
+}
+"#,
+            r#"
+fn main() {
+    let x = if true { None } else { Some(123) };
+}
+"#,
+        );
+
+        check_fix(
+            r#"
+//- minicore: option
+fn main() {
+    let x = if true {
+        None
+    } else {
+        let _y = 1;
+        123$0
+    };
+}
+"#,
+            r#"
+fn main() {
+    let x = if true {
+        None
+    } else {
+        let _y = 1;
+        Some(123)
+    };
 }
 "#,
         );
