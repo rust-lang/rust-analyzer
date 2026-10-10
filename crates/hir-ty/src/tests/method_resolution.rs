@@ -660,7 +660,7 @@ fn infer_call_trait_method_on_generic_param_1() {
         }
         "#,
         expect![[r#"
-            29..33 'self': &'? Self
+            29..33 'self': &'_ Self
             63..64 't': T
             69..88 '{     ...d(); }': ()
             75..76 't': T
@@ -681,7 +681,7 @@ fn infer_call_trait_method_on_generic_param_2() {
         }
         "#,
         expect![[r#"
-            32..36 'self': &'? Self
+            32..36 'self': &'_ Self
             70..71 't': T
             76..95 '{     ...d(); }': ()
             82..83 't': T
@@ -1155,12 +1155,12 @@ fn dyn_trait_super_trait_not_in_scope() {
         }
         "#,
         expect![[r#"
-            51..55 'self': &'? Self
+            51..55 'self': &'_ Self
             64..69 '{ 0 }': u32
             66..67 '0': u32
-            176..177 'd': &'? (dyn Trait + 'static)
+            176..177 'd': &'_ (dyn Trait + 'static)
             191..207 '{     ...o(); }': ()
-            197..198 'd': &'? (dyn Trait + 'static)
+            197..198 'd': &'_ (dyn Trait + 'static)
             197..204 'd.foo()': u32
         "#]],
     );
@@ -1187,7 +1187,7 @@ fn test() {
 }
 "#,
         expect![[r#"
-            75..79 'self': &'? S
+            75..79 'self': &'_ S
             89..109 '{     ...     }': bool
             99..103 'true': bool
             123..167 '{     ...o(); }': ()
