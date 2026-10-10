@@ -823,12 +823,18 @@ mod tests {
     }
 
     #[track_caller]
-    fn check_function_relevance(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
-        let actual: Vec<_> =
-            do_completion(ra_fixture, CompletionItemKind::SymbolKind(SymbolKind::Method))
-                .into_iter()
-                .map(|item| (item.detail.unwrap_or_default(), item.relevance.function))
-                .collect();
+    fn check_function_relevance(
+        #[rust_analyzer::rust_fixture] ra_fixture: &str,
+        kinds: &[CompletionItemKind],
+        expect: Expect,
+    ) {
+        let actual: Vec<_> = kinds
+            .iter()
+            .flat_map(|&kind| do_completion(ra_fixture, kind))
+            .map(|item| {
+                (item.label.primary, item.detail.unwrap_or_default(), item.relevance.function)
+            })
+            .collect();
 
         expect.assert_debug_eq(&actual);
     }
@@ -3963,6 +3969,8 @@ impl T for (){
 
     #[test]
     fn constructor_order_kind() {
+        // FIXME: Why do these functions have `&self` instead of like `constructor_order_relevance`?
+        // Because the old `check_function_relevance` can only check methods?
         check_function_relevance(
             r#"
 struct Foo;
@@ -3985,9 +3993,11 @@ fn test() {
     let a = self::Foo::$0;
 }
 "#,
+            &[CompletionItemKind::SymbolKind(SymbolKind::Method)],
             expect![[r#"
                 [
                     (
+                        "fn_another(…)",
                         "fn(&self, u32) -> Bar",
                         Some(
                             CompletionRelevanceFn {
@@ -3998,6 +4008,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_another_unit(…)",
                         "fn(&self)",
                         Some(
                             CompletionRelevanceFn {
@@ -4008,6 +4019,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr(…)",
                         "fn(&self) -> Foo",
                         Some(
                             CompletionRelevanceFn {
@@ -4018,6 +4030,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr_with_args(…)",
                         "fn(&self, u32) -> Foo",
                         Some(
                             CompletionRelevanceFn {
@@ -4028,6 +4041,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr_wrapped(…)",
                         "fn(&self) -> Option<Foo>",
                         Some(
                             CompletionRelevanceFn {
@@ -4038,6 +4052,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr_wrapped_2(…)",
                         "fn(&self) -> Result<Foo, Bar>",
                         Some(
                             CompletionRelevanceFn {
@@ -4048,6 +4063,7 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr_wrapped_3(…)",
                         "fn(&self) -> Result<Bar, Foo>",
                         Some(
                             CompletionRelevanceFn {
@@ -4058,12 +4074,110 @@ fn test() {
                         ),
                     ),
                     (
+                        "fn_ctr_wrapped_with_args(…)",
                         "fn(&self, u32) -> Option<Foo>",
                         Some(
                             CompletionRelevanceFn {
                                 has_params: true,
                                 has_self_param: true,
                                 return_type: Constructor,
+                            },
+                        ),
+                    ),
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn constructor_order_kind_with_generic() {
+        check_function_relevance(
+            r#"
+//- minicore: option, result
+struct Vec<T>(T);
+
+impl Vec<T> {
+    fn new() -> Self { loop {} }
+    fn try_with_capacity(capacity: usize) -> Result<Self, ()> { loop {} }
+    fn push(&mut self, value: T) { loop {} }
+    fn pop(&mut self) -> Option<T> { loop {} }
+    fn split_off(&mut self, at: usize) -> Self { loop {} }
+    fn push_within_capacity(&mut self, value: T) -> Result<&mut T, T> { loop {} }
+}
+
+fn test() {
+    Vec::$0
+}
+"#,
+            &[
+                CompletionItemKind::SymbolKind(SymbolKind::Function),
+                CompletionItemKind::SymbolKind(SymbolKind::Method),
+            ],
+            expect![[r#"
+                [
+                    (
+                        "new()",
+                        "fn() -> Vec<{unknown}>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: false,
+                                has_self_param: false,
+                                return_type: DirectConstructor,
+                            },
+                        ),
+                    ),
+                    (
+                        "try_with_capacity(…)",
+                        "fn(usize) -> Result<Vec<{unknown}>, ()>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: false,
+                                return_type: Constructor,
+                            },
+                        ),
+                    ),
+                    (
+                        "pop(…)",
+                        "fn(&mut self) -> Option<{unknown}>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: true,
+                                return_type: Other,
+                            },
+                        ),
+                    ),
+                    (
+                        "push(…)",
+                        "fn(&mut self, {unknown})",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: true,
+                                return_type: Other,
+                            },
+                        ),
+                    ),
+                    (
+                        "push_within_capacity(…)",
+                        "fn(&mut self, {unknown}) -> Result<&mut {unknown}, {unknown}>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: true,
+                                return_type: Other,
+                            },
+                        ),
+                    ),
+                    (
+                        "split_off(…)",
+                        "fn(&mut self, usize) -> Vec<{unknown}>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: true,
+                                return_type: DirectConstructor,
                             },
                         ),
                     ),
@@ -4179,6 +4293,37 @@ fn test() {
                 fn fn_ctr2() fn() -> Result<Foo<T>, u32> []
                 me fn_no_ret(…) fn(&self) []
                 fn fn_other() fn() -> Option<u32> []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn function_relevance_generic_3() {
+        check_relevance(
+            r#"
+//- minicore: option, result
+struct Vec<T>(T);
+
+impl Vec<T> {
+    fn new() -> Self { loop {} }
+    fn try_with_capacity(capacity: usize) -> Result<Self, ()> { loop {} }
+    fn push(&mut self, value: T) { loop {} }
+    fn pop(&mut self) -> Option<T> { loop {} }
+    fn split_off(&mut self, at: usize) -> Self { loop {} }
+    fn push_within_capacity(&mut self, value: T) -> Result<&mut T, T> { loop {} }
+}
+
+fn test() {
+    Vec::$0
+}
+                "#,
+            expect![[r#"
+                fn new() fn() -> Vec<{unknown}> []
+                fn try_with_capacity(…) fn(usize) -> Result<Vec<{unknown}>, ()> []
+                me split_off(…) fn(&mut self, usize) -> Vec<{unknown}> []
+                me pop(…) fn(&mut self) -> Option<{unknown}> []
+                me push(…) fn(&mut self, {unknown}) []
+                me push_within_capacity(…) fn(&mut self, {unknown}) -> Result<&mut {unknown}, {unknown}> []
             "#]],
         );
     }
