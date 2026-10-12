@@ -17,6 +17,7 @@ use stdx::never;
 
 use crate::{
     db::HirDatabase,
+    diagnostics::expr::UncoveredPattern,
     inhabitedness::{is_enum_variant_uninhabited_from, is_ty_uninhabited_from},
     next_solver::{
         ParamEnv, Ty, TyKind,
@@ -299,6 +300,57 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
             }
         };
         Pat { ty: *pat.ty(), kind: Box::new(kind) }
+    }
+
+    /// Turns a witness back into a pattern, so that it can be added to a match and check re-run
+    /// to find what is still missing.
+    pub(crate) fn deconstruct_witness(
+        &self,
+        pat: &WitnessPat<'a, 'db>,
+    ) -> DeconstructedPat<'a, 'db> {
+        let ctor = match pat.ctor() {
+            IntRange(_) | Slice(_) | DerefPattern(_) | Str(_) | F16Range(..) | F32Range(..)
+            | F64Range(..) | F128Range(..) | Opaque(..) | NonExhaustive | Hidden
+            | PrivateUninhabited | Missing | Or => Wildcard,
+            ctor => ctor.clone(),
+        };
+
+        let fields: Vec<_> = pat
+            .iter_fields()
+            .enumerate()
+            .map(|(idx, field)| self.deconstruct_witness(field).at_index(idx))
+            .collect();
+
+        let arity = self.ctor_arity(&ctor, pat.ty());
+        DeconstructedPat::new(ctor, fields, arity, *pat.ty(), ())
+    }
+
+    /// Turns a non-exhaustive witness into a type-free description of the values it stands
+    /// for, so that the IDE layer can render it back into a pattern.
+    pub(crate) fn hoist_uncovered_pat(&self, pat: &WitnessPat<'a, 'db>) -> UncoveredPattern {
+        let mut fields = pat.iter_fields().map(|field| self.hoist_uncovered_pat(field));
+        match pat.ctor() {
+            &Bool(value) => UncoveredPattern::Bool(value),
+            Struct | Variant(_) | UnionField => match pat.ty().kind() {
+                TyKind::Tuple(..) => UncoveredPattern::Tuple(fields.collect()),
+                TyKind::Adt(adt, _) => {
+                    match Self::variant_id_for_adt(self.db, pat.ctor(), adt.def_id()) {
+                        Some(variant @ (VariantId::EnumVariantId(_) | VariantId::StructId(_))) => {
+                            UncoveredPattern::Variant { variant, fields: fields.collect() }
+                        }
+                        Some(VariantId::UnionId(_)) | None => UncoveredPattern::Wildcard,
+                    }
+                }
+                _ => UncoveredPattern::Wildcard,
+            },
+            Ref => match fields.next() {
+                Some(subpattern) => UncoveredPattern::Ref(Box::new(subpattern)),
+                None => UncoveredPattern::Wildcard,
+            },
+            Never | IntRange(_) | Slice(_) | DerefPattern(_) | Str(_) | F16Range(..)
+            | F32Range(..) | F64Range(..) | F128Range(..) | Opaque(..) | NonExhaustive | Hidden
+            | PrivateUninhabited | Missing | Wildcard | Or => UncoveredPattern::Wildcard,
+        }
     }
 }
 

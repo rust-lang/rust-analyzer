@@ -45,6 +45,106 @@ pub(crate) use hir_def::{
     hir::{Expr, ExprId, MatchArm, Pat, PatId, RecordSpread, Statement},
 };
 
+/// This is the shape of a non-exhaustive witness after all type information has been
+/// dropped, so that callers outside `hir-ty` can turn it back into syntax.
+///
+/// Generic over the variant handle so that a caller above `hir-ty` (namely `hir`, which cannot
+/// name `VariantId` in its public API) can turn this into its own type with [`Self::map_variant`]
+/// instead of `hir` re-declaring the same tree shape as a second, parallel enum.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UncoveredPattern<Var = VariantId> {
+    Wildcard,
+    Bool(bool),
+    Tuple(Vec<UncoveredPattern<Var>>),
+    Ref(Box<UncoveredPattern<Var>>),
+    Variant { variant: Var, fields: Vec<UncoveredPattern<Var>> },
+}
+
+impl<Var> UncoveredPattern<Var> {
+    /// Whether this pattern accepts any value, i.e. renders as `_`.
+    pub fn is_wildcard(&self) -> bool {
+        matches!(self, UncoveredPattern::Wildcard)
+    }
+
+    /// Rebuilds this pattern with every variant handle passed through `f`, so a caller can turn
+    /// `Var` into its own representation without duplicating the shape of the tree.
+    pub fn map_variant<Var2>(self, f: &mut impl FnMut(Var) -> Var2) -> UncoveredPattern<Var2> {
+        match self {
+            UncoveredPattern::Wildcard => UncoveredPattern::Wildcard,
+            UncoveredPattern::Bool(value) => UncoveredPattern::Bool(value),
+            UncoveredPattern::Tuple(fields) => {
+                UncoveredPattern::Tuple(fields.into_iter().map(|it| it.map_variant(f)).collect())
+            }
+            UncoveredPattern::Ref(inner) => UncoveredPattern::Ref(Box::new(inner.map_variant(f))),
+            UncoveredPattern::Variant { variant, fields } => UncoveredPattern::Variant {
+                variant: f(variant),
+                fields: fields.into_iter().map(|it| it.map_variant(f)).collect(),
+            },
+        }
+    }
+}
+
+/// How many times [`missing_match_arm_patterns`] re-runs the check to look past the
+/// constructors that are missing outright. This bounds the work for deeply nested patterns.
+const MISSING_ARM_ROUNDS: usize = 8;
+
+/// Compute the patterns left uncovered by the arms of a given `match` expression.
+pub fn missing_match_arm_patterns(
+    db: &dyn HirDatabase,
+    owner: DefWithBodyId,
+    match_expr: ExprId,
+    ignore_conditional_arms: bool,
+) -> Option<Vec<UncoveredPattern>> {
+    let body = Body::of(db, owner);
+    let Expr::Match { expr: scrutinee_expr, arms } = &body[match_expr] else {
+        return None;
+    };
+
+    let interner = DbInterner::new_with(db, owner.krate(db));
+    let infcx = interner.infer_ctxt().build(TypingMode::typeck_for_body(interner, owner.into()));
+    let validator = ExprValidator {
+        owner,
+        body,
+        infer: InferenceResult::of(db, owner),
+        diagnostics: Vec::new(),
+        validate_lints: false,
+        env: db.trait_environment(owner.generic_def(db)),
+        infcx,
+    };
+
+    let cx = MatchCheckCtx::new(owner.module(db), &validator.infcx, validator.env);
+    let pattern_arena = Arena::new();
+    let (scrut_ty, mut m_arms) = validator.lower_match_arms(
+        &cx,
+        &pattern_arena,
+        *scrutinee_expr,
+        arms,
+        ignore_conditional_arms,
+    )?;
+    let known_valid_scrutinee = Some(validator.is_known_valid_scrutinee(*scrutinee_expr));
+
+    // The check describes what is missing one layer at a time.
+    let mut uncovered = Vec::new();
+    for _ in 0..MISSING_ARM_ROUNDS {
+        let report = cx.compute_match_usefulness(&m_arms, scrut_ty, known_valid_scrutinee).ok()?;
+
+        let witnesses = report.non_exhaustiveness_witnesses;
+        if witnesses.is_empty() {
+            return Some(uncovered);
+        }
+        for witness in &witnesses {
+            uncovered.push(cx.hoist_uncovered_pat(witness));
+            m_arms.push(pat_analysis::MatchArm {
+                pat: pattern_arena.alloc(cx.deconstruct_witness(witness)),
+                has_guard: false,
+                arm_data: (),
+            })
+        }
+    }
+    // Deeply nested patterns can take more rounds than we are willing to spend.
+    None
+}
+
 pub enum BodyValidationDiagnostic<'db> {
     RecordMissingFields {
         record: Either<ExprId, PatId>,
@@ -196,24 +296,61 @@ impl<'db> ExprValidator<'db> {
     }
 
     fn validate_match(&mut self, match_expr: ExprId, scrutinee_expr: ExprId, arms: &[MatchArm]) {
-        let Some(scrut_ty) = self.infer.type_of_expr_with_adjust(scrutinee_expr) else {
+        let cx = MatchCheckCtx::new(self.owner.module(self.db()), &self.infcx, self.env);
+        let pattern_arena = Arena::new();
+
+        let Some((scrut_ty, m_arms)) =
+            self.lower_match_arms(&cx, &pattern_arena, scrutinee_expr, arms, false)
+        else {
             return;
         };
-        if scrut_ty.references_non_lt_error() {
+
+        let known_valid_scrutinee = Some(self.is_known_valid_scrutinee(scrutinee_expr));
+        let Ok(report) = cx.compute_match_usefulness(&m_arms, scrut_ty, known_valid_scrutinee)
+        else {
             return;
+        };
+        let witnesses = report.non_exhaustiveness_witnesses;
+
+        // https://github.com/rust-lang/rust/blob/f31622a50/compiler/rustc_mir_build/src/thir/pattern/check_match.rs#L200
+
+        if !witnesses.is_empty() {
+            self.diagnostics.push(BodyValidationDiagnostic::MissingMatchArms {
+                match_expr,
+                uncovered_patterns: missing_match_arms(
+                    &cx,
+                    scrut_ty,
+                    witnesses,
+                    m_arms.is_empty(),
+                    self.owner.krate(self.db()),
+                ),
+            });
         }
+    }
 
-        let cx = MatchCheckCtx::new(self.owner.module(self.db()), &self.infcx, self.env);
-
-        let pattern_arena = Arena::new();
-        let mut m_arms = Vec::with_capacity(arms.len());
+    /// Lower the arms of a match into the form the usefulness algorithm takes, along with the type
+    /// of the scrutinee.
+    fn lower_match_arms<'a>(
+        &self,
+        cx: &MatchCheckCtx<'a, 'db>,
+        pattern_arena: &'a Arena<DeconstructedPat<'a, 'db>>,
+        scrutinee_expr: ExprId,
+        arms: &[MatchArm],
+        ignore_conditional_arms: bool,
+    ) -> Option<(Ty<'db>, Vec<pat_analysis::MatchArm<'a, 'a, 'db>>)> {
+        let scrut_ty = self.infer.type_of_expr_with_adjust(scrutinee_expr)?;
+        if scrut_ty.references_non_lt_error() {
+            return None;
+        }
+        let mut m_arms: Vec<rustc_pattern_analysis::MatchArm<'_, MatchCheckCtx<'_, '_>>> =
+            Vec::with_capacity(arms.len());
         let mut has_lowering_errors = false;
         // Note: Skipping the entire diagnostic rather than just not including a faulty match arm is
         // preferred to avoid the chance of false positives.
         for arm in arms {
             let pat_ty = self.infer.type_of_pat_with_adjust(arm.pat);
             if pat_ty.references_non_lt_error() {
-                return;
+                return None;
             }
 
             // We only include patterns whose type matches the type
@@ -235,7 +372,12 @@ impl<'db> ExprValidator<'db> {
                 // If we had a NotUsefulMatchArm diagnostic, we could
                 // check the usefulness of each pattern as we added it
                 // to the matrix here.
-                let pat = self.lower_pattern(&cx, arm.pat, &mut has_lowering_errors);
+                let pat = self.lower_pattern(cx, arm.pat, &mut has_lowering_errors);
+                let is_conditional =
+                    arm.guard.is_some() || matches!(pat.ctor(), Constructor::Wildcard);
+                if !has_lowering_errors && ignore_conditional_arms && is_conditional {
+                    continue;
+                }
                 let m_arm = pat_analysis::MatchArm {
                     pat: pattern_arena.alloc(pat),
                     has_guard: arm.guard.is_some(),
@@ -248,32 +390,10 @@ impl<'db> ExprValidator<'db> {
             }
             // If the pattern type doesn't fit the match expression, we skip this diagnostic.
             cov_mark::hit!(validate_match_bailed_out);
-            return;
+            return None;
         }
 
-        let known_valid_scrutinee = Some(self.is_known_valid_scrutinee(scrutinee_expr));
-        let report =
-            match cx.compute_match_usefulness(m_arms.as_slice(), scrut_ty, known_valid_scrutinee) {
-                Ok(report) => report,
-                Err(()) => return,
-            };
-
-        // FIXME Report unreachable arms
-        // https://github.com/rust-lang/rust/blob/f31622a50/compiler/rustc_mir_build/src/thir/pattern/check_match.rs#L200
-
-        let witnesses = report.non_exhaustiveness_witnesses;
-        if !witnesses.is_empty() {
-            self.diagnostics.push(BodyValidationDiagnostic::MissingMatchArms {
-                match_expr,
-                uncovered_patterns: missing_match_arms(
-                    &cx,
-                    scrut_ty,
-                    witnesses,
-                    m_arms.is_empty(),
-                    self.owner.krate(self.db()),
-                ),
-            });
-        }
+        Some((scrut_ty, m_arms))
     }
 
     // [rustc's `is_known_valid_scrutinee`](https://github.com/rust-lang/rust/blob/c9bd03cb724e13cca96ad320733046cbdb16fbbe/compiler/rustc_mir_build/src/thir/pattern/check_match.rs#L288)
