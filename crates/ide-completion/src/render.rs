@@ -3817,7 +3817,7 @@ fn test() {
     }
 
     #[test]
-    fn constructor_order_kind_with_generic() {
+    fn constructor_order_kind_with_generic_1() {
         check_function_relevance(
             r#"
 //- minicore: option, result
@@ -3904,6 +3904,50 @@ fn test() {
                             CompletionRelevanceFn {
                                 has_params: true,
                                 has_self_param: true,
+                                return_type: DirectConstructor,
+                            },
+                        ),
+                    ),
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn constructor_order_kind_with_generic_2() {
+        check_function_relevance(
+            r#"
+struct Box<T>(T);
+impl<T> Box<T> {
+    pub fn new(x: T) -> Self {}
+    pub fn new1(x: T) -> Box<T> {}
+}
+
+fn test() {
+    Box::$0
+}
+"#,
+            &[CompletionItemKind::SymbolKind(SymbolKind::Function)],
+            expect![[r#"
+                [
+                    (
+                        "new(…)",
+                        "fn(T) -> Box<T>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: false,
+                                return_type: DirectConstructor,
+                            },
+                        ),
+                    ),
+                    (
+                        "new1(…)",
+                        "fn(T) -> Box<T>",
+                        Some(
+                            CompletionRelevanceFn {
+                                has_params: true,
+                                has_self_param: false,
                                 return_type: DirectConstructor,
                             },
                         ),
