@@ -439,6 +439,11 @@ pub enum InferenceDiagnostic {
         pat: PatId,
         found: StoredTy,
     },
+    DerefPatternRecursionLimit {
+        #[type_visitable(ignore)]
+        pat: PatId,
+        found: StoredTy,
+    },
     CannotIndexInto {
         #[type_visitable(ignore)]
         expr: ExprId,
