@@ -3,7 +3,10 @@ use hir::HirDisplay;
 use ide_db::syntax_helpers::node_ext::walk_ty;
 use syntax::ast::{self, AstNode, LetStmt, Param};
 
-use crate::{AssistContext, AssistId, Assists};
+use crate::{
+    AssistContext, AssistId, Assists,
+    utils::{cover_edit_range, original_range_in},
+};
 
 // Assist: add_explicit_type
 //
@@ -24,10 +27,8 @@ pub(crate) fn add_explicit_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
     let syntax_node = ctx.find_node_at_offset_with_descend::<Either<LetStmt, Param>>()?;
     let (ascribed_ty, expr, pat) = if let Either::Left(let_stmt) = syntax_node {
         let cursor_in_range = {
-            let let_range = ctx.sema.original_range_opt(let_stmt.syntax())?.range;
-            let first = crate::utils::cover_edit_range(ctx.source_file().syntax(), let_range)
-                .start()
-                .clone();
+            let let_range = original_range_in(ctx.file_id(), &ctx.sema, let_stmt.syntax())?;
+            let first = cover_edit_range(ctx.source_file().syntax(), let_range).start().clone();
             let eq_range = std::iter::successors(Some(first), |it| it.next_sibling_or_token())
                 .take_while(|it| let_range.contains_range(it.text_range()))
                 .find(|it| it.kind() == syntax::T![=])?
