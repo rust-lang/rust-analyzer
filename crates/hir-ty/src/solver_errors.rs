@@ -31,6 +31,13 @@ pub enum SolverDiagnosticKind {
         trait_predicate: StoredTraitPredicate,
         parent_trait_predicates: Vec<StoredTraitPredicate>,
     },
+    DynCompatible {
+        trait_def_id: crate::next_solver::TraitIdWrapper,
+    },
+    ConstArgTypeMismatch {
+        ct_ty: crate::next_solver::StoredTy,
+        expected_ty: crate::next_solver::StoredTy,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, TypeVisitable, TypeFoldable)]
@@ -60,9 +67,20 @@ impl SolverDiagnostic {
                     PredicateKind::Clause(ClauseKind::Trait(trait_pred)) => {
                         handle_trait_unimplemented(error, trait_pred)?
                     }
+                    PredicateKind::DynCompatible(trait_def_id) => {
+                        SolverDiagnosticKind::DynCompatible { trait_def_id }
+                    }
                     _ => return None,
                 }
             }
+            FulfillmentErrorCode::Select(SelectionError::ConstArgHasWrongType {
+                ct_ty,
+                expected_ty,
+                ..
+            }) => SolverDiagnosticKind::ConstArgTypeMismatch {
+                ct_ty: ct_ty.store(),
+                expected_ty: expected_ty.store(),
+            },
             _ => return None,
         };
         Some(SolverDiagnostic { span, kind })

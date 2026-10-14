@@ -11,8 +11,9 @@ use hir_def::{
 };
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{
-    AliasTyKind, ClauseKind, PredicatePolarity, TypeSuperVisitable as _, TypeVisitable as _,
-    Upcast, elaborate, inherent::IntoKind,
+    AliasTyKind, ClauseKind, OutlivesPredicate, PredicateKind, PredicatePolarity,
+    TypeSuperVisitable as _, TypeVisitable as _, TypeVisitableExt as _, Upcast, elaborate,
+    inherent::IntoKind,
 };
 use smallvec::SmallVec;
 
@@ -21,8 +22,9 @@ use crate::{
     db::{HirDatabase, InternedOpaqueTyId},
     lower::GenericPredicates,
     next_solver::{
-        AliasTy, Binder, Clause, Clauses, DbInterner, EarlyBinder, GenericArgs, ParamEnv, ParamTy,
-        SolverDefId, TraitPredicate, TraitRef, Ty, TypingMode, Unnormalized,
+        AliasTy, Binder, BoundExistentialPredicates, Clause, Clauses, DbInterner, EarlyBinder,
+        GenericArgs, ParamEnv, ParamTy, Region, SolverDefId, TraitPredicate, TraitRef, Ty,
+        TypingMode, Unnormalized,
         infer::{
             DbInternerInferExt,
             traits::{Obligation, ObligationCause},
@@ -422,8 +424,13 @@ fn receiver_is_dispatchable<'db>(
     let receiver_ty = interner.liberate_late_bound_regions(func.into(), sig.input(0));
 
     let lang_items = interner.lang_items();
-    let traits = (lang_items.Unsize, lang_items.DispatchFromDyn);
-    let (Some(unsize_did), Some(dispatch_from_dyn_did)) = traits else {
+    // If the crate under analysis has no `DispatchFromDyn`, there is no dynamic dispatch
+    // to model; don't report receivers as non-dispatchable. With dispatch but missing
+    // `Unsize`/`MetaSized`, stay conservative.
+    let Some(dispatch_from_dyn_did) = lang_items.DispatchFromDyn else {
+        return true;
+    };
+    let Some(unsize_did) = lang_items.Unsize else {
         return false;
     };
 
@@ -526,4 +533,27 @@ fn contains_illegal_impl_trait_in_trait<'db>(
     }
 
     None
+}
+
+pub fn object_region_bounds<'db>(
+    interner: DbInterner<'db>,
+    bounds: BoundExistentialPredicates<'db>,
+) -> Vec<Region<'db>> {
+    let erased_self_ty = interner.default_types().types.dyn_trait_dummy_self;
+
+    let mut regions = Vec::new();
+    for predicate in bounds.iter().map(|p| p.with_self_ty(interner, erased_self_ty)) {
+        for clause in elaborate::elaborate(interner, std::iter::once(predicate)) {
+            match clause.as_predicate().kind().skip_binder() {
+                PredicateKind::Clause(ClauseKind::TypeOutlives(OutlivesPredicate(t, r)))
+                    if t == erased_self_ty && !r.has_escaping_bound_vars() =>
+                {
+                    regions.push(r);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    regions
 }

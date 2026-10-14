@@ -141,9 +141,7 @@ fn fulfillment_error_for_no_solution<'db>(
                 }
                 ConstKind::Param(param_ct) => param_ct.find_const_ty_from_env(obligation.param_env),
                 ConstKind::Value(cv) => cv.ty,
-                kind => panic!(
-                    "ConstArgHasWrongType failed but we don't know how to compute type for {kind:?}"
-                ),
+                _ => interner.default_types().types.error,
             };
             FulfillmentErrorCode::Select(SelectionError::ConstArgHasWrongType {
                 ct,
@@ -369,38 +367,40 @@ impl<'db> BestObligation<'db> {
         candidates
     }
 
-    /// HACK: We walk the nested obligations for a well-formed arg manually,
-    /// since there's nontrivial logic in `wf.rs` to set up an obligation cause.
-    /// Ideally we'd be able to track this better.
     fn visit_well_formed_goal(
         &mut self,
         candidate: &inspect::InspectCandidate<'_, 'db>,
         term: Term<'db>,
     ) -> <Self as ProofTreeVisitor<'db>>::Result {
-        let _ = (candidate, term);
-        // FIXME: rustc does this, but we don't process WF obligations yet:
-        // let infcx = candidate.goal().infcx();
-        // let param_env = candidate.goal().goal().param_env;
-        // let body_id = self.obligation.cause.body_id;
+        let infcx = candidate.goal().infcx();
+        let param_env = candidate.goal().goal().param_env;
 
-        // for obligation in wf::unnormalized_obligations(infcx, param_env, term, self.span(), body_id)
-        //     .into_iter()
-        //     .flatten()
-        // {
-        //     let nested_goal = candidate.instantiate_proof_tree_for_nested_goal(
-        //         GoalSource::Misc,
-        //         obligation.as_goal(),
-        //         self.span(),
-        //     );
-        //     // Skip nested goals that aren't the *reason* for our goal's failure.
-        //     match (self.consider_ambiguities, nested_goal.result()) {
-        //         (true, Ok(Certainty::Maybe { cause: MaybeCause::Ambiguity, .. }))
-        //         | (false, Err(_)) => {}
-        //         _ => continue,
-        //     }
+        let Some(goals) =
+            crate::next_solver::wf::unnormalized_obligations(infcx.interner, param_env, term)
+        else {
+            return self.break_with_current_obligation();
+        };
 
-        //     self.with_derived_obligation(obligation, |this| nested_goal.visit_with(this))?;
-        // }
+        for goal in goals {
+            let obligation = Obligation {
+                cause: self.obligation.cause,
+                param_env: goal.param_env,
+                predicate: goal.predicate,
+                recursion_depth: self.obligation.recursion_depth + 1,
+            };
+            let nested_goal = candidate.instantiate_proof_tree_for_nested_goal(
+                GoalSource::Misc,
+                obligation.as_goal(),
+                self.span(),
+            );
+            match (self.consider_ambiguities, nested_goal.result()) {
+                (true, Ok(Certainty::Maybe(MaybeInfo { cause: MaybeCause::Ambiguity, .. })))
+                | (false, Err(_)) => {}
+                _ => continue,
+            }
+
+            self.with_derived_obligation(obligation, |this| nested_goal.visit_with(this))?;
+        }
 
         self.break_with_current_obligation()
     }

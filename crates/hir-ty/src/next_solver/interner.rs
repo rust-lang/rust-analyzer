@@ -1126,6 +1126,9 @@ impl<'db> Interner for DbInterner<'db> {
                 };
                 self.db.value_ty(id).expect("`SolverDefId::Ctor` should have a function-like ctor")
             }
+            SolverDefId::ConstId(id) => self.db().type_for_const(id),
+            SolverDefId::StaticId(id) => self.db().type_for_static(id),
+            SolverDefId::AnonConstId(id) => id.loc(self.db()).ty.get(),
             _ => panic!("Unexpected def_id `{def_id:?}` provided for `type_of`"),
         }
     }
