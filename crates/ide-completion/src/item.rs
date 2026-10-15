@@ -206,6 +206,8 @@ pub struct CompletionRelevance {
     /// NOTE: This is duplicated from [`CompletionItem::deprecated`] in order to allow using this
     /// information in the calculation of the relevance score.
     pub is_deprecated: bool,
+    /// Set when .await is used in sync contexts
+    pub is_async_in_sync: bool,
 }
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CompletionRelevanceTraitInfo {
@@ -300,6 +302,7 @@ impl CompletionRelevance {
             is_skipping_completion,
             has_local_inherent_impl,
             is_deprecated,
+            is_async_in_sync,
         } = self;
 
         // only applicable for completions within use items
@@ -392,6 +395,10 @@ impl CompletionRelevance {
         // lower rank for deprecated items
         if is_deprecated {
             score -= 15;
+        }
+
+        if is_async_in_sync {
+            score -= 20;
         }
 
         score
