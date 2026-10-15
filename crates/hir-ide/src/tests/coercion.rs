@@ -1244,3 +1244,17 @@ fn main() {
 "#,
     );
 }
+
+#[test]
+fn generic_call_tail_coercion() {
+    check_no_mismatches(
+        r#"
+//- minicore: sized
+fn pick<T>(items: &[T]) -> &T { loop {} }
+
+fn wrapper<'a>(pool: &'a [&str]) -> &'a str {
+    pick(pool)
+}
+"#,
+    );
+}
