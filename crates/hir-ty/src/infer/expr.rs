@@ -1072,9 +1072,9 @@ impl<'db> InferenceContext<'db> {
                     }
                 }
                 if !missing_mandatory_fields.is_empty() {
-                    self.push_diagnostic(InferenceDiagnostic::MissingFields {
-                        expr,
-                        fields: missing_mandatory_fields,
+                    self.push_diagnostic(InferenceDiagnostic::RecordMissingFields {
+                        record: expr.into(),
+                        missed_fields: missing_mandatory_fields,
                         variant,
                     });
                 }
@@ -1170,9 +1170,9 @@ impl<'db> InferenceContext<'db> {
 
                     let missing_fields = remaining_fields.values().copied().collect();
 
-                    self.push_diagnostic(InferenceDiagnostic::MissingFields {
-                        expr,
-                        fields: missing_fields,
+                    self.push_diagnostic(InferenceDiagnostic::RecordMissingFields {
+                        record: expr.into(),
+                        missed_fields: missing_fields,
                         variant,
                     });
                 }
