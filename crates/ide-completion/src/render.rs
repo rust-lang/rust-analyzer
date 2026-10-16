@@ -1216,7 +1216,7 @@ fn main() {
 
 "#,
             expect![[r#"
-                me Function fn(&self, i32) -> bool []
+                me Function(…) fn(&self, i32) -> bool []
             "#]],
         );
     }
@@ -2936,8 +2936,8 @@ struct WorldSnapshot { _f: () };
 fn go(world: &WorldSnapshot) { go(w$0) }
 "#,
             expect![[r#"
-                lc world &WorldSnapshot [type+name+local]
-                ex world  [type]
+                lc world &WorldSnapshot [type_could_unify+name+local]
+                ex world  [type_could_unify]
                 st WorldSnapshot {…} WorldSnapshot { _f: () } []
                 st &WorldSnapshot {…} [type]
                 st WorldSnapshot WorldSnapshot []
@@ -3292,8 +3292,8 @@ fn bar(db: &()) {
 }
 "#,
             expect![[r#"
-                lc db &() [type+name+local]
-                ex db  [type]
+                lc db &() [type_could_unify+name+local]
+                ex db  [type_could_unify]
                 fn bar(…) fn(&()) []
                 fn foo(…) fn(&()) []
             "#]],
@@ -3306,8 +3306,8 @@ fn bar(r#impl: &()) {
 }
 "#,
             expect![[r#"
-                lc impl &() [type+name+local]
-                ex r#impl  [type]
+                lc impl &() [type_could_unify+name+local]
+                ex r#impl  [type_could_unify]
                 fn bar(…) fn(&()) []
                 fn foo(…) fn(&()) []
             "#]],
@@ -3320,8 +3320,8 @@ fn bar(impl_: &()) {
 }
 "#,
             expect![[r#"
-                lc impl_ &() [type+name+local]
-                ex impl_  [type]
+                lc impl_ &() [type_could_unify+name+local]
+                ex impl_  [type_could_unify]
                 fn bar(…) fn(&()) []
                 fn foo(…) fn(&()) []
             "#]],
@@ -4100,12 +4100,12 @@ fn test() {
             // Constructor
             // Others
             expect![[r#"
-                fn fn_direct_ctr() fn() -> Foo []
-                fn fn_ctr_with_args(…) fn(u32) -> Foo []
-                fn fn_builder() fn() -> FooBuilder []
-                fn fn_ctr() fn() -> Result<Foo> []
-                me fn_no_ret(…) fn(&self) []
-                fn fn_other() fn() -> Result<u32> []
+                 fn fn_direct_ctr() fn() -> Foo []
+                 fn fn_ctr_with_args(…) fn(u32) -> Foo []
+                 fn fn_builder() fn() -> FooBuilder []
+                 fn fn_ctr() fn() -> Result<Foo> []
+                 me fn_no_ret(…) fn(&self) []
+                 fn fn_other() fn() -> Result<u32> []
             "#]],
         );
 
@@ -4136,13 +4136,13 @@ fn test() {
 }
                 "#,
             expect![[r#"
-                fn fn_direct_ctr() fn() -> Foo<T> []
-                fn fn_ctr_with_args(…) fn(T) -> Foo<T> []
-                fn fn_builder() fn() -> FooBuilder []
-                fn fn_ctr_wrapped() fn() -> Option<Foo<T>> []
-                fn fn_ctr_wrapped_2() fn() -> Result<Foo<T>, u32> []
-                fn fn_other() fn() -> Option<u32> []
-                me fn_returns_unit(…) fn(&self) []
+                 fn fn_direct_ctr() fn() -> Foo<T> []
+                 fn fn_ctr_with_args(…) fn(T) -> Foo<T> []
+                 fn fn_builder() fn() -> FooBuilder []
+                 fn fn_ctr_wrapped() fn() -> Option<Foo<T>> []
+                 fn fn_ctr_wrapped_2() fn() -> Result<Foo<T>, u32> []
+                 fn fn_other() fn() -> Option<u32> []
+                 me fn_returns_unit(…) fn(&self) []
             "#]],
         );
     }
@@ -4172,13 +4172,13 @@ fn test() {
 }
                 "#,
             expect![[r#"
-                fn fn_direct_ctr() fn() -> Foo<T> []
-                fn fn_ctr_with_args(…) fn(T) -> Foo<T> []
-                fn fn_builder() fn() -> FooBuilder []
-                fn fn_ctr() fn() -> Option<Foo<T>> []
-                fn fn_ctr2() fn() -> Result<Foo<T>, u32> []
-                me fn_no_ret(…) fn(&self) []
-                fn fn_other() fn() -> Option<u32> []
+                 fn fn_direct_ctr() fn() -> Foo<T> []
+                 fn fn_ctr_with_args(…) fn(T) -> Foo<T> []
+                 fn fn_builder() fn() -> FooBuilder []
+                 fn fn_ctr() fn() -> Option<Foo<T>> []
+                 fn fn_ctr2() fn() -> Result<Foo<T>, u32> []
+                 me fn_no_ret(…) fn(&self) []
+                 fn fn_other() fn() -> Option<u32> []
             "#]],
         );
     }
