@@ -197,6 +197,80 @@ fn main() {
 }
 
 #[test]
+fn desugar_builtin_format_args_with_invalid_refs() {
+    pretty_print(
+        r#"
+//- minicore: fmt
+fn main() {
+    builtin#format_args("{}{}{}", named_arg = 1);
+    builtin#format_args("{} {1}", 1);
+    builtin#format_args("{:1$}", 1);
+    builtin#format_args("{:.1$}", 1);
+}
+"#,
+        expect![[r#"
+            fn main() {
+                {
+                    let <ra@gennew>0 = (&1, );
+                    let <ra@gennew>0 = [
+                        builtin#lang(Argument::new_display)(
+                            <ra@gennew>0.0,
+                        ), �,
+                    ];
+                    unsafe {
+                        builtin#lang(Arguments::new)(
+                            "\xc0\xc0\xc8\x01\x00\x00",
+                            &<ra@gennew>0,
+                        )
+                    }
+                };
+                {
+                    let <ra@gennew>1 = (&1, );
+                    let <ra@gennew>1 = [
+                        builtin#lang(Argument::new_display)(
+                            <ra@gennew>1.0,
+                        ), �,
+                    ];
+                    unsafe {
+                        builtin#lang(Arguments::new)(
+                            "\xc0\x01 \xc0\x00",
+                            &<ra@gennew>1,
+                        )
+                    }
+                };
+                {
+                    let <ra@gennew>2 = (&1, );
+                    let <ra@gennew>2 = [
+                        builtin#lang(Argument::new_display)(
+                            <ra@gennew>2.0,
+                        ), �,
+                    ];
+                    unsafe {
+                        builtin#lang(Arguments::new)(
+                            "\xd3 \x00\x00h\x01\x00\x00",
+                            &<ra@gennew>2,
+                        )
+                    }
+                };
+                {
+                    let <ra@gennew>3 = (&1, );
+                    let <ra@gennew>3 = [
+                        builtin#lang(Argument::new_display)(
+                            <ra@gennew>3.0,
+                        ), �,
+                    ];
+                    unsafe {
+                        builtin#lang(Arguments::new)(
+                            "\xe5 \x00\x00p\x01\x00\x00",
+                            &<ra@gennew>3,
+                        )
+                    }
+                };
+            }"#]],
+    )
+}
+
+#[test]
 fn desugar_builtin_format_args() {
     pretty_print(
         r#"

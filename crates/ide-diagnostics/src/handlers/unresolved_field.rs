@@ -558,45 +558,4 @@ impl S {
         "#,
         );
     }
-
-    #[test]
-    fn format_args_invalid_positional_refs_do_not_panic() {
-        // Invalid format refs must not produce inference diagnostics on
-        // desugared exprs (which panics under debug assertions in
-        // `hir::diagnostics::expr_syntax`).
-        for fixture in [
-            r#"
-//- minicore: fmt, builtin_impls
-fn main() {
-    format_args!(r"{}{}{}", named_arg = 1);
-}
-"#,
-            r#"
-//- minicore: fmt, builtin_impls
-fn main() {
-    format_args!("{} {1}", 1);
-}
-"#,
-            r#"
-//- minicore: fmt, builtin_impls
-fn main() {
-    format_args!("{:1$}", 1);
-}
-"#,
-            r#"
-//- minicore: fmt, builtin_impls
-fn main() {
-    format_args!("{:.1$}", 1);
-}
-"#,
-            r#"
-//- minicore: fmt, builtin_impls
-fn main() {
-    format_args!("{}{}");
-}
-"#,
-        ] {
-            check_diagnostics(fixture);
-        }
-    }
 }
