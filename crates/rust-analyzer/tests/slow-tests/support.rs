@@ -417,6 +417,35 @@ impl Server {
         .unwrap_or_else(|Timeout| panic!("timeout while waiting for ws to load"));
         self
     }
+    /// Every `experimental/serverStatus` received so far, in order.
+    pub(crate) fn server_statuses(&self) -> Vec<lsp::ext::ServerStatusParams> {
+        self.messages
+            .borrow()
+            .iter()
+            .filter_map(|msg| match msg {
+                Message::Notification(n) if n.method == "experimental/serverStatus" => Some(
+                    n.clone()
+                        .extract::<lsp::ext::ServerStatusParams>("experimental/serverStatus")
+                        .unwrap(),
+                ),
+                _ => None,
+            })
+            .collect()
+    }
+    pub(crate) fn wait_until_server_status(
+        &self,
+        cond: impl Fn(&lsp::ext::ServerStatusParams) -> bool,
+    ) {
+        self.wait_for_message_cond(1, &|msg: &Message| match msg {
+            Message::Notification(n) if n.method == "experimental/serverStatus" => cond(
+                &n.clone()
+                    .extract::<lsp::ext::ServerStatusParams>("experimental/serverStatus")
+                    .unwrap(),
+            ),
+            _ => false,
+        })
+        .unwrap_or_else(|Timeout| panic!("timeout while waiting for a server status"));
+    }
     pub(crate) fn wait_for_diagnostics(&self) -> PublishDiagnosticsParams {
         for msg in self.messages.borrow().iter() {
             if let Message::Notification(n) = msg
