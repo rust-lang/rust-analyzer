@@ -102,7 +102,8 @@ use crate::{
     method_resolution::CandidateId,
     next_solver::{
         AliasTy, Const, ConstKind, DbInterner, ErrorGuaranteed, GenericArgs, Region, StoredFnSig,
-        StoredGenericArg, StoredGenericArgs, StoredTy, StoredTys, Term, Ty, TyKind, Tys,
+        StoredGenericArg, StoredGenericArgs, StoredTerm, StoredTy, StoredTys, Term,
+        TermRefIdPacked, Ty, TyKind, Tys,
         abi::Safety,
         infer::{InferCtxt, ObligationInspector, traits::ObligationCause},
     },
@@ -773,7 +774,7 @@ pub struct InferenceResult<'db> {
     /// unresolved or missing subpatterns or subpatterns of mismatched types.
     pub type_of_pat: ArenaMap<PatId, StoredTy>,
     pub type_of_binding: ArenaMap<BindingId, StoredTy>,
-    pub type_of_type_placeholder: FxHashMap<TypeRefId, StoredTy>,
+    pub term_of_term_placeholders: FxHashMap<TermRefIdPacked, StoredTerm>,
     pub type_of_opaque: FxHashMap<InternedOpaqueTyId<'db>, StoredTy>,
 
     /// Whether there are any type-mismatching errors in the result.
@@ -1133,7 +1134,7 @@ impl<'db> InferenceResult<'db> {
             type_of_expr: Default::default(),
             type_of_pat: Default::default(),
             type_of_binding: Default::default(),
-            type_of_type_placeholder: Default::default(),
+            term_of_term_placeholders: Default::default(),
             type_of_opaque: Default::default(),
             skipped_ref_pats: Default::default(),
             has_errors: Default::default(),
@@ -1203,11 +1204,13 @@ impl<'db> InferenceResult<'db> {
     pub fn has_type_mismatches(&self) -> bool {
         self.nodes_with_type_mismatches.is_some()
     }
-    pub fn placeholder_types<'a>(&self) -> impl Iterator<Item = (TypeRefId, Ty<'a>)> {
-        self.type_of_type_placeholder.iter().map(|(&type_ref, ty)| (type_ref, ty.as_ref()))
+    pub fn term_of_term_placeholders<'a>(
+        &self,
+    ) -> impl Iterator<Item = (TermRefIdPacked, Term<'a>)> {
+        self.term_of_term_placeholders.iter().map(|(&term_ref, term)| (term_ref, term.as_ref()))
     }
-    pub fn type_of_type_placeholder<'a>(&self, type_ref: TypeRefId) -> Option<Ty<'a>> {
-        self.type_of_type_placeholder.get(&type_ref).map(|ty| ty.as_ref())
+    pub fn term_of_term_placeholder<'a>(&self, term_ref: TermRefIdPacked) -> Option<Term<'a>> {
+        self.term_of_term_placeholders.get(&term_ref).map(|term| term.as_ref())
     }
     pub fn type_of_expr_or_pat<'a>(&self, id: ExprOrPatId) -> Option<Ty<'a>> {
         match id {
@@ -1486,7 +1489,7 @@ impl<'db> InferenceContext<'db> {
             type_of_expr,
             type_of_pat,
             type_of_binding,
-            type_of_type_placeholder,
+            term_of_term_placeholders: placeholders,
             type_of_opaque,
             has_errors: _,
             diagnostics: _,
@@ -1517,7 +1520,7 @@ impl<'db> InferenceContext<'db> {
         merge_arena_maps(type_of_expr, &other.type_of_expr);
         merge_arena_maps(type_of_pat, &other.type_of_pat);
         merge_arena_maps(type_of_binding, &other.type_of_binding);
-        merge_hash_maps(type_of_type_placeholder, &other.type_of_type_placeholder);
+        merge_hash_maps(placeholders, &other.term_of_term_placeholders);
         merge_hash_maps(type_of_opaque, &other.type_of_opaque);
         merge_hash_maps(expr_adjustments, &other.expr_adjustments);
         merge_hash_maps(pat_adjustments, &other.pat_adjustments);
@@ -1653,7 +1656,7 @@ impl<'db> InferenceContext<'db> {
             type_of_expr,
             type_of_pat,
             type_of_binding,
-            type_of_type_placeholder,
+            term_of_term_placeholders,
             type_of_opaque,
             skipped_ref_pats,
             closures_data,
@@ -1688,10 +1691,10 @@ impl<'db> InferenceContext<'db> {
             resolver.resolve_completely(ty);
         }
         type_of_binding.shrink_to_fit();
-        for ty in type_of_type_placeholder.values_mut() {
-            resolver.resolve_completely(ty);
+        for term in term_of_term_placeholders.values_mut() {
+            resolver.resolve_completely(term);
         }
-        type_of_type_placeholder.shrink_to_fit();
+        term_of_term_placeholders.shrink_to_fit();
         type_of_opaque.shrink_to_fit();
 
         if let Some(nodes_with_type_mismatches) = nodes_with_type_mismatches {
@@ -1947,7 +1950,7 @@ impl<'db> InferenceContext<'db> {
     fn with_ty_lowering<R>(&mut self, f: impl FnOnce(&mut TyLoweringContext<'db, '_>) -> R) -> R {
         let mut infer_vars = InferenceTyLoweringVarsCtx {
             table: &mut self.table,
-            type_of_type_placeholder: &mut self.result.type_of_type_placeholder,
+            term_of_term_placeholders: &mut self.result.term_of_term_placeholders,
         };
         let mut ctx = TyLoweringContext::new(
             self.db,
@@ -2254,7 +2257,7 @@ impl<'db> InferenceContext<'db> {
         let interner = self.interner();
         let mut vars_ctx = InferenceTyLoweringVarsCtx {
             table: &mut self.table,
-            type_of_type_placeholder: &mut self.result.type_of_type_placeholder,
+            term_of_term_placeholders: &mut self.result.term_of_term_placeholders,
         };
         let mut ctx = TyLoweringContext::new(
             self.db,
