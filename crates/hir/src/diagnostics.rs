@@ -185,6 +185,7 @@ diagnostics![AnyDiagnostic<'db> ->
     TraitImplRedundantAssocItems,
     TypedHole<'db>,
     TypeMismatch<'db>,
+    ConstArgTypeMismatch<'db>,
     UndeclaredLabel,
     UnimplementedBuiltinMacro,
     UnreachableLabel,
@@ -205,10 +206,18 @@ diagnostics![AnyDiagnostic<'db> ->
     UnionExprMustHaveExactlyOneField,
     UnionPatMustHaveExactlyOneField,
     UnionPatHasRest,
+    DynCompatible,
     UnimplementedTrait<'db>,
     YieldOutsideCoroutine,
     ReturnOutsideFunction,
 ];
+
+#[derive(Debug)]
+pub struct ConstArgTypeMismatch<'db> {
+    pub span: SpanSyntax,
+    pub expected: Type<'db>,
+    pub actual: Type<'db>,
+}
 
 #[derive(Debug)]
 pub struct BreakOutsideOfLoop {
@@ -691,6 +700,12 @@ pub struct MethodCallIllegalSizedBound {
 #[derive(Debug)]
 pub struct PatternArgInExternFn {
     pub node: InFile<AstPtr<ast::Pat>>,
+}
+
+#[derive(Debug)]
+pub struct DynCompatible {
+    pub span: SpanSyntax,
+    pub trait_def_id: crate::next_solver::TraitIdWrapper,
 }
 
 #[derive(Debug)]
@@ -1942,6 +1957,20 @@ impl<'db> AnyDiagnostic<'db> {
                     })
                     .collect();
                 UnimplementedTrait { span, trait_predicate, parent_trait_predicates }.into()
+            }
+            SolverDiagnosticKind::ConstArgTypeMismatch { ct_ty, expected_ty } => {
+                ConstArgTypeMismatch {
+                    span,
+                    expected: Type {
+                        owner: type_owner,
+                        ty: EarlyBinder::bind(expected_ty.as_ref()),
+                    },
+                    actual: Type { owner: type_owner, ty: EarlyBinder::bind(ct_ty.as_ref()) },
+                }
+                .into()
+            }
+            SolverDiagnosticKind::DynCompatible { trait_def_id } => {
+                DynCompatible { span, trait_def_id: *trait_def_id }.into()
             }
         })
     }

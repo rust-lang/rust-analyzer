@@ -86,18 +86,11 @@ impl<'db> SolverDelegate for SolverContext<'db> {
 
     fn well_formed_goals(
         &self,
-        _param_env: ParamEnv<'db>,
-        _arg: <Self::Interner as rustc_type_ir::Interner>::Term,
-    ) -> Option<
-        Vec<
-            rustc_type_ir::solve::Goal<
-                Self::Interner,
-                <Self::Interner as rustc_type_ir::Interner>::Predicate,
-            >,
-        >,
-    > {
-        // FIXME(next-solver):
-        None
+        param_env: ParamEnv<'db>,
+        arg: <Self::Interner as rustc_type_ir::Interner>::Term,
+    ) -> Option<Vec<Goal<'db, Predicate<'db>>>> {
+        let term = self.shallow_resolve_term(arg);
+        super::wf::unnormalized_obligations(self.cx(), param_env, term)
     }
 
     fn make_deduplicated_region_constraints(

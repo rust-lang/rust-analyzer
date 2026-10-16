@@ -27,6 +27,7 @@ mod solver;
 mod structural_normalize;
 mod ty;
 pub mod util;
+mod wf;
 
 use std::{mem::ManuallyDrop, sync::OnceLock};
 

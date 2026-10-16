@@ -1933,6 +1933,11 @@ impl<'db> InferenceContext<'db> {
         // Whether the arguments have been bundled in a tuple (ex: closures)
         tuple_arguments: TupleArgumentsFlag,
     ) {
+        for (&formal_input_ty, &arg_expr) in formal_input_tys.iter().zip(provided_args.iter()) {
+            self.table
+                .register_wf_obligation(formal_input_ty.into(), ObligationCause::new(arg_expr));
+        }
+
         let formal_input_tys: Vec<_> = formal_input_tys
             .iter()
             .map(|&ty| {
