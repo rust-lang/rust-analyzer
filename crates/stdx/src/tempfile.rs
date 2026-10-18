@@ -45,6 +45,7 @@ impl Drop for NamedTempFile {
     }
 }
 
+#[derive(Debug)]
 pub struct NamedTempDir {
     path: PathBuf,
 }

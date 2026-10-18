@@ -22,9 +22,7 @@ use triomphe::Arc;
 
 use crate::{
     CargoConfig, CargoFeatures, CargoWorkspace, InvocationStrategy, ManifestPath, Package, Sysroot,
-    TargetKind,
-    cargo_config_file::{LockfileCopy, LockfileUsage, make_lockfile_copy},
-    utf8_stdout,
+    TargetKind, cargo_config_file::LockfileCopy, utf8_stdout,
 };
 
 /// Output of the build script and proc-macro building steps for a workspace.
@@ -466,33 +464,10 @@ impl WorkspaceBuildScripts {
                 }
 
                 toolchain::cargo_use_targets(toolchain, &mut cmd, config.target.as_slice());
-                let mut lockfile_copy = None;
-                if let Some(toolchain) = toolchain {
-                    let lockfile_path =
-                        <_ as AsRef<Utf8Path>>::as_ref(manifest_path).with_extension("lock");
-                    lockfile_copy = make_lockfile_copy(toolchain, &lockfile_path);
-                    if let Some(lockfile_copy) = &lockfile_copy {
-                        requires_unstable_options = true;
-                        match lockfile_copy.usage {
-                            LockfileUsage::WithFlag => {
-                                cmd.arg("--lockfile-path");
-                                cmd.arg(lockfile_copy.path.as_str());
-                            }
-                            LockfileUsage::WithEnvVarUnstable => {
-                                cmd.arg("-Zlockfile-path");
-                                cmd.env(
-                                    "CARGO_RESOLVER_LOCKFILE_PATH",
-                                    lockfile_copy.path.as_os_str(),
-                                );
-                            }
-                            LockfileUsage::WithEnvVar => {
-                                cmd.env(
-                                    "CARGO_RESOLVER_LOCKFILE_PATH",
-                                    lockfile_copy.path.as_os_str(),
-                                );
-                            }
-                        }
-                    }
+                let lockfile_copy =
+                    toolchain.and_then(|toolchain| LockfileCopy::try_new(toolchain, manifest_path));
+                if let Some(lockfile_copy) = &lockfile_copy {
+                    lockfile_copy.apply_to(&mut cmd);
                 }
                 match &config.features {
                     CargoFeatures::All => {

@@ -17,7 +17,7 @@ use triomphe::Arc;
 
 use crate::{
     CfgOverrides, InvocationStrategy, ManifestPath, Sysroot,
-    cargo_config_file::{LockfileCopy, LockfileUsage, make_lockfile_copy},
+    cargo_config_file::{LockfileApplicableCommand, LockfileCopy},
 };
 
 /// [`CargoWorkspace`] represents the logical structure of, well, a Cargo
@@ -658,14 +658,12 @@ impl FetchMetadata {
             other_options.push(config_path.to_string());
         }
 
-        let mut lockfile_copy = None;
+        let lockfile_copy = config
+            .toolchain_version
+            .as_ref()
+            .and_then(|toolchain| LockfileCopy::try_new(toolchain, cargo_toml));
         if cargo_toml.is_rust_manifest() {
             other_options.push("-Zscript".to_owned());
-        } else if let Some(v) = config.toolchain_version.as_ref() {
-            lockfile_copy = make_lockfile_copy(
-                v,
-                &<_ as AsRef<Utf8Path>>::as_ref(cargo_toml).with_extension("lock"),
-            );
         }
 
         if !config.targets.is_empty() {
@@ -724,6 +722,18 @@ impl FetchMetadata {
         locked: bool,
         progress: &dyn Fn(String),
     ) -> anyhow::Result<(cargo_metadata::Metadata, Option<anyhow::Error>)> {
+        struct MetadataCommandAndOtherOptions<'a>(&'a mut MetadataCommand, &'a mut Vec<String>);
+
+        impl LockfileApplicableCommand for MetadataCommandAndOtherOptions<'_> {
+            fn set_env(&mut self, key: &str, val: &str) {
+                self.0.env(key, val);
+            }
+
+            fn push_args<'a, I: IntoIterator<Item = &'a str>>(&mut self, args: I) {
+                self.1.extend(args.into_iter().map(|arg| arg.to_owned()));
+            }
+        }
+
         let Self {
             mut command,
             manifest_path: _,
@@ -740,22 +750,11 @@ impl FetchMetadata {
 
         let mut using_lockfile_copy = false;
         if let Some(lockfile_copy) = &lockfile_copy {
-            match lockfile_copy.usage {
-                LockfileUsage::WithFlag => {
-                    other_options.push("--lockfile-path".to_owned());
-                    other_options.push(lockfile_copy.path.to_string());
-                }
-                LockfileUsage::WithEnvVarUnstable => {
-                    other_options.push("-Zlockfile-path".to_owned());
-                    command.env("CARGO_RESOLVER_LOCKFILE_PATH", lockfile_copy.path.as_os_str());
-                }
-                LockfileUsage::WithEnvVar => {
-                    command.env("CARGO_RESOLVER_LOCKFILE_PATH", lockfile_copy.path.as_os_str());
-                }
-            }
+            lockfile_copy
+                .apply_to(&mut MetadataCommandAndOtherOptions(&mut command, &mut other_options));
             using_lockfile_copy = true;
         }
-        if using_lockfile_copy || other_options.iter().any(|it| it.starts_with("-Z")) {
+        if other_options.iter().any(|it| it.starts_with("-Z")) {
             command.env("__CARGO_TEST_CHANNEL_OVERRIDE_DO_NOT_USE_THIS", "nightly");
             other_options.push("-Zunstable-options".to_owned());
         }

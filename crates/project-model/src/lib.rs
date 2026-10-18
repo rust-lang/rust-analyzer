@@ -69,6 +69,7 @@ use base_db::TargetKind;
 
 pub use crate::{
     build_dependencies::{ProcMacroDylibPath, WorkspaceBuildScripts},
+    cargo_config_file::LockfileCopy,
     cargo_workspace::{
         CargoConfig, CargoFeatures, CargoMetadataConfig, CargoWorkspace, Package, PackageData,
         PackageDependency, RustLibSource, Target, TargetData, TargetDirectoryConfig,
