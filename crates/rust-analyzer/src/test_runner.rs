@@ -4,6 +4,7 @@
 use crossbeam_channel::Sender;
 use ide_db::base_db::TargetKind;
 use paths::{AbsPath, Utf8Path};
+use project_model::{LockfileCopy, ManifestPath};
 use serde::Deserialize as _;
 use serde_derive::Deserialize;
 use toolchain::Tool;
@@ -87,6 +88,7 @@ impl JsonLinesParser<CargoTestMessage> for CargoTestOutputParser {
 #[derive(Debug)]
 pub(crate) struct CargoTestHandle {
     _handle: CommandHandle<CargoTestMessage>,
+    _lockfile_copy: Option<LockfileCopy>,
 }
 
 // Example of a cargo test command:
@@ -105,6 +107,7 @@ impl CargoTestHandle {
         path: Option<&str>,
         options: CargoOptions,
         root: &AbsPath,
+        manifest_path: &ManifestPath,
         ws_target_dir: Option<&Utf8Path>,
         test_target: TestTarget,
         sender: Sender<CargoTestMessage>,
@@ -149,6 +152,17 @@ impl CargoTestHandle {
             cmd.arg(extra_arg);
         }
 
+        let lockfile_copy = if manifest_path.is_rust_manifest() {
+            None
+        } else {
+            toolchain_version.and_then(|toolchain_version| {
+                LockfileCopy::try_new(toolchain_version, manifest_path)
+            })
+        };
+        if let Some(lockfile_copy) = &lockfile_copy {
+            lockfile_copy.apply_to(&mut cmd);
+        }
+
         Ok(Self {
             _handle: CommandHandle::spawn(
                 cmd,
@@ -156,6 +170,7 @@ impl CargoTestHandle {
                 sender,
                 None,
             )?,
+            _lockfile_copy: lockfile_copy,
         })
     }
 }

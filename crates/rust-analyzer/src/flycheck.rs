@@ -13,8 +13,8 @@ use crossbeam_channel::{Receiver, Sender, select_biased, unbounded};
 use ide_db::FxHashSet;
 use itertools::Itertools;
 use paths::{AbsPath, AbsPathBuf, Utf8Path, Utf8PathBuf};
-use project_model::TargetDirectoryConfig;
-use project_model::project_json;
+use project_model::{LockfileCopy, project_json};
+use project_model::{ManifestPath, TargetDirectoryConfig};
 use rustc_hash::FxHashMap;
 use serde::Deserialize as _;
 use serde_derive::Deserialize;
@@ -224,7 +224,7 @@ impl FlycheckHandle {
         config_json: FlycheckConfigJson,
         sysroot_root: Option<AbsPathBuf>,
         workspace_root: AbsPathBuf,
-        manifest_path: Option<AbsPathBuf>,
+        manifest_path: Option<ManifestPath>,
         ws_target_dir: Option<Utf8PathBuf>,
         ws_build_dir: Option<Utf8PathBuf>,
         toolchain_version: Option<semver::Version>,
@@ -431,7 +431,7 @@ struct FlycheckActor {
     config: FlycheckConfig,
     config_json: FlycheckConfigJson,
 
-    manifest_path: Option<AbsPathBuf>,
+    manifest_path: Option<ManifestPath>,
     ws_target_dir: Option<Utf8PathBuf>,
     ws_build_dir: Option<Utf8PathBuf>,
     /// Either the workspace root of the workspace we are flychecking,
@@ -450,6 +450,12 @@ struct FlycheckActor {
     diagnostics_cleared_for: FxHashSet<PackageSpecifier>,
     diagnostics_received: DiagnosticsReceived,
     toolchain_version: Option<semver::Version>,
+
+    /// For a normal flycheck with a cargo command, we copy the lockfile and pass
+    /// it to the cargo command for lockfile path, instead of the original one to
+    /// prevent it being modified. We should hold the copied lockfile because it is
+    /// deleted on drop.
+    _lockfile_copy: Option<LockfileCopy>,
 }
 
 #[derive(PartialEq, Debug)]
@@ -534,7 +540,7 @@ impl FlycheckActor {
         config_json: FlycheckConfigJson,
         sysroot_root: Option<AbsPathBuf>,
         workspace_root: AbsPathBuf,
-        manifest_path: Option<AbsPathBuf>,
+        manifest_path: Option<ManifestPath>,
         ws_target_dir: Option<Utf8PathBuf>,
         ws_build_dir: Option<Utf8PathBuf>,
         toolchain_version: Option<semver::Version>,
@@ -557,6 +563,7 @@ impl FlycheckActor {
             diagnostics_cleared_for: Default::default(),
             diagnostics_received: DiagnosticsReceived::NotYet,
             toolchain_version,
+            _lockfile_copy: None,
         }
     }
 
@@ -622,7 +629,7 @@ impl FlycheckActor {
                     self.scope = scope.clone();
                     self.generation = generation;
 
-                    let Some((command, origin)) = command else {
+                    let Some((command, origin, lockfile_copy)) = command else {
                         tracing::debug!(?scope, "failed to build flycheck command");
                         continue;
                     };
@@ -671,6 +678,7 @@ impl FlycheckActor {
                             self.command_handle = Some(command_handle);
                             self.command_receiver = Some(receiver);
                             self.report_progress(Progress::DidStart { user_facing_command });
+                            self._lockfile_copy = lockfile_copy;
                         }
                         Err(error) => {
                             self.report_progress(Progress::DidFailToRestart(format!(
@@ -886,7 +894,7 @@ impl FlycheckActor {
         scope: &FlycheckScope,
         saved_file: Option<&AbsPath>,
         target: Option<Target>,
-    ) -> Option<(Command, FlycheckCommandOrigin)> {
+    ) -> Option<(Command, FlycheckCommandOrigin, Option<LockfileCopy>)> {
         match &self.config {
             FlycheckConfig::Automatic { cargo_options, ansi_color_output } => {
                 // Only use the rust-project.json's flycheck config when no check_overrideCommand
@@ -901,7 +909,7 @@ impl FlycheckActor {
                     // We don't consider this to be "using cargo" so we will not apply any of the
                     // CargoOptions to the command.
                     let cmd = self.explicit_check_command(scope, saved_file)?;
-                    return Some((cmd, FlycheckCommandOrigin::ProjectJsonRunnable));
+                    return Some((cmd, FlycheckCommandOrigin::ProjectJsonRunnable, None));
                 }
 
                 let mut cmd =
@@ -970,7 +978,17 @@ impl FlycheckActor {
                     self.toolchain_version.as_ref(),
                 );
                 cmd.args(&cargo_options.extra_args);
-                Some((cmd, FlycheckCommandOrigin::Cargo))
+
+                let lockfile_copy = self.manifest_path.as_ref().and_then(|manifest| {
+                    self.toolchain_version
+                        .as_ref()
+                        .and_then(|toolchain| LockfileCopy::try_new(toolchain, manifest))
+                });
+                if let Some(lockfile_copy) = &lockfile_copy {
+                    lockfile_copy.apply_to(&mut cmd);
+                }
+
+                Some((cmd, FlycheckCommandOrigin::Cargo, lockfile_copy))
             }
             FlycheckConfig::CustomCommand { command, args, extra_env, invocation_strategy } => {
                 let root = match invocation_strategy {
@@ -998,7 +1016,7 @@ impl FlycheckActor {
                 let subs = Substitutions { label, saved_file: saved_file.map(|x| x.as_str()) };
                 let cmd = subs.substitute(&runnable, extra_env)?;
 
-                Some((cmd, FlycheckCommandOrigin::CheckOverrideCommand))
+                Some((cmd, FlycheckCommandOrigin::CheckOverrideCommand, None))
             }
         }
     }
