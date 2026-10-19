@@ -88,7 +88,8 @@ use hir_ide::{
     mir_pretty::{MirBodyPretty as _, MirEvalErrorPretty as _},
     next_solver::{
         AliasTy, AnyImplId, ClauseKind, DbInterner, EarlyBinder, ErrorGuaranteed, FnSig,
-        GenericArg, GenericArgs, ParamEnv, PolyFnSig, Region, SolverDefId, Ty, TyKind, TypingMode,
+        GenericArg, GenericArgs, ParamEnv, PolyFnSig, Region, SolverDefId, Ty, TyKind, TypingEnv,
+        TypingMode,
         infer::{DbInternerInferExt, InferCtxt},
     },
     traits::{self, structurally_normalize_ty},
@@ -199,9 +200,9 @@ pub use {
     hir_ide::{
         CastError, PointerCast, attach_db, attach_db_allow_change,
         consteval::ConstEvalError,
+        db::DropGlue,
         diagnostics::UnsafetyReason,
         display::{ClosureStyle, DisplayTarget, HirDisplay, HirDisplayError, HirWrite},
-        drop::DropGlue,
         dyn_compatibility::{AssocConstViolation, MethodViolation},
         impl_hir_database,
         layout::LayoutError,
@@ -5803,9 +5804,12 @@ impl<'db> Type<'db> {
 
     pub fn drop_glue(&self, db: &'db dyn HirDatabase) -> DropGlue {
         let env = self.param_env(db);
-        let interner = DbInterner::new_with(db, env.krate);
-        let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
-        hir_ide::drop::has_drop_glue(&infcx, self.ty.skip_binder(), env.param_env)
+        let env = TypingEnv {
+            typing_mode: TypingMode::PostAnalysis,
+            krate: env.krate,
+            param_env: env.param_env,
+        };
+        db.has_drop_glue(self.ty.skip_binder(), env)
     }
 }
 

@@ -844,6 +844,8 @@ version = "0.0.0"
 dependencies = [
  "hir-def",
  "hir-ty",
+ "ra-ap-rustc_type_ir",
+ "rustc-hash 2.1.2",
  "salsa",
  "tracing",
 ]

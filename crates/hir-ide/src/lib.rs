@@ -18,6 +18,7 @@ pub mod mir_pretty;
 pub mod __private {
     pub use hir_analysis;
     pub use hir_def;
+    pub use hir_ty;
     pub use salsa;
 }
 

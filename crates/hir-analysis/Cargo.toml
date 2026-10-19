@@ -15,6 +15,9 @@ doctest = false
 [dependencies]
 tracing.workspace = true
 salsa.workspace = true
+rustc-hash.workspace = true
+
+ra-ap-rustc_type_ir.workspace = true
 
 hir-def.workspace = true
 hir-ty.workspace = true
