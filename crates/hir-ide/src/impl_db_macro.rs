@@ -7,12 +7,12 @@ macro_rules! impl_hir_database {
             use $crate::{
                 __private::{
                     hir_analysis,
-                    hir_def::{ImplId, ModuleId},
-                    salsa,
+                    hir_def::{AdtId, ImplId, ModuleId},
+                    hir_ty, salsa,
                 },
                 db::HirDatabase,
                 display::{DisplayTarget, HirDisplay},
-                next_solver::Ty,
+                next_solver::{Ty, TypingEnv},
             };
 
             #[salsa::db]

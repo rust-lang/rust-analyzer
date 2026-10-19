@@ -36,7 +36,8 @@ use crate::{
     mir::{MirBody, MirLowerError},
     next_solver::{
         Allocation, Clause, EarlyBinder, GenericArgs, ParamEnv, PolyFnSig, StoredEarlyBinder,
-        StoredGenericArgs, StoredPolyFnSig, StoredTraitRef, StoredTy, TraitRef, Ty, VariancesOf,
+        StoredGenericArgs, StoredPolyFnSig, StoredTraitRef, StoredTy, TraitRef, Ty, TypingEnv,
+        VariancesOf,
     },
     traits::{ParamEnvAndCrate, StoredParamEnvAndCrate},
 };
@@ -351,7 +352,23 @@ pub trait HirDatabase: SourceDatabase + 'static {
 
     fn specializes(&self, specializing_impl_def_id: ImplId, parent_impl_def_id: ImplId) -> bool;
 
+    fn destructor(&self, adt: AdtId) -> Option<ImplId>;
+
+    fn has_drop_glue<'db>(&'db self, ty: Ty<'db>, env: TypingEnv<'db>) -> DropGlue;
+
     // endregion:hir-analysis
+}
+
+// FIXME: Find a better place for this.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DropGlue {
+    // Order of variants is important.
+    None,
+    /// May have a drop glue if some type parameter has it.
+    ///
+    /// For the compiler this is considered as a positive result, IDE distinguishes this from "yes".
+    DependOnParams,
+    HasDropGlue,
 }
 
 #[test]

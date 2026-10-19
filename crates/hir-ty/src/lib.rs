@@ -34,7 +34,6 @@ mod variance;
 pub mod autoderef;
 pub mod consteval;
 pub mod db;
-pub mod drop;
 pub mod dyn_compatibility;
 pub mod lang_items;
 pub mod layout;
