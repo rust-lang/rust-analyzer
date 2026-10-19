@@ -839,6 +839,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hir-analysis"
+version = "0.0.0"
+dependencies = [
+ "hir-def",
+ "hir-ty",
+ "salsa",
+ "tracing",
+]
+
+[[package]]
 name = "hir-def"
 version = "0.0.0"
 dependencies = [
@@ -909,6 +919,7 @@ dependencies = [
  "cov-mark",
  "either",
  "expect-test 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hir-analysis",
  "hir-def",
  "hir-expand",
  "hir-ty",

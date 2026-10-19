@@ -5,7 +5,11 @@ macro_rules! impl_hir_database {
     ($ty:ty) => {
         const _: () = {
             use $crate::{
-                __private::{hir_def::ModuleId, salsa},
+                __private::{
+                    hir_analysis,
+                    hir_def::{ImplId, ModuleId},
+                    salsa,
+                },
                 db::HirDatabase,
                 display::{DisplayTarget, HirDisplay},
                 next_solver::Ty,
@@ -16,6 +20,8 @@ macro_rules! impl_hir_database {
                 fn as_dyn(&self) -> &dyn HirDatabase {
                     self
                 }
+
+                hir_analysis::impl_db_methods!();
 
                 fn type_name<'db>(&'db self, ty: Ty<'db>, module: ModuleId) -> String {
                     match ty.display_source_code(self, module, true) {

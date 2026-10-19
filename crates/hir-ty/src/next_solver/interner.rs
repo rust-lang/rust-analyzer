@@ -1945,7 +1945,7 @@ impl<'db> Interner for DbInterner<'db> {
             // No builtin derive allow specialization currently.
             return false;
         };
-        crate::specialization::specializes(self.db, specializing_impl_def_id, parent_impl_def_id)
+        self.db.specializes(specializing_impl_def_id, parent_impl_def_id)
     }
 
     fn next_trait_solver_globally(self) -> bool {
