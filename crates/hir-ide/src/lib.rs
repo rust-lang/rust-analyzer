@@ -16,6 +16,7 @@ pub mod mir_pretty;
 
 #[doc(hidden)]
 pub mod __private {
+    pub use hir_analysis;
     pub use hir_def;
     pub use salsa;
 }

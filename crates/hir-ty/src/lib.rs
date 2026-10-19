@@ -27,7 +27,6 @@ mod lower;
 pub mod next_solver;
 mod opaques;
 mod representability;
-mod specialization;
 mod target_feature;
 pub mod utils;
 mod variance;

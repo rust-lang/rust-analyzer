@@ -346,6 +346,12 @@ pub trait HirDatabase: SourceDatabase + 'static {
 
     // HACK: We need this for MIR intrinsic `type_name()`, and it can't access the display infra because it is inside `hir-ide`.
     fn type_name<'db>(&'db self, ty: Ty<'db>, module: ModuleId) -> String;
+
+    // region:hir-analysis
+
+    fn specializes(&self, specializing_impl_def_id: ImplId, parent_impl_def_id: ImplId) -> bool;
+
+    // endregion:hir-analysis
 }
 
 #[test]
