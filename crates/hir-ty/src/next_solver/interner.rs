@@ -656,7 +656,7 @@ impl<'db> inherent::AdtDef<DbInterner<'db>> for AdtDef {
     }
 
     fn destructor(self, interner: DbInterner<'db>) -> Option<AdtDestructorKind> {
-        crate::drop::destructor(interner.db, self.def_id()).map(|_| AdtDestructorKind::NotConst)
+        interner.db.destructor(self.def_id()).map(|_| AdtDestructorKind::NotConst)
     }
 
     fn field_representing_type_info(
