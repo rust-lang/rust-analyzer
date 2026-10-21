@@ -963,7 +963,7 @@ impl GlobalState {
                                 config_json,
                                 sysroot_root,
                                 root.to_path_buf(),
-                                manifest_path.map(|it| it.to_path_buf()),
+                                manifest_path.cloned(),
                                 target_dir.map(|it| AsRef::<Utf8Path>::as_ref(it).to_path_buf()),
                                 build_dir.map(|it| AsRef::<Utf8Path>::as_ref(it).to_path_buf()),
                                 toolchain,

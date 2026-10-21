@@ -1,4 +1,6 @@
 //! Read `.cargo/config.toml` as a TOML table
+use std::process::Command;
+
 use paths::{AbsPath, Utf8Path, Utf8PathBuf};
 use rustc_hash::FxHashMap;
 use stdx::tempfile::NamedTempDir;
@@ -137,68 +139,117 @@ impl<'a> CargoConfigFileReader<'a> {
     }
 }
 
-pub(crate) struct LockfileCopy {
-    pub(crate) path: Utf8PathBuf,
-    pub(crate) usage: LockfileUsage,
+#[derive(Debug)]
+pub struct LockfileCopy {
+    path: Utf8PathBuf,
+    usage: LockfileUsage,
     _temp_dir: NamedTempDir,
 }
 
-pub(crate) enum LockfileUsage {
+pub trait LockfileApplicableCommand {
+    fn set_env(&mut self, key: &str, val: &str);
+    fn push_args<'a, I: IntoIterator<Item = &'a str>>(&mut self, args: I);
+}
+
+impl LockfileCopy {
+    pub fn try_new(
+        toolchain_version: &semver::Version,
+        manifest_path: &ManifestPath,
+    ) -> Option<Self> {
+        const MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_FLAG: semver::Version =
+            semver::Version {
+                major: 1,
+                minor: 82,
+                patch: 0,
+                pre: semver::Prerelease::EMPTY,
+                build: semver::BuildMetadata::EMPTY,
+            };
+
+        const MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_ENV_UNSTABLE: semver::Version =
+            semver::Version {
+                major: 1,
+                minor: 95,
+                patch: 0,
+                pre: semver::Prerelease::EMPTY,
+                build: semver::BuildMetadata::EMPTY,
+            };
+
+        const MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_ENV: semver::Version =
+            semver::Version {
+                major: 1,
+                minor: 97,
+                patch: 0,
+                pre: semver::Prerelease::EMPTY,
+                build: semver::BuildMetadata::EMPTY,
+            };
+
+        let usage = if *toolchain_version >= MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_ENV
+        {
+            LockfileUsage::WithEnvVar
+        } else if *toolchain_version
+            >= MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_ENV_UNSTABLE
+        {
+            LockfileUsage::WithEnvVarUnstable
+        } else if *toolchain_version >= MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_FLAG {
+            LockfileUsage::WithFlag
+        } else {
+            return None;
+        };
+
+        let lockfile_path = if manifest_path.is_rust_manifest() {
+            return None;
+        } else {
+            <_ as AsRef<Utf8Path>>::as_ref(manifest_path).with_extension("lock")
+        };
+
+        let temp_dir = NamedTempDir::new("rust-analyzer").ok()?;
+        let path = temp_dir.path().join("Cargo.lock");
+        std::fs::copy(lockfile_path.as_std_path(), &path).ok()?;
+
+        Some(LockfileCopy {
+            path: Utf8PathBuf::from_path_buf(path).ok()?,
+            usage,
+            _temp_dir: temp_dir,
+        })
+    }
+
+    pub fn apply_to(&self, cmd: &mut impl LockfileApplicableCommand) {
+        cmd.set_env("__CARGO_TEST_CHANNEL_OVERRIDE_DO_NOT_USE_THIS", "nightly");
+        cmd.push_args(["-Zunstable-options"]);
+
+        match self.usage {
+            LockfileUsage::WithFlag => {
+                cmd.push_args(["--lockfile-path", self.path.as_str()]);
+            }
+            LockfileUsage::WithEnvVarUnstable => {
+                cmd.push_args(["-Zlockfile-path"]);
+                cmd.set_env("CARGO_RESOLVER_LOCKFILE_PATH", self.path.as_str());
+            }
+            LockfileUsage::WithEnvVar => {
+                cmd.set_env("CARGO_RESOLVER_LOCKFILE_PATH", self.path.as_str());
+            }
+        }
+    }
+}
+
+impl LockfileApplicableCommand for Command {
+    fn set_env(&mut self, key: &str, val: &str) {
+        self.env(key, val);
+    }
+
+    fn push_args<'a, I: IntoIterator<Item = &'a str>>(&mut self, args: I) {
+        self.args(args);
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum LockfileUsage {
     /// Rust [1.82.0, 1.95.0). `cargo <subcmd> --lockfile-path <lockfile path>`
     WithFlag,
     /// Rust [1.95.0, 1.97.0). `CARGO_RESOLVER_LOCKFILE_PATH=<lockfile path> cargo -Zlockfile-path <subcmd>`
     WithEnvVarUnstable,
     /// Rust >= 1.97.0. `CARGO_RESOLVER_LOCKFILE_PATH=<lockfile path> cargo <subcmd>`
     WithEnvVar,
-}
-
-pub(crate) fn make_lockfile_copy(
-    toolchain_version: &semver::Version,
-    lockfile_path: &Utf8Path,
-) -> Option<LockfileCopy> {
-    const MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_FLAG: semver::Version =
-        semver::Version {
-            major: 1,
-            minor: 82,
-            patch: 0,
-            pre: semver::Prerelease::EMPTY,
-            build: semver::BuildMetadata::EMPTY,
-        };
-
-    const MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_ENV_UNSTABLE: semver::Version =
-        semver::Version {
-            major: 1,
-            minor: 95,
-            patch: 0,
-            pre: semver::Prerelease::EMPTY,
-            build: semver::BuildMetadata::EMPTY,
-        };
-
-    const MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_ENV: semver::Version =
-        semver::Version {
-            major: 1,
-            minor: 97,
-            patch: 0,
-            pre: semver::Prerelease::EMPTY,
-            build: semver::BuildMetadata::EMPTY,
-        };
-
-    let usage = if *toolchain_version >= MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_ENV {
-        LockfileUsage::WithEnvVar
-    } else if *toolchain_version >= MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_ENV_UNSTABLE
-    {
-        LockfileUsage::WithEnvVarUnstable
-    } else if *toolchain_version >= MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH_FLAG {
-        LockfileUsage::WithFlag
-    } else {
-        return None;
-    };
-
-    let temp_dir = NamedTempDir::new("rust-analyzer").ok()?;
-    let path = temp_dir.path().join("Cargo.lock");
-    std::fs::copy(lockfile_path.as_std_path(), &path).ok()?;
-
-    Some(LockfileCopy { path: Utf8PathBuf::from_path_buf(path).ok()?, usage, _temp_dir: temp_dir })
 }
 
 #[test]
