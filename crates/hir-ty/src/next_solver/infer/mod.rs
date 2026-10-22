@@ -1262,6 +1262,10 @@ impl<'db> InferCtxt<'db> {
         self.obligation_inspector.set(Some(inspector));
     }
 
+    pub(crate) fn has_obligation_inspector(&self) -> bool {
+        self.obligation_inspector.get().is_some()
+    }
+
     pub fn inspect_evaluated_obligation(
         &self,
         obligation: &PredicateObligation<'db>,
