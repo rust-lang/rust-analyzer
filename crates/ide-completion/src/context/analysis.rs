@@ -895,11 +895,11 @@ fn expected_type_and_name<'db>(
     ExpectedInfo { expected_type: ty.map(strip_refs), expected_name: name, expected_func }
 }
 
-fn classify_lifetime(
+fn classify_lifetime<'db>(
     sema: &Semantics<'_, RootDatabase>,
     original_file: &SyntaxNode,
     lifetime: ast::Lifetime,
-) -> Option<LifetimeContext> {
+) -> Option<LifetimeContext<'db>> {
     let parent = lifetime.syntax().parent()?;
     if parent.kind() == SyntaxKind::ERROR {
         return None;

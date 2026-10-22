@@ -16,7 +16,7 @@ use syntax::{ast, format_smolstr};
 /// This is because we want to show (in completions etc.) names as raw depending on the needs
 /// of the current crate, for example if it is edition 2021 complete `gen` even if the defining
 /// crate is in edition 2024 and wrote `r#gen`, and the opposite holds as well.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, salsa::SalsaValue)]
 pub struct Name {
     symbol: Symbol,
     // If you are making this carry actual hygiene, beware that the special handling for variables and labels
