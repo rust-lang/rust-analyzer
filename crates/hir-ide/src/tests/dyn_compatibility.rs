@@ -205,7 +205,7 @@ trait Foo {
 fn sized_self() {
     check_dyn_compatibility(
         r#"
-//- minicore: dispatch_from_dyn
+//- minicore: dispatch_from_dyn, unsize
 trait Bar: Sized {
     fn bar<T>(&self, t: T);
 }

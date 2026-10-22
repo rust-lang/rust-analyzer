@@ -37,6 +37,7 @@ mod handlers {
     pub(crate) mod cannot_implicitly_deref_trait_object;
     pub(crate) mod cannot_index_into;
     pub(crate) mod duplicate_field;
+    pub(crate) mod dyn_compatible;
     pub(crate) mod elided_lifetimes_in_path;
     pub(crate) mod expected_array_or_slice_pat;
     pub(crate) mod expected_function;
@@ -545,6 +546,9 @@ pub fn semantic_diagnostics(
                 handlers::union_pat_has_rest::union_pat_has_rest(&ctx, &d)
             }
             AnyDiagnostic::UnimplementedTrait(d) => handlers::unimplemented_trait::unimplemented_trait(&ctx, &d),
+            AnyDiagnostic::ConstArgTypeMismatch(d) => handlers::type_mismatch::const_arg_type_mismatch(&ctx, &d),
+            AnyDiagnostic::DynCompatible(d) => handlers::dyn_compatible::dyn_compatible(&ctx, &d),
+
             AnyDiagnostic::FruInDestructuringAssignment(d) => handlers::fru_in_destructuring_assignment::fru_in_destructuring_assignment(&ctx, &d),
             AnyDiagnostic::MissingBody(d) => handlers::missing_body::missing_body(&ctx, &d),
             AnyDiagnostic::ExplicitDropMethodUse(d) => handlers::explicit_drop_method_use::explicit_drop_method_use(&ctx, &d),

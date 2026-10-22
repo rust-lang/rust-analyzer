@@ -1532,7 +1532,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                     BoundRegionConversionTime::FnCall,
                     trait_ref,
                 );
-                let (xform_self_ty, _) = self.xform_self_ty(
+                let xform_self_ty = self.xform_self_ty(
                     candidate.item,
                     trait_ref.self_ty(),
                     trait_ref.args.as_slice(),
@@ -1589,7 +1589,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
             }
 
             let mut trait_predicate = None;
-            let (xform_self_ty, xform_ret_ty);
+            let xform_self_ty;
 
             match probe.kind {
                 InherentImplCandidate { impl_def_id, .. } => {
@@ -1600,8 +1600,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                         .impl_self_ty(impl_def_id)
                         .instantiate(self.interner(), impl_args)
                         .skip_norm_wip();
-                    (xform_self_ty, xform_ret_ty) =
-                        self.xform_self_ty(probe.item, impl_ty, impl_args.as_slice());
+                    xform_self_ty = self.xform_self_ty(probe.item, impl_ty, impl_args.as_slice());
                     match ocx.relate(
                         cause,
                         self.param_env(),
@@ -1661,7 +1660,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                         BoundRegionConversionTime::FnCall,
                         poly_trait_ref,
                     );
-                    (xform_self_ty, xform_ret_ty) = self.xform_self_ty(
+                    xform_self_ty = self.xform_self_ty(
                         probe.item,
                         trait_ref.self_ty(),
                         trait_ref.args.as_slice(),
@@ -1697,7 +1696,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                         BoundRegionConversionTime::FnCall,
                         poly_trait_ref,
                     );
-                    (xform_self_ty, xform_ret_ty) = self.xform_self_ty(
+                    xform_self_ty = self.xform_self_ty(
                         probe.item,
                         trait_ref.self_ty(),
                         trait_ref.args.as_slice(),
@@ -1739,26 +1738,6 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                         }
                     }
                 }
-            }
-
-            // See <https://github.com/rust-lang/trait-system-refactor-initiative/issues/134>.
-            //
-            // In the new solver, check the well-formedness of the return type.
-            // This emulates, in a way, the predicates that fall out of
-            // normalizing the return type in the old solver.
-            //
-            // FIXME(-Znext-solver): We alternatively could check the predicates of
-            // the method itself hold, but we intentionally do not do this in the old
-            // solver b/c of cycles, and doing it in the new solver would be stronger.
-            // This should be fixed in the future, since it likely leads to much better
-            // method winnowing.
-            if let Some(xform_ret_ty) = xform_ret_ty {
-                ocx.register_obligation(Obligation::new(
-                    self.interner(),
-                    *cause,
-                    self.param_env(),
-                    ClauseKind::WellFormed(xform_ret_ty.into()),
-                ));
             }
 
             if !ocx.try_evaluate_obligations().is_empty() {
@@ -2015,14 +1994,14 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
         item: CandidateId,
         impl_ty: Ty<'db>,
         args: &[GenericArg<'db>],
-    ) -> (Ty<'db>, Option<Ty<'db>>) {
+    ) -> Ty<'db> {
         if let CandidateId::FunctionId(item) = item
             && self.mode == Mode::MethodCall
         {
             let sig = self.xform_method_sig(item, args);
-            (sig.inputs()[0], Some(sig.output()))
+            sig.inputs()[0]
         } else {
-            (impl_ty, None)
+            impl_ty
         }
     }
 

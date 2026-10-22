@@ -177,12 +177,13 @@ impl<'db> InferenceContext<'db> {
             let last = path.segments().last()?;
 
             let (ty, orig_ns) = path_ctx.ty_ctx().lower_ty_ext(type_ref);
-            let ty = path_ctx.expect_table().process_user_written_ty(ty);
+            let ty =
+                path_ctx.expect_table().process_user_written_ty(ty, ObligationCause::new(type_ref));
 
             path_ctx.ignore_last_segment();
             let (ty, _) = path_ctx.lower_ty_relative_path(ty, orig_ns, true, id.into());
             drop_ctx(ctx, no_diagnostics);
-            let ty = self.table.process_user_written_ty(ty);
+            let ty = self.table.process_user_written_ty(ty, ObligationCause::new(id));
             self.resolve_ty_assoc_item(ty, last.name, id).map(|(it, substs)| (it, Some(substs)))?
         } else {
             let hygiene = self.store.expr_or_pat_path_hygiene(id.unpack());
@@ -252,7 +253,7 @@ impl<'db> InferenceContext<'db> {
                                 return None;
                             }
 
-                            let ty = self.process_user_written_ty(ty);
+                            let ty = self.process_user_written_ty(ty, ObligationCause::new(id));
 
                             self.resolve_ty_assoc_item(ty, last_segment.name, id)
                         }
