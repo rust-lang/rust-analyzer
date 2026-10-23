@@ -522,6 +522,13 @@ impl<'a, 'db> FindUsages<'a, 'db> {
             .filter(move |(file_id, _)| {
                 !exclude_library_files || !is_library_file(db, file_id.file_id(db))
             })
+            .filter(move |&(&file_id, _)| {
+                let text = db.file_text(file_id.file_id(db)).text(db);
+                let first_line = text.lines().next().unwrap_or_default();
+                let starts_with_path = first_line.split('/').count() > 3;
+                let has_markdown_pattern = text.contains("---") || text.contains("```");
+                !starts_with_path && !has_markdown_pattern
+            })
             .map(|(&file_id, &search_range)| {
                 let text = db.file_text(file_id.file_id(db)).text(db);
                 let search_range =
