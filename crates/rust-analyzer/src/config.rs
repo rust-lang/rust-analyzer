@@ -261,6 +261,9 @@ config_data! {
         /// Show implicit drop hints.
         inlayHints_implicitDrops_enable: bool = false,
 
+        /// Hide implicit drop hints for types that do not have drop glue.
+        inlayHints_implicitDrops_hideWithoutDropGlue: bool = false,
+
         /// Show inlay hints for the implied type parameter `Sized` bound.
         inlayHints_implicitSizedBoundHints_enable: bool = false,
 
@@ -2169,6 +2172,9 @@ impl Config {
                 &client_capability_fields,
             ),
             implicit_drop_hints: self.inlayHints_implicitDrops_enable().to_owned(),
+            hide_implicit_drop_without_drop_glue: self
+                .inlayHints_implicitDrops_hideWithoutDropGlue()
+                .to_owned(),
             implied_dyn_trait_hints: self.inlayHints_impliedDynTraitHints_enable().to_owned(),
             range_exclusive_hints: self.inlayHints_rangeExclusiveHints_enable().to_owned(),
             ra_fixture: self.ra_fixture(minicore),

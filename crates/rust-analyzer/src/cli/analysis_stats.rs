@@ -1404,6 +1404,7 @@ impl flags::AnalysisStats {
                     closure_capture_hints: true,
                     binding_mode_hints: true,
                     implicit_drop_hints: true,
+                    hide_implicit_drop_without_drop_glue: false,
                     implied_dyn_trait_hints: true,
                     lifetime_elision_hints: ide::LifetimeElisionHints::Always,
                     param_names_for_lifetime_elision_hints: true,

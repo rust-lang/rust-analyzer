@@ -1074,6 +1074,13 @@ Default: `false`
 Show implicit drop hints.
 
 
+## rust-analyzer.inlayHints.implicitDrops.hideWithoutDropGlue {#inlayHints.implicitDrops.hideWithoutDropGlue}
+
+Default: `false`
+
+Hide implicit drop hints for types that do not have drop glue.
+
+
 ## rust-analyzer.inlayHints.implicitSizedBoundHints.enable {#inlayHints.implicitSizedBoundHints.enable}
 
 Default: `false`

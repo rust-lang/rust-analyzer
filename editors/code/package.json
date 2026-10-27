@@ -2409,6 +2409,16 @@
             {
                 "title": "Inlay Hints",
                 "properties": {
+                    "rust-analyzer.inlayHints.implicitDrops.hideWithoutDropGlue": {
+                        "markdownDescription": "Hide implicit drop hints for types that do not have drop glue.",
+                        "default": false,
+                        "type": "boolean"
+                    }
+                }
+            },
+            {
+                "title": "Inlay Hints",
+                "properties": {
                     "rust-analyzer.inlayHints.implicitSizedBoundHints.enable": {
                         "markdownDescription": "Show inlay hints for the implied type parameter `Sized` bound.",
                         "default": false,

@@ -6,7 +6,7 @@
 //! }
 //! ```
 use hir::{
-    DefWithBody,
+    DefWithBody, DropGlue, Local,
     db::HirDatabase as _,
     mir::{MirSpan, TerminatorKind},
     name,
@@ -54,6 +54,12 @@ pub(super) fn hints(
             let Some(&binding_idx) = local_to_binding.get(place.local) else {
                 continue; // Ignore temporary values
             };
+            if config.hide_implicit_drop_without_drop_glue {
+                let local = Local::from((def, binding_idx));
+                if local.ty(sema.db).drop_glue(sema.db) == DropGlue::None {
+                    continue;
+                }
+            }
             let range = match terminator.span {
                 MirSpan::ExprId(e) => match source_map.expr_syntax(e) {
                     // don't show inlay hint for macro
@@ -229,6 +235,57 @@ mod tests {
             let y = X;
         }
       //^ drop(y)
+    }
+  //^ drop(x)
+"#,
+        );
+    }
+
+    #[test]
+    fn hide_without_drop_glue() {
+        check_with_config(
+            InlayHintsConfig {
+                implicit_drop_hints: true,
+                hide_implicit_drop_without_drop_glue: true,
+                ..DISABLED_CONFIG
+            },
+            r#"
+//- minicore: drop
+    struct NoDrop;
+    struct NeedsDrop;
+    impl Drop for NeedsDrop {
+        fn drop(&mut self) {}
+    }
+    fn f() {
+        let a = NoDrop;
+        let b = NeedsDrop;
+        if 2 == 5 {
+            return;
+                //^ drop(b)
+        }
+    }
+  //^ drop(b)
+"#,
+        );
+    }
+
+    #[test]
+    fn hide_without_drop_glue_keeps_field_drop_glue() {
+        check_with_config(
+            InlayHintsConfig {
+                implicit_drop_hints: true,
+                hide_implicit_drop_without_drop_glue: true,
+                ..DISABLED_CONFIG
+            },
+            r#"
+//- minicore: drop
+    struct Inner;
+    impl Drop for Inner {
+        fn drop(&mut self) {}
+    }
+    struct Wrapper { inner: Inner }
+    fn f() {
+        let x = Wrapper { inner: Inner };
     }
   //^ drop(x)
 "#,
