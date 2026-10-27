@@ -196,6 +196,41 @@ mod tests {
 
     use super::*;
 
+    /// Drops `file` and checks that it is released.
+    ///
+    /// On Linux/BSD, `path()` is `/proc/self/fd/N` (or `/dev/fd/N`), and the file was
+    /// already unlinked at creation. Checking that path after `drop` is racy, because
+    /// another thread may reuse fd N. So instead check, while the fd is still open,
+    /// that no named file points to this temporary file anymore (`nlink == 0`). Once the
+    /// fd is closed, the file is then guaranteed to be fully released.
+    ///
+    /// On other platforms `path()` is a real file name, so checking after `drop` is
+    /// reliable.
+    fn assert_released_on_drop(file: NamedTempFile) {
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+        ))]
+        {
+            use std::os::unix::fs::MetadataExt;
+            assert_eq!(fs::metadata(file.path()).unwrap().nlink(), 0);
+            drop(file);
+        }
+        #[cfg(not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+        )))]
+        {
+            let path = file.path().to_owned();
+            drop(file);
+            assert!(!fs::exists(path).unwrap());
+        }
+    }
+
     #[test]
     fn named_temp_file_new_from_existing_copies_file() {
         let dir = NamedTempDir::new("test-").unwrap();
@@ -207,9 +242,7 @@ mod tests {
         fs::write(&source, b"changed").unwrap();
         assert_eq!(fs::read(file.path()).unwrap(), b"contents");
 
-        let path = file.path().to_owned();
-        drop(file);
-        assert!(!fs::exists(path).unwrap());
+        assert_released_on_drop(file);
         assert_eq!(fs::read(source).unwrap(), b"changed");
     }
 
@@ -233,8 +266,6 @@ mod tests {
     fn named_temp_file_new_creates_file() {
         let file = NamedTempFile::new("test-").unwrap();
         assert!(file.path().exists());
-        let path = file.path().as_os_str().to_owned();
-        drop(file);
-        assert!(!fs::exists(path).unwrap());
+        assert_released_on_drop(file);
     }
 }
