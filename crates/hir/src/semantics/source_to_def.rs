@@ -129,6 +129,13 @@ pub(super) struct SourceToDefCache<'db> {
     pub(super) root_to_file_cache: FxHashMap<SyntaxNode, HirFileId>,
 }
 
+enum ContainerResult {
+    Resolved(ChildContainer),
+    // issue(23352)
+    Unresolved,
+    None,
+}
+
 impl<'db> SourceToDefCache<'db> {
     pub(super) fn cache(
         root_to_file_cache: &mut FxHashMap<SyntaxNode, HirFileId>,
@@ -548,18 +555,29 @@ impl<'db> SourceToDefCtx<'db, '_> {
 
     pub(super) fn find_container(&mut self, src: InFile<&SyntaxNode>) -> Option<ChildContainer> {
         let _p = tracing::info_span!("find_container").entered();
-        let def = self.parent_ancestors_with_macros(src, |this, container, child| {
-            this.container_to_def(container, child)
-        });
-        if let Some(def) = def {
-            return Some(def);
+
+        let file_id = src.file_id.original_file(self.db).file_id(self.db);
+        let fallback = self.file_to_def(file_id).first().copied();
+
+        if fallback.is_none() {
+            return None;
         }
 
-        let def = self
-            .file_to_def(src.file_id.original_file(self.db).file_id(self.db))
-            .first()
-            .copied()?;
-        Some(def.into())
+        // Linear pass over the ancestor chain. 
+        let mut child = src.value.clone();
+        for container in src.value.ancestors().skip(1) {
+            match self.container_to_def(InFile::new(src.file_id, container.clone()), &child) {
+                ContainerResult::Resolved(container) => return Some(container),
+                ContainerResult::Unresolved => {
+                    // Do not branch, ascend to parent AST node
+                    child = container;
+                    continue;
+                },
+                ContainerResult::None => break,
+            }
+        }
+
+        fallback.map(Into::into)
     }
 
     fn find_generic_param_container(&mut self, src: InFile<&SyntaxNode>) -> Option<GenericDefId> {
@@ -617,8 +635,8 @@ impl<'db> SourceToDefCtx<'db, '_> {
         &mut self,
         container: InFile<SyntaxNode>,
         child: &SyntaxNode,
-    ) -> Option<ChildContainer> {
-        let cont = if let Some(item) = ast::Item::cast(container.value.clone()) {
+    ) -> ContainerResult {
+        let res: Option<ChildContainer> = (|| {let cont = if let Some(item) = ast::Item::cast(container.value.clone()) {
             match &item {
                 ast::Item::Module(it) => self.module_to_def(container.with_value(it))?.into(),
                 ast::Item::Trait(it) => self.trait_to_def(container.with_value(it))?.into(),
@@ -718,6 +736,11 @@ impl<'db> SourceToDefCtx<'db, '_> {
             DefWithBodyId::from(def).into()
         };
         Some(cont)
+        })();
+        match res {
+            Some(cont) => ContainerResult::Resolved(cont),
+            None => ContainerResult::Unresolved,
+        }
     }
 }
 
@@ -774,5 +797,220 @@ impl ChildContainer {
             ChildContainer::VariantId(_) => None,
             ChildContainer::GenericDefId(it) => Some(it.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod rigorous_container_tests {
+    use hir_expand::InFile;
+    use syntax::{AstNode, ast};
+
+    use super::ChildContainer;
+    use crate::{semantics::Semantics, test_db::TestDB};
+
+    // Returns the innermost node whose text contains `text`.
+    fn innermost_containing(source: &ast::SourceFile, text: &str) -> syntax::SyntaxNode {
+        source
+            .syntax()
+            .descendants()
+            .filter(|node| node.text().to_string().contains(text))
+            .last()
+            .expect("no node contains the requested text")
+    }
+
+    // Multi-level #[cfg]
+    #[test]
+    fn test_fn_multi_level_cfg_cascade_soundness() {
+        let (db, file_id) = TestDB::with_single_file(
+            r#"
+//- /main.rs
+fn active_root() {
+    #[cfg(never)]
+    fn disabled_level_1() {
+        #[cfg(never)]
+        fn disabled_level_2() {
+            let target_call = 42;
+        }
+    }
+}
+"#,
+        );
+
+        let sema = Semantics::new(&db);
+        let source_file = sema.parse(file_id);
+        let target_node = innermost_containing(&source_file, "target_call");
+
+        let container = sema
+            .with_ctx(|ctx| ctx.find_container(InFile::new(file_id.into(), &target_node)))
+            .expect("find_container dropped a resolvable node (false negative)");
+
+        assert!(
+            matches!(container, ChildContainer::DefWithBodyId(_)),
+            "expected the enclosing enabled body, got {container:?}"
+        );
+    }
+
+    // Resolves the identical path node string in two
+    // structurally different positions within a single function.
+    #[test]
+    fn test_fn_signature_vs_body_disambiguation() {
+        let (db, file_id) = TestDB::with_single_file(
+            r#"
+//- /main.rs
+trait Bound {}
+
+fn target_fn<T: Bound>() {
+    let body_node = 1 + 1;
+}
+"#,
+        );
+
+        let sema = Semantics::new(&db);
+        let source_file = sema.parse(file_id);
+
+        let bound_node = innermost_containing(&source_file, "Bound");
+        let container = sema
+            .with_ctx(|ctx| ctx.find_container(InFile::new(file_id.into(), &bound_node)))
+            .expect("find_container dropped a signature-bound node (false negative)");
+        assert!(
+            matches!(container, ChildContainer::GenericDefId(_)),
+            "signature element incorrectly bound to a body: {container:?}"
+        );
+
+        let body_node = innermost_containing(&source_file, "body_node");
+        let container = sema
+            .with_ctx(|ctx| ctx.find_container(InFile::new(file_id.into(), &body_node)))
+            .expect("find_container dropped a body node (false negative)");
+        assert!(
+            matches!(container, ChildContainer::DefWithBodyId(_)),
+            "body element incorrectly bound to a signature: {container:?}"
+        );
+    }
+
+    // Struct definitions own their `field_list`, while generic type parameters
+    // live on the definition's signature.
+    #[test]
+    fn test_struct_field_vs_generic_boundary() {
+        let (db, file_id) = TestDB::with_single_file(
+            r#"
+//- /main.rs
+struct SampleStruct<type_a> {
+    field_a: u32,
+}
+"#,
+        );
+
+        let sema = Semantics::new(&db);
+        let source_file = sema.parse(file_id);
+
+        let field_node = innermost_containing(&source_file, "field_a");
+        let container = sema
+            .with_ctx(|ctx| ctx.find_container(InFile::new(file_id.into(), &field_node)))
+            .expect("find_container dropped a struct field node (false negative)");
+        assert!(
+            matches!(container, ChildContainer::VariantId(_)),
+            "expected struct field scope, got {container:?}"
+        );
+
+        let type_param = source_file
+            .syntax()
+            .descendants()
+            .find(|node| node.kind() == syntax::SyntaxKind::TYPE_PARAM)
+            .expect("type parameter node not found");
+        let container = sema
+            .with_ctx(|ctx| ctx.find_container(InFile::new(file_id.into(), &type_param)))
+            .expect("find_container dropped a type parameter node (false negative)");
+        assert!(
+            matches!(container, ChildContainer::GenericDefId(_)),
+            "expected struct generic scope, got {container:?}"
+        );
+    }
+
+    // Nested unbalanced
+    #[test]
+    fn test_unclosed_braces_deep_mapped_soundness() {
+        const DEPTH: usize = 10;
+
+        let mut fixture = String::from("//- /main.rs\n");
+        for i in 0..DEPTH {
+            fixture.push_str(&format!("fn level_{i}() {{\n"));
+        }
+        fixture.push_str("let target_symbol = 100;\n");
+
+        let (db, file_id) = TestDB::with_single_file(&fixture);
+
+        let sema = Semantics::new(&db);
+        let source_file = sema.parse(file_id);
+        let target_node = innermost_containing(&source_file, "target_symbol");
+
+        let container = sema
+            .with_ctx(|ctx| ctx.find_container(InFile::new(file_id.into(), &target_node)))
+            .expect("find_container failed on deep unbalanced braces (false negative)");
+
+        assert!(
+            matches!(container, ChildContainer::DefWithBodyId(_)),
+            "expected recovered body scope, got {container:?}"
+        );
+    }
+
+    // Orpahn files
+    #[test]
+    fn test_unmapped_file_isolation_strictness() {
+        let (db, files) = TestDB::with_many_files(
+            r#"
+//- /main.rs
+fn crate_root_fn() {}
+
+//- /docs.md
+fn unmapped_fn() { let x = 1; }
+"#,
+        );
+        let md_file = files[1];
+        let sema = Semantics::new(&db);
+
+        let parse = md_file.parse(&db);
+        let fn_node = parse
+            .tree()
+            .syntax()
+            .descendants()
+            .find_map(ast::Fn::cast)
+            .expect("detached file failed to parse fn");
+
+        let unmapped_file_id = InFile::new(md_file.into(), fn_node.syntax());
+
+        let container = sema.with_ctx(|ctx| ctx.find_container(unmapped_file_id));
+
+        assert!(
+            container.is_none(),
+            "detached syntax wrongly bound to workspace containers: {container:?}"
+        );
+    }
+
+    // Issue repro(23522)
+    #[test]
+    fn test_unmapped_file_deep_unbalanced_bails_immediately() {
+        const DEPTH: usize = 26;
+
+        let mut fixture = String::from("//- /main.rs\nfn crate_root_fn() {}\n\n//- /docs.md\n");
+        for i in 0..DEPTH {
+            fixture.push_str(&format!("fn level_{i}() {{\n"));
+        }
+        fixture.push_str("let decide = 100;\n");
+
+        let (db, files) = TestDB::with_many_files(&fixture);
+        let md_file = files[1];
+        let sema = Semantics::new(&db);
+
+        let parse = md_file.parse(&db);
+        let target_node = innermost_containing(&parse.tree(), "decide");
+
+        let unmapped_file_id = InFile::new(md_file.into(), &target_node);
+
+        let container = sema.with_ctx(|ctx| ctx.find_container(unmapped_file_id));
+
+        assert!(
+            container.is_none(),
+            "deep detached syntax wrongly bound to workspace containers: {container:?}"
+        );
     }
 }
