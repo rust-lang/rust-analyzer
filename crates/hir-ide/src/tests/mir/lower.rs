@@ -65,3 +65,30 @@ fn f<T: Tr>(x: T::A) {
 "#,
     );
 }
+
+#[test]
+fn struct_pat_on_opaque_in_closure_issue_23385() {
+    lower_mir(
+        r#"
+//- minicore: sized
+struct Foo {
+    x: u32,
+}
+
+fn wut() -> impl Sized {
+    let foo = wut();
+    move || {
+        let Foo { x } = foo;
+    };
+    foo
+}
+
+fn main() {
+    let foo = wut();
+    move || {
+        let Foo { x } = foo;
+    };
+}
+"#,
+    );
+}

@@ -1128,12 +1128,13 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
                     else {
                         not_supported!("non-local capture");
                     };
+                    let mut projections = Vec::with_capacity(place.projections.len());
+                    for elem in convert_closure_capture_projections(self.db, place) {
+                        projections.push(elem?);
+                    }
                     Ok(StoredPlace {
                         local: this.binding_local(local)?,
-                        projection: Projection::new_from_iter(convert_closure_capture_projections(
-                            self.db, place,
-                        ))
-                        .store(),
+                        projection: Projection::new_from_slice(&projections).store(),
                     })
                 };
 
@@ -1940,33 +1941,37 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
     }
 }
 
-fn convert_closure_capture_projections(
-    _db: &dyn HirDatabase,
+fn convert_closure_capture_projections<'db>(
+    _db: &'db dyn HirDatabase,
     place: &HirPlace,
-) -> impl Iterator<Item = PlaceElem> {
+) -> impl Iterator<Item = Result<'db, PlaceElem>> {
     place.projections.iter().enumerate().flat_map(|(i, proj)| {
-        let mut projections = ArrayVec::<PlaceElem, 2>::new();
+        let mut projections = ArrayVec::<Result<'db, PlaceElem>, 2>::new();
         match proj.kind {
-            HirProjectionKind::Deref => projections.push(ProjectionElem::Deref),
+            HirProjectionKind::Deref => projections.push(Ok(ProjectionElem::Deref)),
             HirProjectionKind::Field { field_idx, variant_idx } => {
                 let ty = place.ty_before_projection(i);
                 match ty.kind() {
                     TyKind::Tuple(_) => {
-                        projections.push(ProjectionElem::Field(FieldIndex(field_idx)))
+                        projections.push(Ok(ProjectionElem::Field(FieldIndex(field_idx))))
                     }
                     TyKind::Adt(adt_def, _) => {
                         if let AdtId::EnumId(enum_id) = adt_def.def_id() {
                             let variant =
                                 enum_id.enum_variants(_db).variants[variant_idx as usize].0.into();
-                            projections.push(ProjectionElem::Downcast(variant));
+                            projections.push(Ok(ProjectionElem::Downcast(variant)));
                         }
                         let local_field_id = LocalFieldId::from_raw(RawIdx::from_u32(field_idx));
-                        projections.push(ProjectionElem::Field(local_field_id.into()));
+                        projections.push(Ok(ProjectionElem::Field(local_field_id.into())));
                     }
-                    _ => panic!("unexpected type"),
+                    _ => projections.push(Err(MirLowerError::TypeError(
+                        "field projection on non-ADT/tuple type",
+                    ))),
                 }
             }
-            _ => panic!("unexpected projection"),
+            _ => projections.push(Err(MirLowerError::NotSupported(
+                "unexpected closure capture projection".to_owned(),
+            ))),
         }
         projections.into_iter()
     })
@@ -2102,12 +2107,13 @@ pub fn mir_body_for_closure_query<'db>(
 
                 for (idx, item) in iter {
                     match item {
-                        EitherOrBoth::Both(mir, hir) => {
+                        EitherOrBoth::Both(mir, Ok(hir)) => {
                             if mir != hir {
                                 // Not this place.
                                 return None;
                             }
                         }
+                        EitherOrBoth::Both(_, Err(_)) => return None,
                         EitherOrBoth::Right(_) => {
                             // FIXME: This can happen in fake reads. I believe this is a bug. So we change the fake read's meaning.
                             // never!(

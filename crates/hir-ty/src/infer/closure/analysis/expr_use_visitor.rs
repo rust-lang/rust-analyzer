@@ -1468,8 +1468,21 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, 'db, D> {
 
     /// Returns the variant index for an ADT used within a Struct or TupleStruct pattern
     /// Here `pat_hir_id` is the ExprId of the pattern itself.
-    fn variant_index_for_adt(&self, pat_id: PatId) -> Result<(u32, VariantId)> {
+    fn variant_index_for_adt(
+        &mut self,
+        pat_id: PatId,
+        place_ty: Ty<'db>,
+    ) -> Result<(u32, VariantId)> {
         let variant = self.cx.result.variant_resolution_for_pat(pat_id).ok_or(ErrorGuaranteed)?;
+        let ty = self.cx.result.pat_ty(pat_id);
+        if !matches!(self.cx.structurally_resolve_type(pat_id.into(), ty).kind(), TyKind::Adt(..))
+            || !matches!(
+                self.cx.structurally_resolve_type(pat_id.into(), place_ty).kind(),
+                TyKind::Adt(..)
+            )
+        {
+            return Err(ErrorGuaranteed);
+        }
         let variant_idx = match variant {
             VariantId::EnumVariantId(variant) => variant.index(self.cx.db) as u32,
             VariantId::StructId(_) | VariantId::UnionId(_) => 0,
@@ -1479,11 +1492,17 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, 'db, D> {
 
     /// Returns the total number of fields in a tuple used within a Tuple pattern.
     /// Here `pat_hir_id` is the ExprId of the pattern itself.
-    fn total_fields_in_tuple(&mut self, pat_id: PatId) -> usize {
+    fn total_fields_in_tuple(&mut self, pat_id: PatId, place_ty: Ty<'db>) -> Result<usize> {
         let ty = self.cx.result.pat_ty(pat_id);
+        if !matches!(
+            self.cx.structurally_resolve_type(pat_id.into(), place_ty).kind(),
+            TyKind::Tuple(_)
+        ) {
+            return Err(ErrorGuaranteed);
+        }
         match self.cx.structurally_resolve_type(pat_id.into(), ty).kind() {
-            TyKind::Tuple(args) => args.len(),
-            _ => panic!("tuple pattern not applied to a tuple"),
+            TyKind::Tuple(args) => Ok(args.len()),
+            _ => Err(ErrorGuaranteed),
         }
     }
 
@@ -1572,7 +1591,7 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, 'db, D> {
         match self.cx.store[pat] {
             Pat::Tuple { args: ref subpats, ellipsis: dots_pos } => {
                 // (p1, ..., pN)
-                let total_fields = self.total_fields_in_tuple(pat);
+                let total_fields = self.total_fields_in_tuple(pat, place_with_id.place.ty())?;
 
                 for (i, &subpat) in subpats.iter().enumerate_and_adjust(total_fields, dots_pos) {
                     let subpat_ty = self.pat_ty_adjusted(subpat)?;
@@ -1590,7 +1609,8 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, 'db, D> {
 
             Pat::TupleStruct { args: ref subpats, ellipsis: dots_pos, .. } => {
                 // S(p1, ..., pN)
-                let (variant_index, variant) = self.variant_index_for_adt(pat)?;
+                let (variant_index, variant) =
+                    self.variant_index_for_adt(pat, place_with_id.place.ty())?;
                 let total_fields = variant.fields(self.cx.db).len();
 
                 for (i, &subpat) in subpats.iter().enumerate_and_adjust(total_fields, dots_pos) {
@@ -1610,7 +1630,8 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, 'db, D> {
             Pat::Record { args: ref field_pats, .. } => {
                 // S { f1: p1, ..., fN: pN }
 
-                let (variant_index, variant) = self.variant_index_for_adt(pat)?;
+                let (variant_index, variant) =
+                    self.variant_index_for_adt(pat, place_with_id.place.ty())?;
                 let fields = variant.fields(self.cx.db);
 
                 for fp in field_pats {

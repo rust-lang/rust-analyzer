@@ -654,3 +654,31 @@ fn fun(wrapper: Wrapper) {
         expect!["319..411;206..213;350..357,391..398 ByValue wrapper Wrapper"],
     );
 }
+
+#[test]
+fn struct_pat_on_opaque_issue_23385() {
+    check_closure_captures(
+        r#"
+//- minicore: sized
+struct Foo {
+    x: u32,
+}
+
+fn wut() -> impl Sized {
+    let foo = wut();
+    move || {
+        let Foo { x } = foo;
+    };
+    foo
+}
+
+fn main() {
+    let foo = wut();
+    move || {
+        let Foo { x } = foo;
+    };
+}
+"#,
+        expect!["78..122;61..64;100..109 ByValue foo.x u32"],
+    );
+}
