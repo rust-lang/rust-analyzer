@@ -16,10 +16,11 @@ use smallvec::{SmallVec, smallvec};
 use stdx::never;
 
 use crate::{
+    InferenceResult,
     db::HirDatabase,
     inhabitedness::{is_enum_variant_uninhabited_from, is_ty_uninhabited_from},
     next_solver::{
-        ParamEnv, Ty, TyKind,
+        AliasTy, AliasTyKind, EarlyBinder, ParamEnv, Ty, TyKind,
         infer::{InferCtxt, traits::ObligationCause},
     },
 };
@@ -72,16 +73,38 @@ impl rustc_pattern_analysis::Idx for EnumVariantContiguousIndex {
 pub(crate) struct MatchCheckCtx<'a, 'db> {
     module: ModuleId,
     pub(crate) db: &'db dyn HirDatabase,
+    infer: &'a InferenceResult<'db>,
     exhaustive_patterns: bool,
     env: ParamEnv<'db>,
     infcx: &'a InferCtxt<'db>,
 }
 
 impl<'a, 'db> MatchCheckCtx<'a, 'db> {
-    pub(crate) fn new(module: ModuleId, infcx: &'a InferCtxt<'db>, env: ParamEnv<'db>) -> Self {
+    pub(crate) fn new(
+        module: ModuleId,
+        infer: &'a InferenceResult<'db>,
+        infcx: &'a InferCtxt<'db>,
+        env: ParamEnv<'db>,
+    ) -> Self {
         let db = infcx.interner.db;
         let exhaustive_patterns = UnstableFeatures::query(db, module.krate(db)).exhaustive_patterns;
-        Self { module, db, exhaustive_patterns, env, infcx }
+        Self { module, db, infer, exhaustive_patterns, env, infcx }
+    }
+
+    /// Type inference occasionally gives us opaque types in places where corresponding patterns
+    /// have more specific types. To avoid inconsistencies as well as detect opaque uninhabited
+    /// types, we use the corresponding hidden type if possible.
+    pub(crate) fn reveal_opaque_ty(&self, ty: Ty<'db>) -> Ty<'db> {
+        let TyKind::Alias(AliasTy { kind: AliasTyKind::Opaque { def_id }, args, .. }) = ty.kind()
+        else {
+            return ty;
+        };
+        if let Some(hidden_ty) = self.infer.type_of_opaque.get(&def_id.0) {
+            return EarlyBinder::bind(hidden_ty.as_ref())
+                .instantiate(self.infcx.interner, args)
+                .skip_norm_wip();
+        }
+        ty
     }
 
     pub(crate) fn compute_match_usefulness<'b>(
@@ -90,6 +113,7 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
         scrut_ty: Ty<'db>,
         known_valid_scrutinee: Option<bool>,
     ) -> Result<UsefulnessReport<'b, Self>, ()> {
+        let scrut_ty = self.reveal_opaque_ty(scrut_ty);
         if scrut_ty.references_non_lt_error() {
             return Err(());
         }
@@ -106,6 +130,7 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
     }
 
     fn is_uninhabited(&self, ty: Ty<'db>) -> bool {
+        let ty = self.reveal_opaque_ty(ty);
         is_ty_uninhabited_from(self.infcx, ty, self.module, self.env)
     }
 
@@ -154,12 +179,14 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
                 .at(&ObligationCause::dummy(), self.env)
                 .deeply_normalize(ty)
                 .unwrap_or(ty);
+            let ty = self.reveal_opaque_ty(ty);
             (fid, ty)
         })
     }
 
     pub(crate) fn lower_pat(&self, pat: &Pat<'db>) -> DeconstructedPat<'a, 'db> {
         let singleton = |pat: DeconstructedPat<'a, 'db>| vec![pat.at_index(0)];
+        let pat_ty = self.reveal_opaque_ty(pat.ty);
         let ctor;
         let mut fields: Vec<_>;
         let arity;
@@ -172,10 +199,10 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
                 arity = 0;
             }
             PatKind::Deref { subpattern } => {
-                ctor = match pat.ty.kind() {
+                ctor = match pat_ty.kind() {
                     TyKind::Ref(..) => Ref,
                     _ => {
-                        never!("pattern has unexpected type: pat: {:?}, ty: {:?}", pat, &pat.ty);
+                        never!("pattern has unexpected type: pat: {:?}, ty: {:?}", pat, &pat_ty);
                         Wildcard
                     }
                 };
@@ -190,7 +217,7 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
                         self.lower_pat(&pat.pattern).at_index(idx as usize)
                     })
                     .collect();
-                match pat.ty.kind() {
+                match pat_ty.kind() {
                     TyKind::Tuple(substs) => {
                         ctor = Struct;
                         arity = substs.len();
@@ -217,7 +244,7 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
                         arity = variant.fields(self.db).fields().len();
                     }
                     _ => {
-                        never!("pattern has unexpected type: pat: {:?}, ty: {:?}", pat, &pat.ty);
+                        never!("pattern has unexpected type: pat: {:?}, ty: {:?}", pat, &pat_ty);
                         ctor = Wildcard;
                         fields.clear();
                         arity = 0;
@@ -244,7 +271,7 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
                 arity = pats.len();
             }
         }
-        DeconstructedPat::new(ctor, fields, arity, pat.ty, ())
+        DeconstructedPat::new(ctor, fields, arity, pat_ty, ())
     }
 
     pub(crate) fn hoist_witness_pat(&self, pat: &WitnessPat<'a, 'db>) -> Pat<'db> {
@@ -350,12 +377,13 @@ impl<'a, 'db> PatCx for MatchCheckCtx<'a, 'db> {
         ctor: &rustc_pattern_analysis::constructor::Constructor<Self>,
         ty: &Self::Ty,
     ) -> impl ExactSizeIterator<Item = (Self::Ty, PrivateUninhabitedField)> {
-        let single = |ty| smallvec![(ty, PrivateUninhabitedField(false))];
+        let single = |ty| smallvec![(self.reveal_opaque_ty(ty), PrivateUninhabitedField(false))];
         let tys: SmallVec<[_; 2]> = match ctor {
             Struct | Variant(_) | UnionField => match ty.kind() {
-                TyKind::Tuple(substs) => {
-                    substs.iter().map(|ty| (ty, PrivateUninhabitedField(false))).collect()
-                }
+                TyKind::Tuple(substs) => substs
+                    .iter()
+                    .map(|ty| (self.reveal_opaque_ty(ty), PrivateUninhabitedField(false)))
+                    .collect(),
                 TyKind::Ref(_, rty, _) => single(rty),
                 TyKind::Adt(adt_def, ..) => {
                     let adt = adt_def.def_id();

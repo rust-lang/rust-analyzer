@@ -203,7 +203,12 @@ impl<'db> ExprValidator<'db> {
             return;
         }
 
-        let cx = MatchCheckCtx::new(self.owner.module(self.db()), &self.infcx, self.env);
+        let cx =
+            MatchCheckCtx::new(self.owner.module(self.db()), self.infer, &self.infcx, self.env);
+        let scrut_ty = cx.reveal_opaque_ty(scrut_ty);
+        if scrut_ty.references_non_lt_error() {
+            return;
+        }
 
         let pattern_arena = Arena::new();
         let mut m_arms = Vec::with_capacity(arms.len());
@@ -211,7 +216,8 @@ impl<'db> ExprValidator<'db> {
         // Note: Skipping the entire diagnostic rather than just not including a faulty match arm is
         // preferred to avoid the chance of false positives.
         for arm in arms {
-            let pat_ty = self.infer.type_of_pat_with_adjust(arm.pat);
+            let pat = self.lower_pattern(&cx, arm.pat, &mut has_lowering_errors);
+            let pat_ty = *pat.ty();
             if pat_ty.references_non_lt_error() {
                 return;
             }
@@ -227,15 +233,15 @@ impl<'db> ExprValidator<'db> {
             //
             // FIXME we should use the type checker for this.
             if (pat_ty == scrut_ty
-                || scrut_ty
-                    .as_reference()
-                    .is_none_or(|(match_expr_ty, ..)| match_expr_ty == pat_ty))
+                || scrut_ty.as_reference().is_some_and(|(match_expr_ty, ..)| {
+                    cx.reveal_opaque_ty(match_expr_ty) == pat_ty
+                }))
+                && !self.infer.expr_has_type_mismatch(scrutinee_expr)
                 && types_of_subpatterns_do_match(arm.pat, self.body, self.infer)
             {
                 // If we had a NotUsefulMatchArm diagnostic, we could
                 // check the usefulness of each pattern as we added it
                 // to the matrix here.
-                let pat = self.lower_pattern(&cx, arm.pat, &mut has_lowering_errors);
                 let m_arm = pat_analysis::MatchArm {
                     pat: pattern_arena.alloc(pat),
                     has_guard: arm.guard.is_some(),
@@ -316,7 +322,8 @@ impl<'db> ExprValidator<'db> {
 
     fn validate_block(&mut self, statements: &[Statement]) {
         let pattern_arena = Arena::new();
-        let cx = MatchCheckCtx::new(self.owner.module(self.db()), &self.infcx, self.env);
+        let cx =
+            MatchCheckCtx::new(self.owner.module(self.db()), self.infer, &self.infcx, self.env);
         for stmt in statements {
             match *stmt {
                 Statement::Expr { expr: stmt_expr, has_semi: true } if self.validate_lints => {
@@ -350,7 +357,7 @@ impl<'db> ExprValidator<'db> {
             return None;
         }
         let initializer = initializer?;
-        let ty = self.infer.type_of_expr_with_adjust(initializer)?;
+        let ty = cx.reveal_opaque_ty(self.infer.type_of_expr_with_adjust(initializer)?);
         if ty.references_non_lt_error() {
             return None;
         }

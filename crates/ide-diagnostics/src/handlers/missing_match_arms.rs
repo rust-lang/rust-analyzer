@@ -1229,4 +1229,44 @@ fn foo() {
         "#,
         );
     }
+
+    #[test]
+    fn match_scrutinee_opaque_higher_ranked_subtype_issue_23354() {
+        check_diagnostics(
+            r#"
+//- minicore: sized
+struct Inv<'a>(&'a mut &'a ());
+enum Foo<T> {
+    Bar,
+    Var(T),
+}
+type Subtype = Foo<for<'a, 'b> fn(Inv<'a>, Inv<'b>)>;
+type Supertype = Foo<for<'a> fn(Inv<'a>, Inv<'a>)>;
+
+fn foo() -> impl Sized {
+    loop {
+        match foo() {
+            Subtype::Bar => (),
+            Supertype::Var(x) => {}
+        }
+    }
+}
+
+fn bar() -> impl Sized {
+    if false {
+        match bar() {
+            //^^^^^ error: missing match arm: `Foo::Var(_)` not covered
+            Subtype::Bar => (),
+        }
+    }
+    loop {
+        match bar() {
+            Subtype::Bar => (),
+            Supertype::Var(x) => {}
+        }
+    }
+}
+        "#,
+        );
+    }
 }
