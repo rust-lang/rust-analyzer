@@ -255,9 +255,7 @@ jobs:
       matrix:
         include:
           - cmd: vsce
-            # Visual Studio Marketplace currently lacks the UI to create the trusted policy
-            # authentication: --oidc
-            authentication: --pat "$PUBLISH_PAT"
+            authentication: --oidc
           - cmd: ovsx
             authentication: --trusted-publishing
     steps:
@@ -282,8 +280,6 @@ jobs:
 
       - name: Publish Extension
         if: github.repository == 'rust-lang/rust-analyzer'
-        env:
-          PUBLISH_PAT: ${{ matrix.cmd == 'vsce' && secrets.MARKETPLACE_TOKEN || '' }}
         working-directory: ./editors/code
         run: npx ${{ matrix.cmd }} publish --skip-duplicate ${{ matrix.authentication }} --packagePath ../../dist/rust-analyzer-*.vsix ${{ github.ref != 'refs/heads/release' && '--pre-release' || '' }}
         timeout-minutes: 2
