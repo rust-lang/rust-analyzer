@@ -1477,16 +1477,6 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, 'db, D> {
         Ok((variant_idx, variant))
     }
 
-    /// Returns the total number of fields in a tuple used within a Tuple pattern.
-    /// Here `pat_hir_id` is the ExprId of the pattern itself.
-    fn total_fields_in_tuple(&mut self, pat_id: PatId) -> usize {
-        let ty = self.cx.result.pat_ty(pat_id);
-        match self.cx.structurally_resolve_type(pat_id.into(), ty).kind() {
-            TyKind::Tuple(args) => args.len(),
-            _ => panic!("tuple pattern not applied to a tuple"),
-        }
-    }
-
     /// Here, `place` is the `PlaceWithId` being matched and pat is the pattern it
     /// is being matched against.
     ///
@@ -1572,7 +1562,15 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, 'db, D> {
         match self.cx.store[pat] {
             Pat::Tuple { args: ref subpats, ellipsis: dots_pos } => {
                 // (p1, ..., pN)
-                let total_fields = self.total_fields_in_tuple(pat);
+                let ty = self.cx.structurally_resolve_type(pat.into(), place_with_id.place.ty());
+                let TyKind::Tuple(fields) = ty.kind() else {
+                    return Ok(());
+                };
+
+                let total_fields = fields.len();
+                if subpats.len() > total_fields {
+                    return Ok(());
+                }
 
                 for (i, &subpat) in subpats.iter().enumerate_and_adjust(total_fields, dots_pos) {
                     let subpat_ty = self.pat_ty_adjusted(subpat)?;
