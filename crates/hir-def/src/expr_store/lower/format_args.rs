@@ -335,13 +335,15 @@ impl<'db> ExprCollector<'db> {
             let args = argmap
                 .iter()
                 .map(|&(arg_index, ty)| {
+                    let Some(arg_info) = arguments.get(arg_index) else {
+                        return self.missing_expr();
+                    };
                     let args_ident_expr = self.alloc_expr_desugared(Expr::Path(args_path.clone()));
                     let arg = self.alloc_expr_desugared(Expr::Field {
                         expr: args_ident_expr,
                         name: Name::new_tuple_field(arg_index),
                     });
-                    let arg_ptr = arguments.get(arg_index).and_then(|it| it.syntax);
-                    self.make_argument(arg_ptr, arg, ty)
+                    self.make_argument(arg_info.syntax, arg, ty)
                 })
                 .collect();
             let args =

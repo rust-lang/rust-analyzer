@@ -297,6 +297,26 @@ fn main() {
     }
 
     #[test]
+    fn no_panic_on_invalid_format_args_references() {
+        check_diagnostics(
+            r#"
+//- minicore: fmt, builtin_impls, concat
+fn main() {
+    let foo = 1;
+    format_args!("{}{foo}");
+    format_args!(r"{}{}{}", named_arg = 1);
+    format_args!("{} {1}", 1);
+    format_args!("{:1$}", 1);
+    format_args!("{:.1$}", 1);
+    format_args!("{}{}");
+    format_args!(concat!("{unknown}"));
+    format_args!(concat!("{:unknown$}"), 1);
+}
+"#,
+        );
+    }
+
+    #[test]
     fn method_clash() {
         check_diagnostics(
             r#"
