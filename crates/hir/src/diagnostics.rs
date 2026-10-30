@@ -1607,13 +1607,12 @@ impl<'db> AnyDiagnostic<'db> {
                 expected,
                 found,
                 is_fn_trait_call,
-            } => MismatchedArgCount {
+            } => AnyDiagnostic::from(MismatchedArgCount {
                 call_expr: expr_syntax(call_expr)?,
                 expected,
                 found,
                 is_fn_trait_call,
-            }
-            .into(),
+            }),
             &InferenceDiagnostic::PrivateField { expr, field } => {
                 let expr = expr_syntax(expr)?;
                 let field = field.into();
@@ -1884,9 +1883,13 @@ impl<'db> AnyDiagnostic<'db> {
                     })
                     .collect();
                 match record.value.to_node(&root) {
-                    Either::Left(ast::Expr::RecordExpr(record_expr))
-                        if record_expr.record_expr_field_list().is_some() =>
-                    {
+                    Either::Left(ast::Expr::RecordExpr(record_expr)) => {
+                        if record_expr.record_expr_field_list().is_none() {
+                            never!(
+                                "missing field list for a record-literal missing-fields diagnostic"
+                            );
+                            return None;
+                        }
                         let field_list_parent_path =
                             record_expr.path().map(|path| AstPtr::new(&path));
                         return Some(
@@ -1899,9 +1902,13 @@ impl<'db> AnyDiagnostic<'db> {
                             .into(),
                         );
                     }
-                    Either::Right(ast::Pat::RecordPat(record_pat))
-                        if record_pat.record_pat_field_list().is_some() =>
-                    {
+                    Either::Right(ast::Pat::RecordPat(record_pat)) => {
+                        if record_pat.record_pat_field_list().is_none() {
+                            never!(
+                                "missing field list for a record-pattern missing-fields diagnostic"
+                            );
+                            return None;
+                        }
                         let field_list_parent_path =
                             record_pat.path().map(|path| AstPtr::new(&path));
                         MissingFields {
@@ -1912,7 +1919,10 @@ impl<'db> AnyDiagnostic<'db> {
                         }
                         .into()
                     }
-                    _ => return None,
+                    _ => {
+                        never!("should always map to a record expression or pattern");
+                        return None;
+                    }
                 }
             }
         })
