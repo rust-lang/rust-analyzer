@@ -77,6 +77,29 @@ pub(crate) fn type_mismatch(
     )
 }
 
+pub(crate) fn const_arg_type_mismatch(
+    ctx: &DiagnosticsContext<'_, '_>,
+    d: &hir::ConstArgTypeMismatch<'_>,
+) -> Diagnostic {
+    let expected = d
+        .expected
+        .display(ctx.db(), ctx.display_target)
+        .with_closure_style(ClosureStyle::ClosureWithId)
+        .to_string();
+    let actual = d
+        .actual
+        .display(ctx.db(), ctx.display_target)
+        .with_closure_style(ClosureStyle::ClosureWithId)
+        .to_string();
+    Diagnostic::new_with_syntax_node_ptr(
+        ctx,
+        DiagnosticCode::RustcHardError("E0308"),
+        format!("expected {expected}, found {actual}"),
+        d.span.map(Into::into),
+    )
+    .stable()
+}
+
 /// Renders both sides of the mismatch with qualified paths, for when their plain names collide.
 /// Returns `None` if either side has no renderable path, in which case both keep their plain
 /// names — mixing a qualified and an unqualified name would be more confusing, not less.
@@ -1012,13 +1035,14 @@ fn main() {
         check_diagnostics(
             r#"
             pub struct Rate<const N: u32>;
-            fn f<const N: u64>() -> Rate<N> { // FIXME: add some error
+            fn f<const N: u64>() -> Rate<N> { // FIXME: rustc also errors here (signature-level WF)
                 loop {}
             }
             fn run(_t: Rate<5>) {
             }
             fn main() {
                 run(f())
+            //      ^ error: expected u64, found u32
             }
 "#,
         );
@@ -1959,6 +1983,7 @@ fn main() {
     let _x = foo(2);
      // ^^ error: type annotations needed
           // ^^^ error: the trait bound `i32: Foo` is not satisfied
+          // ^^^^^^ error: the trait bound `i32: Foo` is not satisfied
 }
 "#,
         );

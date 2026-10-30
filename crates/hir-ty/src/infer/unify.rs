@@ -470,6 +470,12 @@ impl<'db> InferenceTable<'db> {
 
     /// checking later, during regionck, that `arg` is well-formed.
     pub(crate) fn register_wf_obligation(&mut self, term: Term<'db>, cause: ObligationCause) {
+        if term.has_escaping_bound_vars() {
+            return;
+        }
+        if term.is_trivially_wf(self.interner()) {
+            return;
+        }
         self.register_predicate(Obligation::new(
             self.interner(),
             cause,
@@ -493,12 +499,16 @@ impl<'db> InferenceTable<'db> {
     }
 
     /// Whenever you lower a user-written type, you should call this.
-    pub(crate) fn process_user_written_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
-        self.process_remote_user_written_ty(ty)
+    pub(crate) fn process_user_written_ty(
+        &mut self,
+        ty: Ty<'db>,
+        cause: ObligationCause,
+    ) -> Ty<'db> {
+        let ty = self.process_remote_user_written_ty(ty);
+        self.register_wf_obligation(ty.into(), cause);
+        ty
     }
 
-    /// The difference of this method from `process_user_written_ty()` is that this method doesn't register a well-formed obligation,
-    /// while `process_user_written_ty()` should (but doesn't currently).
     pub(crate) fn process_remote_user_written_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
         let ty = self.insert_type_vars(ty);
         // See https://github.com/rust-lang/rust/blob/cdb45c87e2cd43495379f7e867e3cc15dcee9f93/compiler/rustc_hir_typeck/src/fn_ctxt/mod.rs#L487-L495:

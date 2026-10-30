@@ -1956,7 +1956,7 @@ impl<'db> InferenceContext<'db> {
 
     pub(crate) fn make_ty(&mut self, type_ref: TypeRefId) -> Ty<'db> {
         let ty = self.with_ty_lowering(|ctx| ctx.lower_ty(type_ref));
-        self.process_user_written_ty(ty)
+        self.process_user_written_ty(ty, ObligationCause::new(type_ref))
     }
 
     fn generics(&self) -> &Generics<'db> {
@@ -2086,12 +2086,10 @@ impl<'db> InferenceContext<'db> {
     }
 
     /// Whenever you lower a user-written type, you should call this.
-    fn process_user_written_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
-        self.table.process_user_written_ty(ty)
+    fn process_user_written_ty(&mut self, ty: Ty<'db>, cause: ObligationCause) -> Ty<'db> {
+        self.table.process_user_written_ty(ty, cause)
     }
 
-    /// The difference of this method from `process_user_written_ty()` is that this method doesn't register a well-formed obligation,
-    /// while `process_user_written_ty()` should (but doesn't currently).
     fn process_remote_user_written_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
         self.table.process_remote_user_written_ty(ty)
     }
@@ -2265,7 +2263,7 @@ impl<'db> InferenceContext<'db> {
                 return (self.types.types.error, None);
             }
             let (mut ty, type_ns) = ctx.lower_ty_ext(type_anchor);
-            ty = ctx.expect_table().process_user_written_ty(ty);
+            ty = ctx.expect_table().process_user_written_ty(ty, ObligationCause::new(type_anchor));
 
             if let Some(TypeNs::SelfType(impl_)) = type_ns
                 && let Some(trait_ref) = self.db.impl_trait(impl_)
@@ -2440,7 +2438,9 @@ impl<'db> InferenceContext<'db> {
                     (ty, _) = path_ctx.lower_partly_resolved_path(resolution, true, node.into());
                     tried_resolving_once = true;
 
-                    ty = path_ctx.expect_table().process_user_written_ty(ty);
+                    ty = path_ctx
+                        .expect_table()
+                        .process_user_written_ty(ty, ObligationCause::new(node));
                     if ty.is_ty_error() {
                         return (self.types.types.error, None);
                     }
@@ -2472,7 +2472,7 @@ impl<'db> InferenceContext<'db> {
 
                 let (mut ty, _) =
                     path_ctx.lower_partly_resolved_path(resolution, true, node.into());
-                ty = ctx.expect_table().process_user_written_ty(ty);
+                ty = ctx.expect_table().process_user_written_ty(ty, ObligationCause::new(node));
 
                 if let Some(segment) = remaining_segments.get(1)
                     && let Some((AdtId::EnumId(id), _)) = ty.as_adt()
