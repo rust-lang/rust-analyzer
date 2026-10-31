@@ -111,7 +111,7 @@ impl<'db> ObligationStorage<'db> {
     }
 }
 
-/// Mirrors the stalled-goal early return in the solver's `evaluate_goal_raw`.
+// FIXME: replace with `SolverDelegateEvalExt::goal_remains_stalled` on ra-ap-rustc_* >= 0.175.
 fn is_still_stalled<'db>(
     infcx: &InferCtxt<'db>,
     stalled_on: &GoalStalledOn<DbInterner<'db>>,
