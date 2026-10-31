@@ -8,8 +8,8 @@ use rustc_next_trait_solver::{
     solve::{GoalEvaluation, GoalStalledOn, HasChanged, SolverDelegateEvalExt},
 };
 use rustc_type_ir::{
-    Interner, TypeSuperVisitable, TypeVisitable, TypeVisitableExt, TypeVisitor,
-    inherent::IntoKind,
+    InferCtxtLike, Interner, TypeSuperVisitable, TypeVisitable, TypeVisitableExt, TypeVisitor,
+    inherent::{IntoKind, OpaqueTypeStorageEntries as _},
     solve::{Certainty, NoSolution},
 };
 
@@ -110,6 +110,17 @@ impl<'db> ObligationStorage<'db> {
     }
 }
 
+// FIXME: replace with `SolverDelegateEvalExt::goal_remains_stalled` on ra-ap-rustc_* >= 0.175.
+fn is_still_stalled<'db>(
+    infcx: &InferCtxt<'db>,
+    stalled_on: &GoalStalledOn<DbInterner<'db>>,
+) -> bool {
+    !infcx.disable_trait_solver_fast_paths()
+        && !stalled_on.stalled_vars.iter().any(|&arg| infcx.is_changed_arg(arg))
+        && stalled_on.sub_roots.iter().all(|&vid| infcx.sub_unification_table_root_var(vid) == vid)
+        && !infcx.opaque_types_storage_num_entries().needs_reevaluation(stalled_on.num_opaques)
+}
+
 impl<'db> FulfillmentCtxt<'db> {
     pub fn new(infcx: &InferCtxt<'db>) -> FulfillmentCtxt<'db> {
         FulfillmentCtxt {
@@ -167,6 +178,14 @@ impl<'db> FulfillmentCtxt<'db> {
                     self.obligations.on_fulfillment_overflow(infcx);
                     // Only return true errors that we have accumulated while processing.
                     return errors;
+                }
+
+                if let Some(stalled) = &stalled_on
+                    && !infcx.has_obligation_inspector()
+                    && is_still_stalled(infcx, stalled)
+                {
+                    self.obligations.register(obligation, stalled_on);
+                    continue;
                 }
 
                 let goal = obligation.as_goal();
