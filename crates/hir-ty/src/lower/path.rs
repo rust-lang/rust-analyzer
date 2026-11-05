@@ -499,7 +499,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         assoc_name.clone(),
                     )
                 else {
-                    // FIXME: Emit an error.
+                    self.on_diagnostic(PathLoweringDiagnostic::UnresolvedAssociatedType);
                     return self.ctx.types.types.error;
                 };
                 assoc_type
@@ -520,7 +520,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         assoc_name.clone(),
                     )
                 else {
-                    // FIXME: Emit an error.
+                    self.on_diagnostic(PathLoweringDiagnostic::UnresolvedAssociatedType);
                     return self.ctx.types.types.error;
                 };
                 let (assoc_type, trait_args) = assoc_type
