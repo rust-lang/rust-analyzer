@@ -145,9 +145,9 @@ impl CargoTestHandle {
         cmd.args(["-Z", "unstable-options"]);
         cmd.arg("--format=json");
 
-        for extra_arg in options.extra_test_bin_args {
-            cmd.arg(extra_arg);
-        }
+        // --no-capture hides the output, however we do want it to show up in the captured JSON
+        let extra_args = options.extra_test_bin_args.iter().filter(|arg| arg != &"--no-capture");
+        cmd.args(extra_args);
 
         Ok(Self {
             _handle: CommandHandle::spawn(

@@ -261,7 +261,7 @@ fn main() {}
           {
             "args": {
               "cargoArgs": ["test", "--package", "foo", "--test", "spam"],
-              "executableArgs": ["test_eggs", "--exact", "--nocapture", "--include-ignored"],
+              "executableArgs": ["test_eggs", "--exact", "--no-capture", "--include-ignored"],
               "overrideCargo": null,
               "cwd": server.path().join("foo"),
               "workspaceRoot": server.path().join("foo")
@@ -294,7 +294,7 @@ fn main() {}
               ],
               "executableArgs": [
                 "",
-                "--nocapture"
+                "--no-capture"
               ]
             },
             "kind": "cargo",

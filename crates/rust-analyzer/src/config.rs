@@ -1012,7 +1012,7 @@ config_data! {
         /// [custom test harness](https://doc.rust-lang.org/cargo/reference/cargo-targets.html#the-harness-field),
         /// they will end up being interpreted as options to
         /// [`rustc`’s built-in test harness (“libtest”)](https://doc.rust-lang.org/rustc/tests/index.html#cli-arguments).
-        runnables_extraTestBinaryArgs: Vec<String> = vec!["--nocapture".to_owned()],
+        runnables_extraTestBinaryArgs: Vec<String> = vec!["--no-capture".to_owned()],
         /// Subcommand used for test runnables instead of `test`.
         runnables_test_command: String = "test".to_owned(),
         /// Override the command used for test runnables.
