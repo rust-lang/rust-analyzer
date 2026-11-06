@@ -858,6 +858,7 @@ fn func(_: Enum::$0) {}
 fn completes_type_parameter_or_associated_type() {
     check_with_base_items(
         r#"
+mod slice { pub struct Iter; }
 trait MyTrait<T, U> {
     type Item1;
     type Item2;
@@ -869,6 +870,7 @@ fn f(t: impl MyTrait<u$0
             en Enum                    Enum
             ma makro!(…) macro_rules! makro
             md module::
+            md slice::
             st Record                Record
             st Tuple                  Tuple
             st Unit                    Unit
@@ -887,6 +889,7 @@ fn f(t: impl MyTrait<u$0
 
     check_with_base_items(
         r#"
+mod slice { pub struct Iter; }
 trait MyTrait<T, U> {
     type Item1;
     type Item2;
@@ -898,6 +901,7 @@ fn f(t: impl MyTrait<u8, u$0
             en Enum                    Enum
             ma makro!(…) macro_rules! makro
             md module::
+            md slice::
             st Record                Record
             st Tuple                  Tuple
             st Unit                    Unit
@@ -916,6 +920,7 @@ fn f(t: impl MyTrait<u8, u$0
 
     check_with_base_items(
         r#"
+mod slice { pub struct Iter; }
 trait MyTrait<T, U> {
     type Item1;
     type Item2;
@@ -926,6 +931,18 @@ fn f(t: impl MyTrait<u8, u8, I$0
         expect![[r#"
             ta Item1 =  (as MyTrait) type Item1
             ta Item2 =  (as MyTrait) type Item2
+        "#]],
+    );
+
+    check_with_base_items(
+        r#"
+//- minicore: iterator
+mod slice { pub struct Iter; }
+
+fn f(t: impl Iterator<I$0
+"#,
+        expect![[r#"
+            ta Item =  (as Iterator) pub type Item
         "#]],
     );
 }
