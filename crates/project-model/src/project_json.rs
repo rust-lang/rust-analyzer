@@ -499,7 +499,6 @@ enum RunnableKindData {
     BenchOne,
 
     /// For forwards-compatibility, i.e. old rust-analyzer binary with newer workspace discovery tools
-    #[allow(unused)]
     #[serde(other)]
     Unknown,
 }

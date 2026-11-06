@@ -6,7 +6,6 @@ mod generated;
 
 use crate::Edition;
 
-#[allow(unreachable_pub)]
 pub use self::generated::SyntaxKind;
 
 impl From<u16> for SyntaxKind {
