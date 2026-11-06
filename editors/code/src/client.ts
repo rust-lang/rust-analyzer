@@ -9,6 +9,7 @@ import { WorkspaceEdit } from "vscode";
 import { type Config, prepareVSCodeConfig } from "./config";
 import { sep as pathSeparator } from "path";
 import { RaLanguageClient } from "./lang_client";
+import type { MsrvWarningBatcher } from "./msrv_warnings";
 
 export async function createClient(
     traceOutputChannel: vscode.OutputChannel,
@@ -17,6 +18,7 @@ export async function createClient(
     serverOptions: lc.ServerOptions,
     config: Config,
     unlinkedFiles: vscode.Uri[],
+    msrvWarnings: MsrvWarningBatcher,
 ): Promise<lc.LanguageClient> {
     const raMiddleware: lc.Middleware = {
         workspace: {
@@ -283,6 +285,20 @@ export async function createClient(
         middleware: raMiddleware,
         markdown: {
             supportHtml: true,
+        },
+        connectionOptions: {
+            messageStrategy: {
+                handleMessage(message, next) {
+                    if (
+                        lc.Message.isNotification(message) &&
+                        message.method === lc.ShowMessageNotification.method &&
+                        msrvWarnings.add((message.params as lc.ShowMessageParams).message)
+                    ) {
+                        return;
+                    }
+                    next(message);
+                },
+            },
         },
     };
 
