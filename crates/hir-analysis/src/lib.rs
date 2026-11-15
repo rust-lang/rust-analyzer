@@ -6,6 +6,8 @@ extern crate ra_ap_rustc_type_ir as rustc_type_ir;
 pub mod drop;
 pub mod dyn_compatibility;
 #[doc(hidden)]
+pub mod layout;
+#[doc(hidden)]
 pub mod specialization;
 
 #[macro_export]
