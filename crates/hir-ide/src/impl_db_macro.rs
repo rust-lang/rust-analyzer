@@ -6,13 +6,17 @@ macro_rules! impl_hir_database {
         const _: () = {
             use $crate::{
                 __private::{
+                    base_db::{Crate, target::TargetLoadError},
                     hir_analysis,
                     hir_def::{AdtId, GenericDefId, ImplId, ModuleId, TraitId},
                     hir_ty, salsa,
+                    std::sync::LazyLock,
                 },
                 db::HirDatabase,
                 display::{DisplayTarget, HirDisplay},
-                next_solver::{Ty, TypingEnv},
+                layout::{Layout, LayoutError, TargetDataLayout},
+                next_solver::{StoredGenericArgs, StoredTy, Ty, TypingEnv},
+                traits::StoredParamEnvAndCrate,
             };
 
             #[salsa::db]

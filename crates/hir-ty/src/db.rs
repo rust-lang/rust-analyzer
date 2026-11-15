@@ -1,8 +1,6 @@
 //! The home of `HirDatabase`, which is the Salsa database containing all the
 //! type inference-related queries.
 
-use std::sync::LazyLock;
-
 use arrayvec::ArrayVec;
 use base_db::{Crate, SourceDatabase, target::TargetLoadError};
 use either::Either;
@@ -144,31 +142,17 @@ pub trait HirDatabase: SourceDatabase + 'static {
         def: AdtId,
         args: StoredGenericArgs,
         trait_env: StoredParamEnvAndCrate,
-    ) -> Result<Arc<Layout>, LayoutError> {
-        let db = self.as_dyn();
-        crate::layout::layout_of_adt_query(db, def, args, trait_env)
-    }
+    ) -> Result<Arc<Layout>, LayoutError>;
 
     fn layout_of_ty(
         &self,
         ty: StoredTy,
         env: StoredParamEnvAndCrate,
-    ) -> Result<Arc<Layout>, LayoutError> {
-        let db = self.as_dyn();
-        crate::layout::layout_of_ty_query(db, ty, env)
-    }
+    ) -> Result<Arc<Layout>, LayoutError>;
 
-    fn target_data_layout(&self, krate: Crate) -> Result<&TargetDataLayout, TargetLoadError> {
-        let db = self.as_dyn();
-        crate::layout::target_data_layout_query(db, krate).map_err(|err| err.clone())
-    }
+    fn target_data_layout(&self, krate: Crate) -> Result<&TargetDataLayout, TargetLoadError>;
 
-    fn target_data_layout_or_default(&self, krate: Crate) -> &TargetDataLayout {
-        static DEFAULT: LazyLock<TargetDataLayout> = LazyLock::new(TargetDataLayout::default);
-
-        let db = self.as_dyn();
-        crate::layout::target_data_layout_query(db, krate).unwrap_or_else(|_| &*DEFAULT)
-    }
+    fn target_data_layout_or_default(&self, krate: Crate) -> &TargetDataLayout;
 
     fn ty<'db>(&'db self, def: TyDefId) -> EarlyBinder<'db, Ty<'db>> {
         let db = self.as_dyn();

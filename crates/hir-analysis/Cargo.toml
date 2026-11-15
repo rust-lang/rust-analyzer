@@ -18,7 +18,10 @@ salsa.workspace = true
 rustc-hash.workspace = true
 triomphe.workspace = true
 la-arena.workspace = true
+smallvec.workspace = true
 
+ra-ap-rustc_index.workspace = true
+ra-ap-rustc_abi.workspace = true
 ra-ap-rustc_type_ir.workspace = true
 
 base-db.workspace = true
