@@ -576,6 +576,21 @@ pub fn derive_identity(item: TokenStream) -> TokenStream {
         ),
         (
             r#"
+#[proc_macro_derive(DeriveAttribute, attributes(from_derive))]
+pub fn derive_attribute(item: TokenStream) -> TokenStream {
+    loop {}
+}
+"#
+            .into(),
+            ProcMacro {
+                name: Symbol::intern("DeriveAttribute"),
+                kind: ProcMacroKind::CustomDerive,
+                expander: sync::Arc::new(GenerateDeriveInputAttribute),
+                disabled: false,
+            },
+        ),
+        (
+            r#"
 #[proc_macro_attribute]
 pub fn input_replace(attr: TokenStream, _item: TokenStream) -> TokenStream {
     attr
@@ -1243,6 +1258,50 @@ impl ProcMacroExpander for GenerateSuffixedTypeProcMacroExpander {
         };
 
         Ok(ret)
+    }
+
+    fn eq_dyn(&self, other: &dyn ProcMacroExpander) -> bool {
+        other.type_id() == TypeId::of::<Self>()
+    }
+}
+
+// Generate tokens from `#[from_derive(...)]`
+#[derive(Debug)]
+struct GenerateDeriveInputAttribute;
+impl ProcMacroExpander for GenerateDeriveInputAttribute {
+    fn expand(
+        &self,
+        _: &dyn SourceDatabase,
+        subtree: &TopSubtree,
+        _attrs: Option<&TopSubtree>,
+        _env: &Env,
+        _def_site: Span,
+        call_site: Span,
+        _mixed_site: Span,
+        _current_dir: String,
+    ) -> Result<TopSubtree, ProcMacroExpansionError> {
+        let mut iter = subtree.iter();
+        while let Some(next) = iter.next() {
+            let TtElement::Leaf(leaf) = next else { continue };
+            if !matches!(leaf, Leaf::Punct(ch) if ch.char == '#') {
+                continue;
+            }
+            let Some(TtElement::Subtree(tree, mut sub)) = iter.peek() else { continue };
+            if tree.delimiter.kind == tt::DelimiterKind::Bracket
+                && let Some(TtElement::Leaf(Leaf::Ident(id))) = sub.next()
+                && id.sym.as_str() == "from_derive"
+                && let Some(TtElement::Subtree(_, iter)) = sub.next()
+            {
+                let tokens = iter.remaining();
+                return Ok(quote! { call_site =>
+                    const _: () = {
+                        let inside_derive: u32;
+                        #tokens
+                    };
+                });
+            }
+        }
+        Err(ProcMacroExpansionError::Panic("Can't found #[from_derive(...)]".to_owned()))
     }
 
     fn eq_dyn(&self, other: &dyn ProcMacroExpander) -> bool {
