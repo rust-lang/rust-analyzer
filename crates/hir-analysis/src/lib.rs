@@ -1,5 +1,7 @@
 //! Various type-based analyses that aren't large enough to warrant their own crate: layout, drop, etc..
 
+extern crate ra_ap_rustc_abi as rustc_abi;
+extern crate ra_ap_rustc_index as rustc_index;
 extern crate ra_ap_rustc_type_ir as rustc_type_ir;
 
 #[doc(hidden)]
@@ -35,6 +37,33 @@ macro_rules! impl_db_methods {
 
         fn trait_is_dyn_compatible(&self, trait_: TraitId) -> bool {
             $crate::dyn_compatibility::dyn_compatibility_violations(self, trait_).is_none()
+        }
+
+        fn layout_of_adt(
+            &self,
+            def: AdtId,
+            args: StoredGenericArgs,
+            trait_env: StoredParamEnvAndCrate,
+        ) -> Result<Arc<Layout>, LayoutError> {
+            $crate::layout::layout_of_adt_query(self, def, args, trait_env)
+        }
+
+        fn layout_of_ty(
+            &self,
+            ty: StoredTy,
+            env: StoredParamEnvAndCrate,
+        ) -> Result<Arc<Layout>, LayoutError> {
+            $crate::layout::layout_of_ty_query(self, ty, env)
+        }
+
+        fn target_data_layout(&self, krate: Crate) -> Result<&TargetDataLayout, TargetLoadError> {
+            $crate::layout::target_data_layout_query(self, krate).map_err(|err| err.clone())
+        }
+
+        fn target_data_layout_or_default(&self, krate: Crate) -> &TargetDataLayout {
+            static DEFAULT: LazyLock<TargetDataLayout> = LazyLock::new(TargetDataLayout::default);
+
+            $crate::layout::target_data_layout_query(self, krate).unwrap_or_else(|_| &*DEFAULT)
         }
     };
 }

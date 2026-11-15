@@ -16,10 +16,12 @@ pub mod mir_pretty;
 
 #[doc(hidden)]
 pub mod __private {
+    pub use base_db;
     pub use hir_analysis;
     pub use hir_def;
     pub use hir_ty;
     pub use salsa;
+    pub use std;
 }
 
 #[cfg(test)]
