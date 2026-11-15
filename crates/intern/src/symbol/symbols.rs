@@ -687,4 +687,6 @@ define_symbols! {
     RangeMax,
     RangeSub,
     AsyncGenReady,
+    gca_const_items,
+    gca_min_const_items,
 }
