@@ -789,6 +789,15 @@ impl<'db> Clause<'db> {
     pub fn as_predicate(self) -> Predicate<'db> {
         self.0
     }
+
+    pub fn as_type_outlives_clause(self) -> Option<Binder<'db, TypeOutlivesPredicate<'db>>> {
+        let clause = self.kind();
+        if let ClauseKind::TypeOutlives(o) = clause.skip_binder() {
+            Some(clause.rebind(o))
+        } else {
+            None
+        }
+    }
 }
 
 impl<'db> Elaboratable<DbInterner<'db>> for Clause<'db> {

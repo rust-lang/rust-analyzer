@@ -38,11 +38,7 @@ mod display;
 #[doc(hidden)]
 pub use hir_def::ModuleId;
 
-use std::{
-    borrow::Borrow,
-    fmt, iter,
-    ops::{ControlFlow, Not},
-};
+use std::{borrow::Borrow, fmt, iter, ops::ControlFlow};
 
 use arrayvec::ArrayVec;
 use base_db::{
@@ -110,7 +106,7 @@ use syntax::{
     ast::{self, HasName as _, HasVisibility as _},
     format_smolstr,
 };
-use triomphe::Arc;
+use triomphe::{Arc, ThinArc};
 
 use crate::db::HirDatabase;
 
@@ -206,7 +202,7 @@ pub use {
         diagnostics::UnsafetyReason,
         display::{ClosureStyle, DisplayTarget, HirDisplay, HirDisplayError, HirWrite},
         drop::DropGlue,
-        dyn_compatibility::{DynCompatibilityViolation, MethodViolationCode},
+        dyn_compatibility::{AssocConstViolation, MethodViolation},
         impl_hir_database,
         layout::LayoutError,
         mir::{MirEvalError, MirLowerError},
@@ -2282,24 +2278,14 @@ impl Trait {
             .count()
     }
 
-    pub fn dyn_compatibility(&self, db: &dyn HirDatabase) -> Option<DynCompatibilityViolation> {
-        hir_ide::dyn_compatibility::dyn_compatibility(db, self.id)
-    }
-
-    pub fn dyn_compatibility_all_violations(
+    pub fn dyn_compatibility_violations(
         &self,
         db: &dyn HirDatabase,
-    ) -> Option<Vec<DynCompatibilityViolation>> {
-        let mut violations = vec![];
-        _ = hir_ide::dyn_compatibility::dyn_compatibility_with_callback(
-            db,
-            self.id,
-            &mut |violation| {
-                violations.push(violation);
-                ControlFlow::Continue(())
-            },
-        );
-        violations.is_empty().not().then_some(violations)
+    ) -> Vec<DynCompatibilityViolation> {
+        match hir_ide::dyn_compatibility::dyn_compatibility_violations(db, self.id) {
+            Some(violations) => DynCompatibilityViolation::multiple_from_hir(violations),
+            None => Vec::new(),
+        }
     }
 
     /// `#[rust_analyzer::completions(...)]` mode.
@@ -2322,6 +2308,44 @@ impl Trait {
 
     pub fn must_implement_one_of(self, db: &dyn HirDatabase) -> Option<&[Name]> {
         AttrFlags::must_implement_one_of(db, self.id)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum DynCompatibilityViolation {
+    ExplicitlyDynIncompatible,
+    SizedSelf,
+    SupertraitSelf,
+    SupertraitNonLifetimeBinder,
+    SupertraitConst,
+    Method(Function, MethodViolation),
+    AssocConst(Const, AssocConstViolation),
+    GenericAssocTy(TypeAlias),
+    HasNonCompatibleSuperTrait(Trait, Vec<DynCompatibilityViolation>),
+}
+
+impl DynCompatibilityViolation {
+    fn from_hir(violation: &hir_ide::dyn_compatibility::DynCompatibilityViolation) -> Self {
+        use hir_ide::dyn_compatibility::DynCompatibilityViolation::*;
+        match violation {
+            ExplicitlyDynIncompatible => Self::ExplicitlyDynIncompatible,
+            SizedSelf => Self::SizedSelf,
+            SupertraitSelf => Self::SupertraitSelf,
+            SupertraitNonLifetimeBinder => Self::SupertraitNonLifetimeBinder,
+            SupertraitConst => Self::SupertraitConst,
+            &Method(id, violation) => Self::Method(id.into(), violation),
+            &AssocConst(id, violation) => Self::AssocConst(id.into(), violation),
+            &GenericAssocTy(id) => Self::GenericAssocTy(id.into()),
+            HasNonCompatibleSuperTrait(id, violations) => {
+                Self::HasNonCompatibleSuperTrait((*id).into(), Self::multiple_from_hir(violations))
+            }
+        }
+    }
+
+    fn multiple_from_hir(
+        violations: &ThinArc<(), hir_ide::dyn_compatibility::DynCompatibilityViolation>,
+    ) -> Vec<Self> {
+        violations.slice.iter().map(Self::from_hir).collect()
     }
 }
 

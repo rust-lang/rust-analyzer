@@ -27,7 +27,7 @@ use crate::{
     FieldType, GenericDefaultsRef, GenericPredicates, ImplTraitId, InferBodyId, TyDefId,
     TyLoweringDiagnostic, TyLoweringResult, ValueTyDefId,
     consteval::ConstEvalError,
-    dyn_compatibility::DynCompatibilityViolation,
+    dyn_compatibility::DynCompatibilityViolations,
     layout::{Layout, LayoutError},
     lower::{
         ConstParamTypes, FieldTypes, GenericDefaults, SelfAndAssocBounds, TrackedStructToken,
@@ -170,9 +170,9 @@ pub trait HirDatabase: SourceDatabase + 'static {
         crate::layout::target_data_layout_query(db, krate).unwrap_or_else(|_| &*DEFAULT)
     }
 
-    fn dyn_compatibility_of_trait(&self, trait_: TraitId) -> Option<DynCompatibilityViolation> {
+    fn dyn_compatibility_of_trait(&self, trait_: TraitId) -> &Option<DynCompatibilityViolations> {
         let db = self.as_dyn();
-        crate::dyn_compatibility::dyn_compatibility_of_trait_query(db, trait_)
+        crate::dyn_compatibility::dyn_compatibility_violations(db, trait_)
     }
 
     fn ty<'db>(&'db self, def: TyDefId) -> EarlyBinder<'db, Ty<'db>> {
