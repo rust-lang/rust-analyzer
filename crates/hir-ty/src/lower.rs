@@ -2007,16 +2007,16 @@ pub(crate) fn field_types_with_diagnostics<'db>(
 }
 
 #[derive(Debug, PartialEq, Eq, Default)]
-pub(crate) struct SupertraitsInfo {
+pub struct SupertraitsInfo {
     /// This includes the trait itself.
-    pub(crate) all_supertraits: Box<[TraitId]>,
-    pub(crate) direct_supertraits: Box<[TraitId]>,
-    pub(crate) defined_assoc_types: Box<[(Name, TypeAliasId)]>,
+    pub all_supertraits: Box<[TraitId]>,
+    pub direct_supertraits: Box<[TraitId]>,
+    pub defined_assoc_types: Box<[(Name, TypeAliasId)]>,
 }
 
 impl SupertraitsInfo {
     #[inline]
-    pub(crate) fn query(db: &dyn HirDatabase, trait_: TraitId) -> &Self {
+    pub fn query(db: &dyn HirDatabase, trait_: TraitId) -> &Self {
         return supertraits_info(db, trait_);
 
         #[salsa::tracked(returns(ref), cycle_result = supertraits_info_cycle)]
