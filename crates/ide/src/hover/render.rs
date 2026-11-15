@@ -253,12 +253,14 @@ pub(super) fn keyword(
     let KeywordHint { description, keyword_mod, actions } =
         keyword_hints(sema, token, parent, edition, display_target);
 
-    let doc_owner = match find_std_constant(&famous_defs, token.text(), |constant| {
-        constant.doc_keyword(sema.db)
-    }) {
-        Some(constant) => Definition::Const(constant),
-        None => Definition::Module(find_std_module(&famous_defs, &keyword_mod, edition)?),
-    };
+    let token_text = if token.text() == "Self" { "SelfTy" } else { token.text() };
+
+    let doc_owner =
+        match find_std_constant(&famous_defs, token_text, |constant| constant.doc_keyword(sema.db))
+        {
+            Some(constant) => Definition::Const(constant),
+            None => Definition::Module(find_std_module(&famous_defs, &keyword_mod, edition)?),
+        };
 
     let docs = doc_owner.docs_with_rangemap(sema.db, Some(&famous_defs), display_target)?;
 
