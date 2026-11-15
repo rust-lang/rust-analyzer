@@ -16,9 +16,12 @@ doctest = false
 tracing.workspace = true
 salsa.workspace = true
 rustc-hash.workspace = true
+triomphe.workspace = true
+la-arena.workspace = true
 
 ra-ap-rustc_type_ir.workspace = true
 
+base-db.workspace = true
 hir-def.workspace = true
 hir-ty.workspace = true
 

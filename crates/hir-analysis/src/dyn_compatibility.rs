@@ -22,10 +22,9 @@ use rustc_type_ir::{
 use tracing::{debug, instrument};
 use triomphe::ThinArc;
 
-use crate::{
-    ImplTraitId,
+use hir_ty::{
+    GenericPredicates, ImplTraitId, SupertraitsInfo,
     db::HirDatabase,
-    lower::{GenericPredicates, SupertraitsInfo},
     next_solver::{
         AliasTy, Binder, Clause, Clauses, DbInterner, DefaultAny, EarlyBinder, GenericArgs,
         ParamEnv, ParamTy, Region, RegionKind, TraitRef, Ty, TyKind, TypingMode, Unnormalized,

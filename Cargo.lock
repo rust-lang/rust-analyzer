@@ -842,12 +842,15 @@ dependencies = [
 name = "hir-analysis"
 version = "0.0.0"
 dependencies = [
+ "base-db",
  "hir-def",
  "hir-ty",
+ "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ra-ap-rustc_type_ir",
  "rustc-hash 2.1.2",
  "salsa",
  "tracing",
+ "triomphe",
 ]
 
 [[package]]
