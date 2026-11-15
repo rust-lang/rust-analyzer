@@ -7,7 +7,7 @@ macro_rules! impl_hir_database {
             use $crate::{
                 __private::{
                     hir_analysis,
-                    hir_def::{AdtId, ImplId, ModuleId},
+                    hir_def::{AdtId, GenericDefId, ImplId, ModuleId, TraitId},
                     hir_ty, salsa,
                 },
                 db::HirDatabase,

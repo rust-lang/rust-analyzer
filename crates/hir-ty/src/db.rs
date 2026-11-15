@@ -27,7 +27,6 @@ use crate::{
     FieldType, GenericDefaultsRef, GenericPredicates, ImplTraitId, InferBodyId, TyDefId,
     TyLoweringDiagnostic, TyLoweringResult, ValueTyDefId,
     consteval::ConstEvalError,
-    dyn_compatibility::DynCompatibilityViolations,
     layout::{Layout, LayoutError},
     lower::{
         ConstParamTypes, FieldTypes, GenericDefaults, SelfAndAssocBounds, TrackedStructToken,
@@ -169,11 +168,6 @@ pub trait HirDatabase: SourceDatabase + 'static {
 
         let db = self.as_dyn();
         crate::layout::target_data_layout_query(db, krate).unwrap_or_else(|_| &*DEFAULT)
-    }
-
-    fn dyn_compatibility_of_trait(&self, trait_: TraitId) -> &Option<DynCompatibilityViolations> {
-        let db = self.as_dyn();
-        crate::dyn_compatibility::dyn_compatibility_violations(db, trait_)
     }
 
     fn ty<'db>(&'db self, def: TyDefId) -> EarlyBinder<'db, Ty<'db>> {
@@ -355,6 +349,10 @@ pub trait HirDatabase: SourceDatabase + 'static {
     fn destructor(&self, adt: AdtId) -> Option<ImplId>;
 
     fn has_drop_glue<'db>(&'db self, ty: Ty<'db>, env: TypingEnv<'db>) -> DropGlue;
+
+    fn generics_require_sized_self(&self, def_id: GenericDefId) -> bool;
+
+    fn trait_is_dyn_compatible(&self, trait_: TraitId) -> bool;
 
     // endregion:hir-analysis
 }

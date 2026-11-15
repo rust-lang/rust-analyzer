@@ -450,7 +450,7 @@ pub struct Clause<'db>(pub(crate) Predicate<'db>);
     Copy, Clone, Debug, Hash, PartialEq, Eq, TypeVisitable, TypeFoldable, GenericTypeVisitable,
 )]
 pub struct ParamEnv<'db> {
-    pub(crate) clauses: Clauses<'db>,
+    pub clauses: Clauses<'db>,
 }
 
 impl<'db> ParamEnv<'db> {

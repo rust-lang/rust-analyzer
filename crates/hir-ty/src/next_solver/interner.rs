@@ -1264,7 +1264,7 @@ impl<'db> Interner for DbInterner<'db> {
 
     fn generics_require_sized_self(self, def_id: Self::DefId) -> bool {
         match GenericDefId::try_from(def_id) {
-            Ok(def_id) => crate::dyn_compatibility::generics_require_sized_self(self.db, def_id),
+            Ok(def_id) => self.db.generics_require_sized_self(def_id),
             Err(_) => false,
         }
     }
@@ -1656,7 +1656,7 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn trait_is_dyn_compatible(self, trait_: Self::TraitId) -> bool {
-        crate::dyn_compatibility::dyn_compatibility_violations(self.db(), trait_.0).is_none()
+        self.db.trait_is_dyn_compatible(trait_.0)
     }
 
     fn trait_is_fundamental(self, trait_: Self::TraitId) -> bool {
