@@ -253,7 +253,9 @@ pub(super) fn keyword(
     let KeywordHint { description, keyword_mod, actions } =
         keyword_hints(sema, token, parent, edition, display_target);
 
-    let doc_owner = match find_std_constant(&famous_defs, token.text()) {
+    let doc_owner = match find_std_constant(&famous_defs, token.text(), |constant| {
+        constant.doc_keyword(sema.db)
+    }) {
         Some(constant) => Definition::Const(constant),
         None => Definition::Module(find_std_module(&famous_defs, &keyword_mod, edition)?),
     };

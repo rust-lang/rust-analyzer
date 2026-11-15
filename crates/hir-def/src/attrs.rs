@@ -141,6 +141,7 @@ fn match_attr_flags(attr_flags: &mut AttrFlags, attr: ast::Meta) -> ControlFlow<
                 "path" => attr_flags.insert(AttrFlags::HAS_PATH),
                 "unstable" => attr_flags.insert(AttrFlags::IS_UNSTABLE),
                 "rustc_reservation_impl" => attr_flags.insert(AttrFlags::RUSTC_RESERVATION_IMPL),
+                "rustc_doc_primitive" => attr_flags.insert(AttrFlags::HAS_RUSTC_DOC_PRIMITIVE),
                 "export_name" => {
                     if let Some(value) = attr.value_string()
                         && *value == *"main"
@@ -353,6 +354,8 @@ bitflags::bitflags! {
         const DIAGNOSTIC_DO_NOT_RECOMMEND = 1 << 51;
 
         const HAS_RUSTC_MUST_IMPLEMENT_ONE_OF = 1 << 52;
+
+        const HAS_RUSTC_DOC_PRIMITIVE = 1 << 53;
     }
 }
 
@@ -751,6 +754,39 @@ impl AttrFlags {
             collect_attrs(db, owner, |attr| {
                 if let ast::Meta::KeyValueMeta(attr) = attr
                     && attr.path().is1("lang")
+                    && let Some(value) = attr.value_string()
+                {
+                    ControlFlow::Break(Symbol::intern(&value))
+                } else {
+                    ControlFlow::Continue(())
+                }
+            })
+        }
+    }
+
+    #[inline]
+    pub fn doc_primitive(db: &dyn SourceDatabase, owner: AttrDefId) -> Option<Symbol> {
+        AttrFlags::query(db, owner).doc_primitive_with_attrs(db, owner)
+    }
+
+    #[inline]
+    pub fn doc_primitive_with_attrs(
+        self,
+        db: &dyn SourceDatabase,
+        owner: AttrDefId,
+    ) -> Option<Symbol> {
+        if !self.contains(AttrFlags::HAS_RUSTC_DOC_PRIMITIVE) {
+            // Don't create the query in case this is not a doc primitive, this wastes memory.
+            return None;
+        }
+
+        return doc_primitive(db, owner);
+
+        #[salsa::tracked(returns(clone))]
+        fn doc_primitive(db: &dyn SourceDatabase, owner: AttrDefId) -> Option<Symbol> {
+            collect_attrs(db, owner, |attr| {
+                if let ast::Meta::KeyValueMeta(attr) = attr
+                    && attr.path().is1("rustc_doc_primitive")
                     && let Some(value) = attr.value_string()
                 {
                     ControlFlow::Break(Symbol::intern(&value))

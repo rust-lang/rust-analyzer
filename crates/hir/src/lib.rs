@@ -2118,6 +2118,10 @@ impl Const {
         AttrFlags::doc_keyword(db, AttrDefId::ConstId(self.id))
     }
 
+    pub fn doc_primitive(self, db: &dyn HirDatabase) -> Option<Symbol> {
+        AttrFlags::doc_primitive(db, AttrDefId::ConstId(self.id))
+    }
+
     /// Evaluate the constant.
     pub fn eval(self, db: &dyn HirDatabase) -> Result<EvaluatedConst<'_>, ConstEvalError<'_>> {
         let ty = db.value_ty(self.id.into()).unwrap().instantiate_identity().skip_norm_wip();
