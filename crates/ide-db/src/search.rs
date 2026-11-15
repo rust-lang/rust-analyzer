@@ -573,7 +573,7 @@ impl<'a, 'db> FindUsages<'a, 'db> {
             })
             .into_iter()
             .flat_map(move |token| {
-                if sema.is_inside_macro_call(InFile::new(file_id.into(), &token)) {
+                if sema.is_inside_macro_call(true, InFile::new(file_id.into(), &token)) {
                     sema.descend_into_macros_exact(token)
                 } else {
                     <_>::from([token])
