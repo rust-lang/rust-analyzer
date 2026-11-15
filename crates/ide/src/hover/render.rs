@@ -9,8 +9,8 @@ use hir::{
 };
 use ide_db::{
     RootDatabase,
-    defs::{Definition, find_std_module},
-    documentation::{Documentation, HasDocs},
+    defs::{Definition, find_std_constant, find_std_module},
+    documentation::Documentation,
     famous_defs::FamousDefs,
     generated::lints::{CLIPPY_LINTS, DEFAULT_LINTS, FEATURES},
     syntax_helpers::prettify_macro_expansion,
@@ -253,11 +253,15 @@ pub(super) fn keyword(
     let KeywordHint { description, keyword_mod, actions } =
         keyword_hints(sema, token, parent, edition, display_target);
 
-    let doc_owner = find_std_module(&famous_defs, &keyword_mod, edition)?;
-    let docs = doc_owner.docs_with_rangemap(sema.db)?;
-    let (markup, range_map) =
-        markup(Some(Either::Left(docs)), description, None, None, String::new());
-    let markup = process_markup(sema.db, Definition::Module(doc_owner), &markup, range_map, config);
+    let doc_owner = match find_std_constant(&famous_defs, token.text()) {
+        Some(constant) => Definition::Const(constant),
+        None => Definition::Module(find_std_module(&famous_defs, &keyword_mod, edition)?),
+    };
+
+    let docs = doc_owner.docs_with_rangemap(sema.db, Some(&famous_defs), display_target)?;
+
+    let (markup, range_map) = markup(Some(docs), description, None, None, String::new());
+    let markup = process_markup(sema.db, doc_owner, &markup, range_map, config);
     Some(HoverResult { markup, actions })
 }
 

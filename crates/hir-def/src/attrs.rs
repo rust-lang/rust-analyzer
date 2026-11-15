@@ -39,7 +39,7 @@ use tt::TextSize;
 
 use crate::{
     AdtId, AstIdLoc, AttrDefId, FieldId, FunctionId, GenericDefId, HasModule, LifetimeParamId,
-    LocalFieldId, MacroId, ModuleId, TraitId, TypeOrConstParamId, VariantId,
+    LocalFieldId, MacroId, TraitId, TypeOrConstParamId, VariantId,
     hir::generics::{GenericParams, LocalLifetimeParamId, LocalTypeOrConstParamId},
     nameres::ModuleOrigin,
     resolver::{HasResolver, Resolver},
@@ -1049,15 +1049,15 @@ impl AttrFlags {
     }
 
     #[inline]
-    pub fn doc_keyword(db: &dyn SourceDatabase, owner: ModuleId) -> Option<Symbol> {
-        if !AttrFlags::query(db, AttrDefId::ModuleId(owner)).contains(AttrFlags::HAS_DOC_KEYWORD) {
+    pub fn doc_keyword(db: &dyn SourceDatabase, owner: AttrDefId) -> Option<Symbol> {
+        if !AttrFlags::query(db, owner).contains(AttrFlags::HAS_DOC_KEYWORD) {
             return None;
         }
         return doc_keyword(db, owner);
 
         #[salsa::tracked(returns(clone))]
-        fn doc_keyword(db: &dyn SourceDatabase, owner: ModuleId) -> Option<Symbol> {
-            collect_attrs(db, AttrDefId::ModuleId(owner), |attr| {
+        fn doc_keyword(db: &dyn SourceDatabase, owner: AttrDefId) -> Option<Symbol> {
+            collect_attrs(db, owner, |attr| {
                 if let ast::Meta::TokenTreeMeta(attr) = attr
                     && attr.path().is1("doc")
                     && let Some(tt) = attr.token_tree()

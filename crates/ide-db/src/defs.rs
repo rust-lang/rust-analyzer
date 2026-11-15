@@ -381,6 +381,22 @@ pub fn find_std_module(
     })
 }
 
+pub fn find_std_constant(famous_defs: &FamousDefs<'_, '_>, name: &str) -> Option<Const> {
+    let db = famous_defs.0.db;
+    let std_crate = famous_defs.std()?;
+    let std_root_module = std_crate.root_module(famous_defs.0.db);
+    std_root_module.declarations(db).into_iter().find_map(|module_def| match module_def {
+        hir::ModuleDef::Const(constant)
+            if constant
+                .doc_keyword(db)
+                .is_some_and(|keyword_name| keyword_name.as_str() == name) =>
+        {
+            Some(constant)
+        }
+        _ => None,
+    })
+}
+
 // FIXME: IdentClass as a name no longer fits
 #[derive(Debug)]
 pub enum IdentClass<'db> {

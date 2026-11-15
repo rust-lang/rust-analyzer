@@ -50,11 +50,11 @@ use base_db::{
 };
 use either::Either;
 use hir_def::{
-    AdtId, AssocItemId, AssocItemLoc, BuiltinDeriveImplId, CallableDefId, ConstId, ConstParamId,
-    DefWithBodyId, EnumId, EnumVariantId, ExpressionStoreOwnerId, ExternBlockId, ExternCrateId,
-    FunctionId, GenericDefId, HasModule, ImplId, ItemContainerId, LifetimeParamId, LocalFieldId,
-    Lookup, MacroExpander, MacroId, StaticId, StructId, TupleId, TypeAliasId, TypeOrConstParamId,
-    TypeParamId, UnionId,
+    AdtId, AssocItemId, AssocItemLoc, AttrDefId, BuiltinDeriveImplId, CallableDefId, ConstId,
+    ConstParamId, DefWithBodyId, EnumId, EnumVariantId, ExpressionStoreOwnerId, ExternBlockId,
+    ExternCrateId, FunctionId, GenericDefId, HasModule, ImplId, ItemContainerId, LifetimeParamId,
+    LocalFieldId, Lookup, MacroExpander, MacroId, StaticId, StructId, TupleId, TypeAliasId,
+    TypeOrConstParamId, TypeParamId, UnionId,
     attrs::AttrFlags,
     builtin_derive::BuiltinDeriveImplMethod,
     expr_store::ExpressionStore,
@@ -769,7 +769,7 @@ impl Module {
 
     #[inline]
     pub fn doc_keyword(self, db: &dyn HirDatabase) -> Option<Symbol> {
-        AttrFlags::doc_keyword(db, self.id)
+        AttrFlags::doc_keyword(db, AttrDefId::ModuleId(self.id))
     }
 
     /// Whether it has `#[path = "..."]` attribute.
@@ -2112,6 +2112,10 @@ impl Const {
 
     pub fn has_body(self, db: &dyn HirDatabase) -> bool {
         ConstSignature::of(db, self.id).has_body()
+    }
+
+    pub fn doc_keyword(self, db: &dyn HirDatabase) -> Option<Symbol> {
+        AttrFlags::doc_keyword(db, AttrDefId::ConstId(self.id))
     }
 
     /// Evaluate the constant.
