@@ -51,6 +51,7 @@ pub struct Foo(#[m$0] i32);
             at my_cool_helper_attribute derive helper of `MyDerive`
             at no_mangle
             at non_exhaustive
+            at optimize(…)
             at panic_handler
             at path = "…"
             at proc_macro
@@ -114,6 +115,7 @@ pub struct Foo(#[$0] i32);
             at my_cool_helper_attribute derive helper of `MyDerive`
             at no_mangle
             at non_exhaustive
+            at optimize(…)
             at panic_handler
             at path = "…"
             at proc_macro
@@ -832,6 +834,7 @@ fn attr_on_fn() {
             at link_section = "…"
             at must_use
             at no_mangle
+            at optimize(…)
             at panic_handler
             at proc_macro
             at proc_macro_attribute
@@ -881,6 +884,7 @@ fn attr_in_source_file_end() {
             at must_use
             at no_mangle
             at non_exhaustive
+            at optimize(…)
             at panic_handler
             at path = "…"
             at proc_macro

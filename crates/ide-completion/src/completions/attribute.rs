@@ -315,7 +315,7 @@ static KIND_TO_ATTRIBUTES: LazyLock<FxHashMap<SyntaxKind, &[&str]>> = LazyLock::
             FN,
             attrs!(
                 item, linkable,
-                "cold", "ignore", "inline", "panic_handler", "proc_macro",
+                "cold", "ignore", "inline", "optimize", "panic_handler", "proc_macro",
                 "proc_macro_derive", "proc_macro_attribute", "should_panic", "target_feature",
                 "test", "track_caller"
             ),
@@ -401,6 +401,7 @@ const ATTRIBUTES: &[AttrCompletion] = &[
     attr("no_mangle", None, None),
     attr("no_std", None, None).prefer_inner(),
     attr("non_exhaustive", None, None),
+    attr("optimize(…)", Some("optimize"), Some("optimize($0)")),
     attr("panic_handler", None, None),
     attr(r#"path = "…""#, Some("path"), Some(r#"path = "${0:path}""#)),
     attr("proc_macro", None, None),
