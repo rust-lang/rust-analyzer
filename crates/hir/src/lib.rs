@@ -1478,6 +1478,47 @@ impl DefWithBody {
             infer.binding_types().map(move |(_, ty)| Type::new(def_id, ty))
         })
     }
+
+    /// Returns the calls this body makes and their ranges, including calls in macro expansions.
+    pub fn outgoing_calls<'db>(
+        self,
+        db: &'db dyn HirDatabase,
+    ) -> Vec<(CallableKind<'db>, FileRange)> {
+        let Some(def_id) = self.id() else {
+            return Vec::new();
+        };
+        let (body, source_map) = Body::with_source_map(db, def_id);
+        let infer = InferenceResult::of(db, def_id);
+        let generic_def = def_id.generic_def(db);
+        let env = param_env_from_has_crate(db, generic_def);
+        body.exprs()
+            .filter_map(|(id, expr)| {
+                let src = source_map.expr_syntax(id).ok()?;
+                // Constructs like `for`, `?` and `format_args!` desugar to calls during lowering,
+                // but those call sites are not callable expressions. Skip them.
+                if !ast::CallableExpr::can_cast(src.value.kind()) {
+                    return None;
+                }
+                let (kind, range) = match expr {
+                    Expr::Call { callee, .. } => {
+                        let ty = Type::new(generic_def, infer.expr_ty(*callee));
+                        let range = source_map.expr_syntax(*callee).ok()?.map(|it| it.text_range());
+                        (ty.as_callable(db)?.kind(), range)
+                    }
+                    Expr::MethodCall { .. } => {
+                        let (func, substs) = infer.method_resolution(id)?;
+                        let func = db.lookup_impl_method(env, func, substs).0.into();
+                        let root = src.file_id.parse_or_expand(db);
+                        let node = src.value.syntax_node_ptr().to_node(&root);
+                        let name = ast::MethodCallExpr::cast(node)?.name_ref()?;
+                        (CallableKind::Function(func), src.with_value(name.syntax().text_range()))
+                    }
+                    _ => return None,
+                };
+                Some((kind, range.original_node_file_range_rooted(db)))
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

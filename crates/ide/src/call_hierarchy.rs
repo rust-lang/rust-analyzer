@@ -2,6 +2,7 @@
 
 use std::iter;
 
+use either::Either;
 use hir::Semantics;
 use ide_db::{
     FileRange, FxIndexMap, RootDatabase,
@@ -112,42 +113,28 @@ pub(crate) fn outgoing_calls(
 
     sema.descend_into_macros_exact(token)
         .into_iter()
-        .filter_map(|it| it.parent_ancestors().nth(1).and_then(ast::Item::cast))
-        .filter_map(|item| match item {
-            ast::Item::Const(c) => c.body().map(|it| it.syntax().descendants()),
-            ast::Item::Fn(f) => f.body().map(|it| it.syntax().descendants()),
-            ast::Item::Static(s) => s.body().map(|it| it.syntax().descendants()),
-            _ => None,
+        .filter_map(|it| it.parent_ancestors().nth(1))
+        .filter_map(|node| -> Option<hir::DefWithBody> {
+            match Either::<ast::Variant, ast::Item>::cast(node)? {
+                Either::Left(v) => sema.to_def(&v).map(Into::into),
+                Either::Right(ast::Item::Const(c)) => sema.to_def(&c).map(Into::into),
+                Either::Right(ast::Item::Fn(f)) => sema.to_def(&f).map(Into::into),
+                Either::Right(ast::Item::Static(s)) => sema.to_def(&s).map(Into::into),
+                Either::Right(_) => None, // No other Item variant has an expression body
+            }
         })
-        .flatten()
-        .filter_map(ast::CallableExpr::cast)
-        .filter_map(|call_node| {
-            let (nav_target, range) = match call_node {
-                ast::CallableExpr::Call(call) => {
-                    let expr = call.expr()?;
-                    let callable = sema.type_of_expr(&expr)?.original.as_callable(db)?;
-                    match callable.kind() {
-                        hir::CallableKind::Function(it) => {
-                            if config.exclude_tests && it.is_test(db) {
-                                return None;
-                            }
-                            it.try_to_nav(&sema)
-                        }
-                        hir::CallableKind::TupleEnumVariant(it) => it.try_to_nav(&sema),
-                        hir::CallableKind::TupleStruct(it) => it.try_to_nav(&sema),
-                        _ => None,
-                    }
-                    .zip(Some(sema.original_range(expr.syntax())))
-                }
-                ast::CallableExpr::MethodCall(expr) => {
-                    let function = sema.resolve_method_call(&expr)?;
-                    if config.exclude_tests && function.is_test(db) {
+        .flat_map(|body| body.outgoing_calls(db))
+        .filter_map(|(callee, range)| {
+            let nav_target = match callee {
+                hir::CallableKind::Function(it) => {
+                    if config.exclude_tests && it.is_test(db) {
                         return None;
                     }
-                    function
-                        .try_to_nav(&sema)
-                        .zip(Some(sema.original_range(expr.name_ref()?.syntax())))
+                    it.try_to_nav(&sema)
                 }
+                hir::CallableKind::TupleEnumVariant(it) => it.try_to_nav(&sema),
+                hir::CallableKind::TupleStruct(it) => it.try_to_nav(&sema),
+                _ => None,
             }?;
             Some(nav_target.into_iter().zip(iter::repeat(range)))
         })
@@ -515,8 +502,29 @@ fn caller$0() {
 "#,
             expect![[r#"caller Function FileId(0) 160..194 163..169"#]],
             expect![[]],
-            // FIXME
+            expect!["callee Function FileId(0) 144..159 152..158 : FileId(0):184..190"],
+        );
+        check_hierarchy(
+            false,
+            r#"
+fn a() {}
+fn b() {}
+macro_rules! both {
+    () => { a(); b(); }
+}
+macro_rules! nested {
+    () => { both!() }
+}
+fn caller$0() {
+    both!();
+    nested!();
+}
+"#,
+            expect!["caller Function FileId(0) 112..155 115..121"],
             expect![[]],
+            expect![[r#"
+                a Function FileId(0) 0..9 3..4 : FileId(0):130..135, FileId(0):143..150
+                b Function FileId(0) 10..19 13..14 : FileId(0):130..135, FileId(0):143..150"#]],
         );
     }
 
@@ -635,8 +643,7 @@ macro_rules! call {
 "#,
             expect!["caller Function FileId(0) 38..72 41..47"],
             expect![[]],
-            // FIXME
-            expect![[]],
+            expect!["callee Function FileId(0) 22..37 30..36 : FileId(0):62..68, FileId(0):56..61"],
         );
         check_hierarchy(
             false,
@@ -663,8 +670,9 @@ macro_rules! call {
 "#,
             expect!["caller Function FileId(0) 38..72 41..47"],
             expect![[]],
-            // FIXME
-            expect![[]],
+            expect![[r#"
+                callee Function FileId(1) 45..51 45..51 : FileId(0):62..68, FileId(0):56..61
+                callee Function FileId(0) 22..29 : FileId(0):62..68, FileId(0):56..61"#]],
         );
     }
 
@@ -750,6 +758,193 @@ fn f3() {
                 main Function FileId(0) 0..23 3..7 : FileId(0):16..18
                 f2 Function FileId(0) 54..81 57..59 : FileId(0):68..70"#]],
             expect!["f2 Function FileId(0) 54..81 57..59 : FileId(0):39..41"],
+        );
+    }
+
+    #[test]
+    fn test_call_hierarchy_outgoing_nested_fn() {
+        check_hierarchy(
+            false,
+            r#"
+fn callee() {}
+fn call$0er() {
+    fn nested() { callee(); }
+}
+"#,
+            expect!["caller Function FileId(0) 15..60 18..24"],
+            expect![[]],
+            expect![[]],
+        );
+        check_hierarchy(
+            false,
+            r#"
+fn callee() {}
+fn caller() {
+    fn nes$0ted() { callee(); }
+}
+"#,
+            expect!["nested Function FileId(0) 33..58 36..42"],
+            expect![[]],
+            expect!["callee Function FileId(0) 0..14 3..9 : FileId(0):47..53"],
+        );
+    }
+
+    #[test]
+    fn test_call_hierarchy_outgoing_skips_desugared_calls() {
+        check_hierarchy(
+            false,
+            r#"
+//- minicore: iterator, try, option
+fn call$0er() -> Option<()> {
+    for _ in [()] {}
+    None?;
+    // Canaries: the same lang items, called explicitly, catch missing minicore flags
+    core::iter::IntoIterator::into_iter([()]);
+    core::ops::Try::branch(None::<()>)
+}
+"#,
+            expect!["caller Function FileId(0) 0..233 3..9"],
+            expect![[]],
+            expect![[r#"
+                into_iter Function FileId(1) 12244..12319 12285..12294 IntoIterator : FileId(0):150..185
+                branch Function FileId(1) 3580..3672 3614..3620 Try : FileId(0):197..219"#]],
+        );
+    }
+
+    #[test]
+    fn test_call_hierarchy_outgoing_non_fn_bodies() {
+        check_hierarchy(
+            false,
+            r#"
+const fn callee() -> isize { 0 }
+const C$0: isize = callee();
+"#,
+            expect!["C Const FileId(0) 33..59 39..40"],
+            expect![[]],
+            expect!["callee Function FileId(0) 0..32 9..15 : FileId(0):50..56"],
+        );
+        check_hierarchy(
+            false,
+            r#"
+const fn callee() -> isize { 0 }
+static S$0: isize = callee();
+"#,
+            expect!["S Static FileId(0) 33..60 40..41"],
+            expect![[]],
+            expect!["callee Function FileId(0) 0..32 9..15 : FileId(0):51..57"],
+        );
+        check_hierarchy(
+            false,
+            r#"
+const fn callee() -> isize { 0 }
+enum E { V$0 = callee() }
+"#,
+            expect!["V Variant FileId(0) 42..54 42..43"],
+            expect![[]],
+            expect!["callee Function FileId(0) 0..32 9..15 : FileId(0):46..52"],
+        );
+        check_hierarchy(
+            false,
+            r#"
+const fn cal$0lee() -> isize { 0 }
+const C: isize = callee();
+static S: isize = callee();
+enum E { V = callee() }
+fn f() -> isize { callee() }
+"#,
+            expect!["callee Function FileId(0) 0..32 9..15"],
+            // FIXME: `C`, `S` and `V` call `callee` too, but `incoming_calls` only credits calls to
+            // an enclosing function.
+            expect!["f Function FileId(0) 112..140 115..116 : FileId(0):130..136"],
+            expect![[]],
+        );
+        check_hierarchy(
+            false,
+            r#"
+const fn callee() -> isize { 0 }
+trait T { const X: isize; }
+impl T for () { const X$0: isize = callee(); }
+"#,
+            expect!["X Const FileId(0) 43..58 49..50 T"],
+            expect![[]],
+            // FIXME: `prepare` navigates to the trait's declaration, which has no body
+            expect![[]],
+        );
+    }
+
+    #[test]
+    fn test_call_hierarchy_outgoing_const_args() {
+        check_hierarchy(
+            false,
+            r#"
+const fn len() -> usize { 0 }
+fn takes<const N: usize>() {}
+fn call$0er() {
+    takes::<{ len() }>();
+    let _: [u8; len()] = [];
+}
+"#,
+            expect!["caller Function FileId(0) 60..130 63..69"],
+            expect![[]],
+            expect![[r#"
+                len Function FileId(0) 0..29 9..12 : FileId(0):88..91, FileId(0):116..119
+                takes Function FileId(0) 30..59 33..38 : FileId(0):78..96"#]],
+        );
+        check_hierarchy(
+            false,
+            r#"
+const fn le$0n() -> usize { 0 }
+fn sig(_: [u8; len()]) {}
+"#,
+            expect!["len Function FileId(0) 0..29 9..12"],
+            expect!["sig Function FileId(0) 30..55 33..36 : FileId(0):45..48"],
+            expect![[]],
+        );
+        check_hierarchy(
+            false,
+            r#"
+const fn len() -> usize { 0 }
+fn sig$0(_: [u8; len()]) {}
+"#,
+            expect!["sig Function FileId(0) 30..55 33..36"],
+            expect![[]],
+            // FIXME: `sig` is an incoming caller of `len` (see above), but `len` is not an outgoing
+            // callee of `sig` because the call to `len` is part of its signature, not its body.
+            expect![[]],
+        );
+    }
+
+    #[test]
+    fn test_call_hierarchy_outgoing_callee_kinds() {
+        check_hierarchy(
+            false,
+            r#"
+//- minicore: fn, clone, derive
+struct S(u8);
+enum E { V(u8) }
+impl S { fn m(&self) {} }
+fn callee() {}
+fn call$0er(f: impl Fn()) {
+    S(0).m();
+    E::V(0);
+    let closure = || callee();
+    closure();
+    let ptr: fn() = callee;
+    ptr();
+    f();
+    D.clone();
+}
+#[derive(Clone)]
+struct D;
+"#,
+            expect!["caller Function FileId(0) 72..235 75..81"],
+            expect![[]],
+            expect![[r#"
+                S Struct FileId(0) 0..13 7..8 : FileId(0):102..103
+                m Function FileId(0) 40..54 43..44 : FileId(0):107..108
+                V Variant FileId(0) 23..28 23..24 : FileId(0):116..120
+                callee Function FileId(0) 57..71 60..66 : FileId(0):146..152
+                clone Function FileId(0) 245..250 : FileId(0):225..230"#]],
         );
     }
 }
