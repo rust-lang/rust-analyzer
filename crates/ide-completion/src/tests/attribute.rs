@@ -971,6 +971,50 @@ fn attr_without_snippet() {
 }
 
 #[test]
+fn simple_attribute_fields() {
+    check(
+        r#"
+#[proc_macro_derive($0)]
+fn foo() {}
+"#,
+        expect![[r#"
+            kw attributes
+        "#]],
+    );
+    check(
+        r#"
+#[deprecated($0)]
+fn foo() {}
+"#,
+        expect![[r#"
+            kw note =
+            kw since =
+        "#]],
+    );
+    check(
+        r#"
+#[inline($0)]
+fn foo() {}
+"#,
+        expect![[r#"
+            kw always
+            kw never
+        "#]],
+    );
+    check(
+        r#"
+#[link($0)]
+fn foo() {}
+"#,
+        expect![[r#"
+            kw kind =
+            kw modifiers =
+            kw name =
+        "#]],
+    );
+}
+
+#[test]
 fn issue_17479() {
     check(
         r#"
@@ -1457,6 +1501,15 @@ mod lint {
             "bare_urls",
             r#"#[allow(rustdoc::$0 struct Test;"#,
             r#"#[allow(rustdoc::bare_urls struct Test;"#,
+        );
+    }
+
+    #[test]
+    fn lint_reason() {
+        check_edit(
+            "reason =",
+            r#"#[allow(deprecated, $0)] struct Test;"#,
+            r#"#[allow(deprecated, reason = "$0")] struct Test;"#,
         );
     }
 }
