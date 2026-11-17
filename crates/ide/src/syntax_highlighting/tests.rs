@@ -470,6 +470,21 @@ fn main() {
 }
 
 #[test]
+fn test_issue_23628() {
+    check_highlighting(
+        r####"
+//- minicore: fmt
+fn showcase(param: &str, non_param: &str) {
+    format_args!("Direct: {param}");
+    format_args!("Indirect: {}", param);
+}
+"####,
+        expect_file!["./test_data/highlight_issue_23628.html"],
+        false,
+    );
+}
+
+#[test]
 fn test_string_highlighting() {
     // The format string detection is based on macro-expansion,
     // thus, we have to copy the macro definition from `std`
