@@ -485,6 +485,20 @@ fn showcase(param: &str, non_param: &str) {
 }
 
 #[test]
+fn test_issue_23628_named_arg() {
+    check_highlighting(
+        r####"
+//- minicore: fmt
+fn showcase(value: &str) {
+    format_args!("{value}", value = 1);
+}
+"####,
+        expect_file!["./test_data/highlight_issue_23628_named_arg.html"],
+        false,
+    );
+}
+
+#[test]
 fn test_string_highlighting() {
     // The format string detection is based on macro-expansion,
     // thus, we have to copy the macro definition from `std`
