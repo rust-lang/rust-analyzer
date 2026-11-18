@@ -20,8 +20,8 @@ use crate::{
     next_solver::{
         AliasTy, AnyImplId, CanonicalVarKind, Clause, ClauseKind, CoercePredicate, ErrorGuaranteed,
         GenericArgs, ImplOrTraitAssocTermId, OpaqueTyIdWrapper, ParamEnv, Predicate, PredicateKind,
-        RegionConstraint, SubtypePredicate, TermId, TraitAssocTermId, Ty, TyKind, TypingMode,
-        UnevaluatedConst, fold::fold_tys, util::sizedness_fast_path,
+        RegionConstraint, SubtypePredicate, TermId, TraitAssocTermId, TraitRef, Ty, TyKind,
+        TypingMode, UnevaluatedConst, fold::fold_tys, util::sizedness_fast_path,
     },
 };
 
@@ -86,8 +86,8 @@ impl<'db> SolverDelegate for SolverContext<'db> {
 
     fn well_formed_goals(
         &self,
-        _param_env: ParamEnv<'db>,
-        _arg: <Self::Interner as rustc_type_ir::Interner>::Term,
+        param_env: ParamEnv<'db>,
+        arg: <Self::Interner as rustc_type_ir::Interner>::Term,
     ) -> Option<
         Vec<
             rustc_type_ir::solve::Goal<
@@ -96,8 +96,29 @@ impl<'db> SolverDelegate for SolverContext<'db> {
             >,
         >,
     > {
-        // FIXME(next-solver):
-        Some(Vec::new())
+        // A small subset of rustc's `wf::unnormalized_obligations` (see `WfPredicates::visit_ty`
+        // in `rustc_trait_selection/src/traits/wf.rs`): require slice and array element types
+        // in the type to be `Sized`, skipping elements with escaping bound vars like rustc. An
+        // unresolved element (`[?T]`) makes the goal ambiguous until it is inferred.
+        //
+        // FIXME(next-solver): Implement the rest (ADT and fn def predicates, outlives bounds,
+        // tuples, array length types, dyn types, aliases, consts, ...).
+        let mut goals = Vec::new();
+        let interner = self.interner;
+        let (Some(ty), Some(sized_trait)) =
+            (self.resolve_vars_if_possible(arg).as_type(), interner.lang_items().Sized)
+        else {
+            return Some(goals);
+        };
+        for ty in ty.walk().filter_map(|arg| arg.ty()) {
+            if let TyKind::Slice(elem) | TyKind::Array(elem, _) = ty.kind()
+                && !elem.has_escaping_bound_vars()
+            {
+                let trait_ref = TraitRef::new(interner, sized_trait.into(), [elem]);
+                goals.push(Goal::new(interner, param_env, trait_ref));
+            }
+        }
+        Some(goals)
     }
 
     fn make_deduplicated_region_constraints(

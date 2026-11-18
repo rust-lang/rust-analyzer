@@ -317,6 +317,19 @@ fn test() {
 }
 
 #[test]
+fn coerce_autoderef_generic_call_tail_expr() {
+    check_no_mismatches(
+        r#"
+//- minicore: sized
+fn pick<T>(items: &[T]) -> &T { loop {} }
+fn wrapper<'a>(pool: &'a [&str]) -> &'a str {
+    pick(pool)
+}
+"#,
+    );
+}
+
+#[test]
 fn coerce_autoderef_block() {
     check_no_mismatches(
         r#"
