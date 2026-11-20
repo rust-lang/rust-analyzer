@@ -1,3 +1,7 @@
+# 1.5.2
+
+* Generalization `Expect` and `ExpectFile`
+
 # 1.5.1
 
 * Documentation improvements

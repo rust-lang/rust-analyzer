@@ -474,6 +474,33 @@ impl ExpectFile {
     }
 }
 
+/// Generalization of [`Expect`] and [`ExpectFile`]
+pub trait ExpectSnapshot {
+    fn assert_eq(&self, actual: &str);
+
+    fn assert_debug_eq(&self, actual: &impl fmt::Debug);
+}
+
+impl ExpectSnapshot for Expect {
+    fn assert_eq(&self, actual: &str) {
+        self.assert_eq(actual);
+    }
+
+    fn assert_debug_eq(&self, actual: &impl fmt::Debug) {
+        self.assert_debug_eq(actual);
+    }
+}
+
+impl ExpectSnapshot for ExpectFile {
+    fn assert_eq(&self, actual: &str) {
+        self.assert_eq(actual);
+    }
+
+    fn assert_debug_eq(&self, actual: &impl fmt::Debug) {
+        self.assert_debug_eq(actual);
+    }
+}
+
 #[derive(Default)]
 struct Runtime {
     help_printed: bool,
