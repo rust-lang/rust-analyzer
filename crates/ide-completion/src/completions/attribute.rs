@@ -47,12 +47,15 @@ pub(crate) fn complete_known_attribute_input(
         ["feature"] => {
             feature::complete_feature(acc, ctx, &parse_tt_as_comma_sep_paths(tt, ctx.edition)?)
         }
-        ["allow" | "expect" | "deny" | "forbid" | "warn"] => lint::complete_lint(
-            acc,
-            ctx,
-            colon_prefix,
-            &parse_tt_as_comma_sep_paths(tt, ctx.edition)?,
-        ),
+        ["allow" | "expect" | "deny" | "forbid" | "warn"] => {
+            lint::complete_lint(
+                acc,
+                ctx,
+                colon_prefix,
+                &parse_tt_as_comma_sep_paths(tt, ctx.edition)?,
+            );
+            acc.add_keyword_snippet(ctx, "reason =", "reason = \"$0\"");
+        }
         ["macro_use"] => macro_use::complete_macro_use(
             acc,
             ctx,
@@ -61,6 +64,25 @@ pub(crate) fn complete_known_attribute_input(
         ),
         ["diagnostic", "on_unimplemented"] => {
             diagnostic::complete_on_unimplemented(acc, ctx, &parse_comma_sep_expr(tt)?)
+        }
+        ["proc_macro_derive"] => acc.add_keyword_snippet(ctx, "attributes", "attributes($0)"),
+        ["deprecated"] => {
+            acc.add_keyword_snippet(ctx, "since =", "since = \"$0\"");
+            acc.add_keyword_snippet(ctx, "note =", "note = \"$0\"");
+        }
+        ["inline"] => {
+            acc.add_keyword(ctx, "always");
+            acc.add_keyword(ctx, "never");
+        }
+        ["link"] => {
+            acc.add_keyword_snippet(ctx, "name =", "name = \"$1\"");
+            acc.add_keyword_snippet(ctx, "kind =", "kind = \"$1\"");
+            acc.add_keyword_snippet(ctx, "modifiers =", "modifiers = \"$1\"");
+        }
+        ["optimize"] => {
+            acc.add_keyword(ctx, "size");
+            acc.add_keyword(ctx, "speed");
+            acc.add_keyword(ctx, "none");
         }
         _ => (),
     }
@@ -293,7 +315,7 @@ static KIND_TO_ATTRIBUTES: LazyLock<FxHashMap<SyntaxKind, &[&str]>> = LazyLock::
             FN,
             attrs!(
                 item, linkable,
-                "cold", "ignore", "inline", "panic_handler", "proc_macro",
+                "cold", "ignore", "inline", "optimize", "panic_handler", "proc_macro",
                 "proc_macro_derive", "proc_macro_attribute", "should_panic", "target_feature",
                 "test", "track_caller"
             ),
@@ -379,6 +401,7 @@ const ATTRIBUTES: &[AttrCompletion] = &[
     attr("no_mangle", None, None),
     attr("no_std", None, None).prefer_inner(),
     attr("non_exhaustive", None, None),
+    attr("optimize(…)", Some("optimize"), Some("optimize($0)")),
     attr("panic_handler", None, None),
     attr(r#"path = "…""#, Some("path"), Some(r#"path = "${0:path}""#)),
     attr("proc_macro", None, None),
