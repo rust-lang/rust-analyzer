@@ -344,6 +344,19 @@ fn allocator() {
 }
 
 #[test]
+fn rintf32() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn rintf32(x: f32) -> f32;
+
+const GOAL: i32 = rintf32(2.5) as i32;
+"#,
+        2,
+    );
+}
+
+#[test]
 fn overflowing_add() {
     check_number(
         r#"

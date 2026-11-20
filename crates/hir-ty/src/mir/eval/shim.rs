@@ -601,11 +601,8 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         "floor" => arg.floor(),
                         "ceil" => arg.ceil(),
                         "trunc" => arg.trunc(),
-                        // FIXME: these rounds should be different, but only `.round()` is stable now.
-                        "rint" => arg.round(),
-                        "nearbyint" => arg.round(),
                         "round" => arg.round(),
-                        "roundeven" => arg.round(),
+                        "rint" | "nearbyint" | "roundeven" => arg.round_ties_even(),
                         _ => unreachable!(),
                     }
                 }
@@ -673,11 +670,8 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         "floor" => arg.floor(),
                         "ceil" => arg.ceil(),
                         "trunc" => arg.trunc(),
-                        // FIXME: these rounds should be different, but only `.round()` is stable now.
-                        "rint" => arg.round(),
-                        "nearbyint" => arg.round(),
                         "round" => arg.round(),
-                        "roundeven" => arg.round(),
+                        "rint" | "nearbyint" | "roundeven" => arg.round_ties_even(),
                         _ => unreachable!(),
                     }
                 }
