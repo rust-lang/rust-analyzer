@@ -1935,10 +1935,12 @@ fn main() {
 
 fn f<T: Trait>(t: T) {
     t.func();
+    //^^^^
 }
 
 fn g(t: &dyn Trait) {
     t.func();
+    //^^^^
 }
 "#,
         );
@@ -1967,10 +1969,12 @@ fn main() {
 
 fn f<T: Trait>(t: T) {
     t.func();
+    //^^^^
 }
 
 fn g(t: &dyn Trait) {
     t.func();
+    //^^^^
 }
 "#,
         );
@@ -2097,6 +2101,7 @@ fn f<T: Trait>() {
                // ^^^^^
     let _ = <((),)>::CONST;
     let _ = T::CONST;
+             //^^^^^
 }
 "#,
         );
@@ -2117,6 +2122,7 @@ fn f<T: Trait>() {
                // ^^^^^
     let _ = <((),)>::CONST;
     let _ = T::CONST;
+             //^^^^^
 }
 "#,
         );

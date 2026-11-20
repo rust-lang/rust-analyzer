@@ -1243,11 +1243,11 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                     // is our def a trait assoc item? then we want to find all assoc items from trait impls of our trait
                     || matches!(self.assoc_item_container, Some(hir::AssocItemContainer::Trait(_)))
                         && convert_to_def_in_trait(self.sema.db, def) == self.def
-                    // FIXME: special case type aliases, we can't filter between impl and trait defs here as we lack the substitutions
+                    // Also find all references of associated items via generics or dyn objects.
+                    // FIXME: for type aliases, we can't filter between impl and trait defs here as we lack the substitutions
                     // so we always resolve all assoc type aliases to both their trait def and impl defs
                     || self.assoc_item_container.is_some()
-                        && matches!(self.def, Definition::TypeAlias(_))
-                        && convert_to_def_in_trait(self.sema.db, def) == convert_to_def_in_trait(self.sema.db, self.def)
+                        && convert_to_def_in_trait(self.sema.db, self.def) == def
                     || self.include_self_kw_refs.is_some()
                         && self.include_self_kw_refs == def_to_ty(self.sema, &def) =>
             {

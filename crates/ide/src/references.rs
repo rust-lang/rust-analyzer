@@ -2444,6 +2444,7 @@ fn f<T: Trait>() {
                 CONST Const FileId(0) 65..88 71..76
 
                 FileId(0) 183..188
+                FileId(0) 233..238
             "#]],
         );
         // This reports too many uses. See FIXME in FindUsages::found_name_ref.
@@ -2505,6 +2506,8 @@ fn g(t: &dyn Trait) {
                 function Function FileId(0) 67..88 70..78
 
                 FileId(0) 181..189
+                FileId(0) 237..245
+                FileId(0) 278..286
             "#]],
         );
     }
@@ -2535,6 +2538,7 @@ fn f<T: Trait>() {
                 CONST Const FileId(0) 65..88 71..76
 
                 FileId(0) 183..188
+                FileId(0) 233..238
             "#]],
         );
         // This reports too many uses. See FIXME in FindUsages::found_name_ref.
@@ -2596,6 +2600,8 @@ fn g(t: &dyn Trait) {
                 function Function FileId(0) 67..88 70..78
 
                 FileId(0) 181..189
+                FileId(0) 237..245
+                FileId(0) 278..286
             "#]],
         );
     }
