@@ -11,7 +11,7 @@ use stdx::never;
 use crate::{
     drop::{DropGlue, has_drop_glue},
     mir::eval::{
-        Address, AdtId, Arc, Evaluator, FunctionId, GenericArgs, HasModule, Interval,
+        Address, AdtId, Arc, Evaluator, FunctionId, GenericArgs, HasModule, IntValue, Interval,
         IntervalAndTy, IntervalOrOwned, IsSigned, ItemContainerId, Layout, Locals, Lookup,
         MirEvalError, MirSpan, Mutability, Result, Ty, TyKind, from_bytes, not_supported, pad16,
     },
@@ -895,85 +895,126 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                 destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
             }
             "wrapping_shl" | "unchecked_shl" => {
-                // FIXME: signed
                 let [lhs, rhs] = args else {
                     return Err(MirEvalError::InternalError(
                         "unchecked_shl args are not provided".into(),
                     ));
                 };
-                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, IsSigned::No));
-                let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, IsSigned::No));
-                let ans = lhs.wrapping_shl(rhs as u32);
-                destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
+                if !matches!(lhs.ty.kind(), TyKind::Int(_) | TyKind::Uint(_))
+                    || !matches!(rhs.ty.kind(), TyKind::Int(_) | TyKind::Uint(_))
+                {
+                    return Err(MirEvalError::InternalError(
+                        "shift operands are not integers".into(),
+                    ));
+                }
+                let is_signed = matches!(lhs.ty.kind(), TyKind::Int(_));
+                let lhs = IntValue::from_bytes(lhs.get(self)?, is_signed);
+                let rhs = IntValue::from_bytes(rhs.get(self)?, false);
+                let ans = if name == "wrapping_shl" {
+                    lhs.wrapping_shl(rhs)
+                } else {
+                    rhs.as_u32().and_then(|rhs| lhs.checked_shl(rhs))
+                }
+                .ok_or_else(|| {
+                    MirEvalError::UndefinedBehavior("shift count out of bounds".to_owned())
+                })?;
+                destination.write_from_bytes(self, &ans.to_bytes())
             }
             "wrapping_shr" | "unchecked_shr" => {
-                // FIXME: signed
                 let [lhs, rhs] = args else {
                     return Err(MirEvalError::InternalError(
                         "unchecked_shr args are not provided".into(),
                     ));
                 };
-                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, IsSigned::No));
-                let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, IsSigned::No));
-                let ans = lhs.wrapping_shr(rhs as u32);
-                destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
+                if !matches!(lhs.ty.kind(), TyKind::Int(_) | TyKind::Uint(_))
+                    || !matches!(rhs.ty.kind(), TyKind::Int(_) | TyKind::Uint(_))
+                {
+                    return Err(MirEvalError::InternalError(
+                        "shift operands are not integers".into(),
+                    ));
+                }
+                let is_signed = matches!(lhs.ty.kind(), TyKind::Int(_));
+                let lhs = IntValue::from_bytes(lhs.get(self)?, is_signed);
+                let rhs = IntValue::from_bytes(rhs.get(self)?, false);
+                let ans = if name == "wrapping_shr" {
+                    lhs.wrapping_shr(rhs)
+                } else {
+                    rhs.as_u32().and_then(|rhs| lhs.checked_shr(rhs))
+                }
+                .ok_or_else(|| {
+                    MirEvalError::UndefinedBehavior("shift count out of bounds".to_owned())
+                })?;
+                destination.write_from_bytes(self, &ans.to_bytes())
             }
             "unchecked_rem" => {
-                // FIXME: signed
                 let [lhs, rhs] = args else {
                     return Err(MirEvalError::InternalError(
                         "unchecked_rem args are not provided".into(),
                     ));
                 };
-                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, IsSigned::No));
-                let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, IsSigned::No));
+                if lhs.ty != rhs.ty {
+                    return Err(MirEvalError::InternalError(
+                        "unchecked_rem operand types differ".into(),
+                    ));
+                }
+                let is_signed = matches!(lhs.ty.kind(), TyKind::Int(_));
+                let lhs = IntValue::from_bytes(lhs.get(self)?, is_signed);
+                let rhs = IntValue::from_bytes(rhs.get(self)?, is_signed);
                 let ans = lhs.checked_rem(rhs).ok_or_else(|| {
                     MirEvalError::UndefinedBehavior("unchecked_rem with bad inputs".to_owned())
                 })?;
-                destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
+                destination.write_from_bytes(self, &ans.to_bytes())
             }
             "unchecked_div" | "exact_div" => {
-                // FIXME: signed
                 let [lhs, rhs] = args else {
                     return Err(MirEvalError::InternalError(
                         "unchecked_div args are not provided".into(),
                     ));
                 };
-                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, IsSigned::No));
-                let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, IsSigned::No));
+                if lhs.ty != rhs.ty {
+                    return Err(MirEvalError::InternalError(
+                        "unchecked_div operand types differ".into(),
+                    ));
+                }
+                let is_signed = matches!(lhs.ty.kind(), TyKind::Int(_));
+                let lhs = IntValue::from_bytes(lhs.get(self)?, is_signed);
+                let rhs = IntValue::from_bytes(rhs.get(self)?, is_signed);
                 let ans = lhs.checked_div(rhs).ok_or_else(|| {
-                    MirEvalError::UndefinedBehavior("unchecked_rem with bad inputs".to_owned())
+                    MirEvalError::UndefinedBehavior("unchecked_div with bad inputs".to_owned())
                 })?;
-                destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
+                destination.write_from_bytes(self, &ans.to_bytes())
             }
             "add_with_overflow" | "sub_with_overflow" | "mul_with_overflow" => {
                 let [lhs, rhs] = args else {
                     return Err(MirEvalError::InternalError(
-                        "const_eval_select args are not provided".into(),
+                        "overflowing arithmetic args are not provided".into(),
                     ));
                 };
+                if lhs.ty != rhs.ty {
+                    return Err(MirEvalError::InternalError(
+                        "overflowing arithmetic operand types differ".into(),
+                    ));
+                }
                 let result_ty = Ty::new_tup_from_iter(
                     self.interner(),
                     [lhs.ty, Ty::new_bool(self.interner())].into_iter(),
                 );
-                let op_size = self.size_of_sized(lhs.ty, locals, "operand of add_with_overflow")?;
-                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, IsSigned::No));
-                let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, IsSigned::No));
-                let (ans, u128overflow) = match name {
+                let is_signed = matches!(lhs.ty.kind(), TyKind::Int(_));
+                let lhs = IntValue::from_bytes(lhs.get(self)?, is_signed);
+                let rhs = IntValue::from_bytes(rhs.get(self)?, is_signed);
+                let (ans, is_overflow) = match name {
                     "add_with_overflow" => lhs.overflowing_add(rhs),
                     "sub_with_overflow" => lhs.overflowing_sub(rhs),
                     "mul_with_overflow" => lhs.overflowing_mul(rhs),
                     _ => unreachable!(),
                 };
-                let is_overflow = u128overflow
-                    || ans.to_le_bytes()[op_size..].iter().any(|&it| it != 0 && it != 255);
                 let is_overflow = vec![u8::from(is_overflow)];
                 let layout = self.layout(result_ty)?;
                 let result = self.construct_with_layout(
                     layout.size.bytes_usize(),
                     &layout,
                     None,
-                    [ans.to_le_bytes()[0..op_size].to_vec(), is_overflow]
+                    [ans.to_bytes(), is_overflow]
                         .into_iter()
                         .map(IntervalOrOwned::Owned),
                 )?;
