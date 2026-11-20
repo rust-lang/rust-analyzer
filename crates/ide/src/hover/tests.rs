@@ -6709,6 +6709,159 @@ mod return_keyword {}
 }
 
 #[test]
+fn hover_keyword_anonymous_const() {
+    check(
+        r#"
+//- /main.rs crate:main deps:std
+fn f() { retur$0n; }
+//- /libstd.rs crate:std
+/// Docs for return_keyword
+/// [closure]
+/// [closures][closure]
+/// [threads]
+/// <https://doc.rust-lang.org/nightly/book/ch13-01-closures.html>
+///
+/// [closure]: ../book/ch13-01-closures.html
+/// [threads]: ../book/ch16-01-threads.html#using-move-closures-with-threads
+#[doc(keyword = "return")]
+const _: () = ();
+"#,
+        expect![[r#"
+                *return*
+
+                ```rust
+                return
+                ```
+
+                ---
+
+                Docs for return_keyword
+                [closure](https://doc.rust-lang.org/stable/book/ch13-01-closures.html)
+                [closures](https://doc.rust-lang.org/stable/book/ch13-01-closures.html)
+                [threads](https://doc.rust-lang.org/stable/book/ch16-01-threads.html#using-move-closures-with-threads)
+                <https://doc.rust-lang.org/nightly/book/ch13-01-closures.html>
+            "#]],
+    );
+}
+
+#[test]
+fn hover_primitive_anonymous_const() {
+    check(
+        r#"
+//- /main.rs crate:main deps:std
+fn f() { let x: u32$0 = 0; }
+//- /libstd.rs crate:std
+/// Docs for u32
+/// [closure]
+/// [closures][closure]
+/// [threads]
+/// <https://doc.rust-lang.org/nightly/book/ch13-01-closures.html>
+///
+/// [closure]: ../book/ch13-01-closures.html
+/// [threads]: ../book/ch16-01-threads.html#using-move-closures-with-threads
+#[rustc_doc_primitive = "u32"]
+const _: () = ();
+"#,
+        expect![[r#"
+                *u32*
+
+                ```rust
+                u32
+                ```
+
+                ---
+
+                Docs for u32
+                [closure](https://doc.rust-lang.org/nightly/book/ch13-01-closures.html)
+                [closures](https://doc.rust-lang.org/nightly/book/ch13-01-closures.html)
+                [threads](https://doc.rust-lang.org/nightly/book/ch16-01-threads.html#using-move-closures-with-threads)
+                <https://doc.rust-lang.org/nightly/book/ch13-01-closures.html>
+            "#]],
+    );
+}
+
+#[test]
+fn hover_self_anonymous_const() {
+    check(
+        r#"
+//- /main.rs crate:main deps:std
+fn f() { let x: Self$0 = 0; }
+//- /libstd.rs crate:std
+/// Docs for Self
+#[doc(keyword = "SelfTy")]
+const _: () = ();
+"#,
+        expect![[r#"
+                *Self*
+
+                ```rust
+                Self
+                ```
+
+                ---
+
+                Docs for Self
+            "#]],
+    );
+}
+
+#[test]
+fn hover_fn_keyword_anonymous_const() {
+    check(
+        r#"
+//- /main.rs crate:main deps:std
+fn$0 f() { let x: fn(i32) -> i32 = 0; }
+//- /libstd.rs crate:std
+/// Docs for fn keyword
+#[doc(keyword = "fn")]
+const _: () = ();
+/// Docs for fn pointer
+#[rustc_doc_primitive = "fn"]
+const _: () = ();
+"#,
+        expect![[r#"
+                *fn*
+
+                ```rust
+                fn
+                ```
+
+                ---
+
+                Docs for fn keyword
+            "#]],
+    );
+}
+
+#[test]
+fn hover_fn_pointer_anonymous_const() {
+    check(
+        r#"
+//- /main.rs crate:main deps:std
+fn f() { let x: f$0n(i32) -> i32 = 0; }
+//- /libstd.rs crate:std
+/// Docs for fn keyword
+#[doc(keyword = "fn")]
+const _: () = ();
+/// Docs for fn pointer
+#[rustc_doc_primitive = "fn"]
+const _: () = ();
+"#,
+        expect![[r#"
+                *fn*
+
+                ```rust
+                fn
+                ```
+
+                ---
+
+                Docs for fn pointer
+            "#]],
+    );
+}
+
+#[test]
 fn hover_keyword_doc() {
     check(
         r#"

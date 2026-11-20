@@ -39,7 +39,7 @@ use tt::TextSize;
 
 use crate::{
     AdtId, AstIdLoc, AttrDefId, FieldId, FunctionId, GenericDefId, HasModule, LifetimeParamId,
-    LocalFieldId, MacroId, ModuleId, TraitId, TypeOrConstParamId, VariantId,
+    LocalFieldId, MacroId, TraitId, TypeOrConstParamId, VariantId,
     hir::generics::{GenericParams, LocalLifetimeParamId, LocalTypeOrConstParamId},
     nameres::ModuleOrigin,
     resolver::{HasResolver, Resolver},
@@ -141,6 +141,7 @@ fn match_attr_flags(attr_flags: &mut AttrFlags, attr: ast::Meta) -> ControlFlow<
                 "path" => attr_flags.insert(AttrFlags::HAS_PATH),
                 "unstable" => attr_flags.insert(AttrFlags::IS_UNSTABLE),
                 "rustc_reservation_impl" => attr_flags.insert(AttrFlags::RUSTC_RESERVATION_IMPL),
+                "rustc_doc_primitive" => attr_flags.insert(AttrFlags::HAS_RUSTC_DOC_PRIMITIVE),
                 "export_name" => {
                     if let Some(value) = attr.value_string()
                         && *value == *"main"
@@ -353,6 +354,8 @@ bitflags::bitflags! {
         const DIAGNOSTIC_DO_NOT_RECOMMEND = 1 << 51;
 
         const HAS_RUSTC_MUST_IMPLEMENT_ONE_OF = 1 << 52;
+
+        const HAS_RUSTC_DOC_PRIMITIVE = 1 << 53;
     }
 }
 
@@ -762,6 +765,39 @@ impl AttrFlags {
     }
 
     #[inline]
+    pub fn doc_primitive(db: &dyn SourceDatabase, owner: AttrDefId) -> Option<Symbol> {
+        AttrFlags::query(db, owner).doc_primitive_with_attrs(db, owner)
+    }
+
+    #[inline]
+    pub fn doc_primitive_with_attrs(
+        self,
+        db: &dyn SourceDatabase,
+        owner: AttrDefId,
+    ) -> Option<Symbol> {
+        if !self.contains(AttrFlags::HAS_RUSTC_DOC_PRIMITIVE) {
+            // Don't create the query in case this is not a doc primitive, this wastes memory.
+            return None;
+        }
+
+        return doc_primitive(db, owner);
+
+        #[salsa::tracked(returns(clone))]
+        fn doc_primitive(db: &dyn SourceDatabase, owner: AttrDefId) -> Option<Symbol> {
+            collect_attrs(db, owner, |attr| {
+                if let ast::Meta::KeyValueMeta(attr) = attr
+                    && attr.path().is1("rustc_doc_primitive")
+                    && let Some(value) = attr.value_string()
+                {
+                    ControlFlow::Break(Symbol::intern(&value))
+                } else {
+                    ControlFlow::Continue(())
+                }
+            })
+        }
+    }
+
+    #[inline]
     pub fn repr(db: &dyn SourceDatabase, owner: AdtId) -> Option<ReprOptions> {
         if !AttrFlags::query(db, owner.into()).contains(AttrFlags::HAS_REPR) {
             // Don't create the query in case this has no repr, this wastes memory.
@@ -1049,15 +1085,15 @@ impl AttrFlags {
     }
 
     #[inline]
-    pub fn doc_keyword(db: &dyn SourceDatabase, owner: ModuleId) -> Option<Symbol> {
-        if !AttrFlags::query(db, AttrDefId::ModuleId(owner)).contains(AttrFlags::HAS_DOC_KEYWORD) {
+    pub fn doc_keyword(db: &dyn SourceDatabase, owner: AttrDefId) -> Option<Symbol> {
+        if !AttrFlags::query(db, owner).contains(AttrFlags::HAS_DOC_KEYWORD) {
             return None;
         }
         return doc_keyword(db, owner);
 
         #[salsa::tracked(returns(clone))]
-        fn doc_keyword(db: &dyn SourceDatabase, owner: ModuleId) -> Option<Symbol> {
-            collect_attrs(db, AttrDefId::ModuleId(owner), |attr| {
+        fn doc_keyword(db: &dyn SourceDatabase, owner: AttrDefId) -> Option<Symbol> {
+            collect_attrs(db, owner, |attr| {
                 if let ast::Meta::TokenTreeMeta(attr) = attr
                     && attr.path().is1("doc")
                     && let Some(tt) = attr.token_tree()
