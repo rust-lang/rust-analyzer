@@ -91,4 +91,6 @@ define_unstable_features! {
     deref_patterns,
     mut_ref,
     type_changing_struct_update,
+    gca_const_items,
+    gca_min_const_items,
 }

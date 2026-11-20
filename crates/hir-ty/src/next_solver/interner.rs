@@ -656,7 +656,7 @@ impl<'db> inherent::AdtDef<DbInterner<'db>> for AdtDef {
     }
 
     fn destructor(self, interner: DbInterner<'db>) -> Option<AdtDestructorKind> {
-        crate::drop::destructor(interner.db, self.def_id()).map(|_| AdtDestructorKind::NotConst)
+        interner.db.destructor(self.def_id()).map(|_| AdtDestructorKind::NotConst)
     }
 
     fn field_representing_type_info(
@@ -1264,7 +1264,7 @@ impl<'db> Interner for DbInterner<'db> {
 
     fn generics_require_sized_self(self, def_id: Self::DefId) -> bool {
         match GenericDefId::try_from(def_id) {
-            Ok(def_id) => crate::dyn_compatibility::generics_require_sized_self(self.db, def_id),
+            Ok(def_id) => self.db.generics_require_sized_self(def_id),
             Err(_) => false,
         }
     }
@@ -1656,7 +1656,7 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn trait_is_dyn_compatible(self, trait_: Self::TraitId) -> bool {
-        crate::dyn_compatibility::dyn_compatibility(self.db(), trait_.0).is_none()
+        self.db.trait_is_dyn_compatible(trait_.0)
     }
 
     fn trait_is_fundamental(self, trait_: Self::TraitId) -> bool {
@@ -1945,7 +1945,7 @@ impl<'db> Interner for DbInterner<'db> {
             // No builtin derive allow specialization currently.
             return false;
         };
-        crate::specialization::specializes(self.db, specializing_impl_def_id, parent_impl_def_id)
+        self.db.specializes(specializing_impl_def_id, parent_impl_def_id)
     }
 
     fn next_trait_solver_globally(self) -> bool {
