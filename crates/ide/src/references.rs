@@ -2337,7 +2337,7 @@ impl Trait for ((),) {
 
 fn f<T: Trait>() {
     let _ = <()>::CONST;
-
+    let _ = <((),)>::CONST;
     let _ = T::CONST;
 }
 "#,
@@ -2347,7 +2347,8 @@ fn f<T: Trait>() {
                 FileId(0) 71..76
                 FileId(0) 125..130
                 FileId(0) 183..188
-                FileId(0) 206..211
+                FileId(0) 211..216
+                FileId(0) 233..238
             "#]],
         );
         check(
@@ -2366,7 +2367,7 @@ impl Trait for ((),) {
 
 fn f<T: Trait>() {
     let _: <() as Trait>::TypeAlias;
-
+    let _: <((),) as Trait>::TypeAlias;
     let _: T::TypeAlias;
 }
 "#,
@@ -2376,36 +2377,43 @@ fn f<T: Trait>() {
                 FileId(0) 66..75
                 FileId(0) 117..126
                 FileId(0) 181..190
-                FileId(0) 207..216
+                FileId(0) 221..230
+                FileId(0) 246..255
             "#]],
         );
         check(
             r#"
 trait Trait {
-    fn function$0() {}
+    fn function$0(&self) {}
 }
 
 impl Trait for () {
-    fn function() {}
+    fn function(&self) {}
 }
 
 impl Trait for ((),) {
-    fn function() {}
+    fn function(&self) {}
 }
 
 fn f<T: Trait>() {
     let _ = <()>::function;
-
+    let _ = <((),)>::function;
     let _ = T::function;
+}
+
+fn g(t: &dyn Trait) {
+    t.function();
 }
 "#,
             expect![[r#"
-                function Function FileId(0) 18..34 21..29 Trait
+                function Function FileId(0) 18..39 21..29 Trait
 
-                FileId(0) 65..73
-                FileId(0) 112..120
-                FileId(0) 166..174
-                FileId(0) 192..200
+                FileId(0) 70..78
+                FileId(0) 122..130
+                FileId(0) 181..189
+                FileId(0) 212..220
+                FileId(0) 237..245
+                FileId(0) 278..286
             "#]],
         );
     }
@@ -2428,7 +2436,7 @@ impl Trait for ((),) {
 
 fn f<T: Trait>() {
     let _ = <()>::CONST;
-
+    let _ = <((),)>::CONST;
     let _ = T::CONST;
 }
 "#,
@@ -2438,6 +2446,7 @@ fn f<T: Trait>() {
                 FileId(0) 183..188
             "#]],
         );
+        // This reports too many uses. See FIXME in FindUsages::found_name_ref.
         check(
             r#"
 trait Trait {
@@ -2454,7 +2463,7 @@ impl Trait for ((),) {
 
 fn f<T: Trait>() {
     let _: <() as Trait>::TypeAlias;
-
+    let _: <((),) as Trait>::TypeAlias;
     let _: T::TypeAlias;
 }
 "#,
@@ -2464,33 +2473,38 @@ fn f<T: Trait>() {
                 FileId(0) 23..32
                 FileId(0) 117..126
                 FileId(0) 181..190
-                FileId(0) 207..216
+                FileId(0) 221..230
+                FileId(0) 246..255
             "#]],
         );
         check(
             r#"
 trait Trait {
-    fn function() {}
+    fn function(&self) {}
 }
 
 impl Trait for () {
-    fn function$0() {}
+    fn function$0(&self) {}
 }
 
 impl Trait for ((),) {
-    fn function() {}
+    fn function(&self) {}
 }
 
 fn f<T: Trait>() {
     let _ = <()>::function;
-
+    let _ = <((),)>::function;
     let _ = T::function;
+}
+
+fn g(t: &dyn Trait) {
+    t.function();
 }
 "#,
             expect![[r#"
-                function Function FileId(0) 62..78 65..73
+                function Function FileId(0) 67..88 70..78
 
-                FileId(0) 166..174
+                FileId(0) 181..189
             "#]],
         );
     }
@@ -2513,7 +2527,7 @@ impl Trait for ((),) {
 
 fn f<T: Trait>() {
     let _ = <()>::CONST$0;
-
+    let _ = <((),)>::CONST;
     let _ = T::CONST;
 }
 "#,
@@ -2523,6 +2537,7 @@ fn f<T: Trait>() {
                 FileId(0) 183..188
             "#]],
         );
+        // This reports too many uses. See FIXME in FindUsages::found_name_ref.
         check(
             r#"
 trait Trait {
@@ -2539,7 +2554,7 @@ impl Trait for ((),) {
 
 fn f<T: Trait>() {
     let _: <() as Trait>::TypeAlias$0;
-
+    let _: <((),) as Trait>::TypeAlias;
     let _: T::TypeAlias;
 }
 "#,
@@ -2549,33 +2564,38 @@ fn f<T: Trait>() {
                 FileId(0) 66..75
                 FileId(0) 117..126
                 FileId(0) 181..190
-                FileId(0) 207..216
+                FileId(0) 221..230
+                FileId(0) 246..255
             "#]],
         );
         check(
             r#"
 trait Trait {
-    fn function() {}
+    fn function(&self) {}
 }
 
 impl Trait for () {
-    fn function() {}
+    fn function(&self) {}
 }
 
 impl Trait for ((),) {
-    fn function() {}
+    fn function(&self) {}
 }
 
 fn f<T: Trait>() {
     let _ = <()>::function$0;
-
+    let _ = <((),)>::function;
     let _ = T::function;
+}
+
+fn g(t: &dyn Trait) {
+    t.function();
 }
 "#,
             expect![[r#"
-                function Function FileId(0) 62..78 65..73
+                function Function FileId(0) 67..88 70..78
 
-                FileId(0) 166..174
+                FileId(0) 181..189
             "#]],
         );
     }

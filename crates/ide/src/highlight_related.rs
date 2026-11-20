@@ -1876,58 +1876,101 @@ fn foo((
         check(
             r#"
 trait Trait {
-    fn func$0(self) {}
+    fn func$0(&self) {}
      //^^^^
 }
 
 impl Trait for () {
-    fn func(self) {}
+    fn func(&self) {}
+     //^^^^
+}
+
+impl Trait for ((),) {
+    fn func(&self) {}
      //^^^^
 }
 
 fn main() {
-    <()>::func(());
+    <()>::func(&());
         //^^^^
+    <((),)>::func(&((),));
+           //^^^^
     ().func();
      //^^^^
+}
+
+fn f<T: Trait>(t: T) {
+    t.func();
+    //^^^^
+}
+
+fn g(t: &dyn Trait) {
+    t.func();
+    //^^^^
 }
 "#,
         );
         check(
             r#"
 trait Trait {
-    fn func(self) {}
+    fn func(&self) {}
 }
 
 impl Trait for () {
-    fn func$0(self) {}
+    fn func$0(&self) {}
      //^^^^
 }
 
+impl Trait for ((),) {
+    fn func(&self) {}
+}
+
 fn main() {
-    <()>::func(());
+    <()>::func(&());
         //^^^^
+    <((),)>::func(&((),));
     ().func();
      //^^^^
+}
+
+fn f<T: Trait>(t: T) {
+    t.func();
+}
+
+fn g(t: &dyn Trait) {
+    t.func();
 }
 "#,
         );
         check(
             r#"
 trait Trait {
-    fn func(self) {}
+    fn func(&self) {}
 }
 
 impl Trait for () {
-    fn func(self) {}
+    fn func(&self) {}
      //^^^^
 }
 
+impl Trait for ((),) {
+    fn func(&self) {}
+}
+
 fn main() {
-    <()>::func(());
+    <()>::func(&());
         //^^^^
+    <((),)>::func(&((),));
     ().func$0();
      //^^^^
+}
+
+fn f<T: Trait>(t: T) {
+    t.func();
+}
+
+fn g(t: &dyn Trait) {
+    t.func();
 }
 "#,
         );
@@ -1938,12 +1981,142 @@ fn main() {
         check(
             r#"
 trait Trait {
+    type Output$0;
+      // ^^^^^^
+}
+impl Trait for () {
+    type Output = ();
+      // ^^^^^^
+}
+impl Trait for ((),) {
+    type Output = ();
+      // ^^^^^^
+}
+fn f<T: Trait>() {
+    let _: <() as Trait>::Output;
+                       // ^^^^^^
+    let _: <((),) as Trait>::Output;
+                          // ^^^^^^
+    let _: T::Output;
+           // ^^^^^^
+}
+"#,
+        );
+        // This highlights too many uses. See FIXME in FindUsages::found_name_ref.
+        check(
+            r#"
+trait Trait {
     type Output;
       // ^^^^^^
 }
 impl Trait for () {
     type Output$0 = ();
       // ^^^^^^
+}
+impl Trait for ((),) {
+    type Output = ();
+      // ^^^^^^
+}
+fn f<T: Trait>() {
+    let _: <() as Trait>::Output;
+                       // ^^^^^^
+    let _: <((),) as Trait>::Output;
+                          // ^^^^^^
+    let _: T::Output;
+           // ^^^^^^
+}
+"#,
+        );
+        // This highlights too many uses. See FIXME in FindUsages::found_name_ref.
+        check(
+            r#"
+trait Trait {
+    type Output;
+      // ^^^^^^
+}
+impl Trait for () {
+    type Output = ();
+      // ^^^^^^
+}
+impl Trait for ((),) {
+    type Output = ();
+      // ^^^^^^
+}
+fn f<T: Trait>() {
+    let _: <() as Trait>::Output$0;
+                       // ^^^^^^
+    let _: <((),) as Trait>::Output;
+                          // ^^^^^^
+    let _: T::Output;
+           // ^^^^^^
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_assoc_const_highlighting() {
+        check(
+            r#"
+trait Trait {
+    const CONST$0: usize;
+       // ^^^^^
+}
+impl Trait for () {
+    const CONST: usize = 0;
+       // ^^^^^
+}
+impl Trait for ((),) {
+    const CONST: usize = 0;
+       // ^^^^^
+}
+fn f<T: Trait>() {
+    let _ = <()>::CONST;
+               // ^^^^^
+    let _ = <((),)>::CONST;
+                  // ^^^^^
+    let _ = T::CONST;
+            // ^^^^^
+}
+"#,
+        );
+        check(
+            r#"
+trait Trait {
+    const CONST: usize;
+}
+impl Trait for () {
+    const CONST$0: usize = 0;
+       // ^^^^^
+}
+impl Trait for ((),) {
+    const CONST: usize = 0;
+}
+fn f<T: Trait>() {
+    let _ = <()>::CONST;
+               // ^^^^^
+    let _ = <((),)>::CONST;
+    let _ = T::CONST;
+}
+"#,
+        );
+        check(
+            r#"
+trait Trait {
+    const CONST: usize;
+}
+impl Trait for () {
+    const CONST: usize = 0;
+       // ^^^^^
+}
+impl Trait for ((),) {
+    const CONST: usize = 0;
+}
+fn f<T: Trait>() {
+    let _ = <()>::CONST$0;
+               // ^^^^^
+    let _ = <((),)>::CONST;
+    let _ = T::CONST;
 }
 "#,
         );
