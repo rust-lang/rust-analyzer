@@ -3,9 +3,11 @@
 //! It's unclear if we need this long-term, but it's definitely useful while we
 //! are splitting the hir.
 
+use either::Either;
 use hir_def::{
     AdtId, AssocItemId, BuiltinDeriveImplId, DefWithBodyId, EnumVariantId, ExpressionStoreOwnerId,
     FieldId, FunctionId, GenericDefId, GenericParamId, ImplId, ModuleDefId, VariantId,
+    builtin_derive::BuiltinDeriveImplMethod,
     hir::{BindingId, LabelId},
     item_scope::ItemInNs as ItemInNsId,
 };
@@ -268,6 +270,18 @@ impl From<BuiltinDeriveImplId> for crate::Impl {
 impl From<hir_def::FunctionId> for crate::Function {
     fn from(value: hir_def::FunctionId) -> Self {
         crate::Function { id: AnyFunctionId::FunctionId(value) }
+    }
+}
+
+/// Converts the result of `lookup_impl_method`.
+impl From<Either<FunctionId, (BuiltinDeriveImplId, BuiltinDeriveImplMethod)>> for Function {
+    fn from(value: Either<FunctionId, (BuiltinDeriveImplId, BuiltinDeriveImplMethod)>) -> Self {
+        match value {
+            Either::Left(id) => id.into(),
+            Either::Right((impl_, method)) => {
+                Self { id: AnyFunctionId::BuiltinDeriveImplMethod { method, impl_ } }
+            }
+        }
     }
 }
 
