@@ -1656,7 +1656,7 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn trait_is_dyn_compatible(self, trait_: Self::TraitId) -> bool {
-        crate::dyn_compatibility::dyn_compatibility(self.db(), trait_.0).is_none()
+        crate::dyn_compatibility::dyn_compatibility_violations(self.db(), trait_.0).is_none()
     }
 
     fn trait_is_fundamental(self, trait_: Self::TraitId) -> bool {
