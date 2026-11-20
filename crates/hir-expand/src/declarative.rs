@@ -136,7 +136,7 @@ impl AstId<ast::Macro> {
                             map.span_for_range(
                                 macro_rules.macro_rules_token().unwrap().text_range(),
                             ),
-                            DocCommentDesugarMode::Mbe,
+                            DocCommentDesugarMode::Keep,
                         );
 
                         mbe::DeclarativeMacro::parse_macro_rules(&tt, ctx_edition)
@@ -158,14 +158,14 @@ impl AstId<ast::Macro> {
                                 args.syntax(),
                                 map,
                                 span,
-                                DocCommentDesugarMode::Mbe,
+                                DocCommentDesugarMode::Keep,
                             )
                         });
                         let body = syntax_bridge::syntax_node_to_token_tree(
                             body.syntax(),
                             map,
                             span,
-                            DocCommentDesugarMode::Mbe,
+                            DocCommentDesugarMode::Keep,
                         );
 
                         mbe::DeclarativeMacro::parse_macro2(args.as_ref(), &body, ctx_edition)
