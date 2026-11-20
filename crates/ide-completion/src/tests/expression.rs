@@ -3032,9 +3032,13 @@ mod xpack {
         pub struct XOther;
     }
     pub mod xmodule2 {
+        use super::mem::xutil; // not ignore private use
         pub use super::xmodule1::*;
         pub struct XStruct;
         pub fn xfn() {}
+    }
+    pub mod mem {
+        pub fn xutil() {}
     }
 }
 
@@ -3043,21 +3047,22 @@ fn foo() {
 }
         "#,
         expect![[r#"
-            ct CONST  = Unit               Unit
-            en Enum                        Enum
-            fn foo()                       fn()
-            fn function()                  fn()
-            ma makro!(…)     macro_rules! makro
+            ct CONST  = Unit                   Unit
+            en Enum                            Enum
+            fn foo()                           fn()
+            fn function()                      fn()
+            fn xutil() (use xpack::mem::xutil) fn()
+            ma makro!(…)         macro_rules! makro
             md module::
             md xmodule2:: (use xpack::xmodule2)
             md xpack::
-            sc STATIC                      Unit
-            st Record                    Record
-            st Tuple                      Tuple
-            st Unit                        Unit
-            un Union                      Union
-            ev TupleV(…)            TupleV(u32)
-            bt u32                          u32
+            sc STATIC                          Unit
+            st Record                        Record
+            st Tuple                          Tuple
+            st Unit                            Unit
+            un Union                          Union
+            ev TupleV(…)                TupleV(u32)
+            bt u32                              u32
             kw async
             kw const
             kw crate::
