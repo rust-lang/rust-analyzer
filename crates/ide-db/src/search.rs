@@ -1242,35 +1242,14 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                 if self.def == def
                     // is our def a trait assoc item? then we want to find all assoc items from trait impls of our trait
                     || matches!(self.assoc_item_container, Some(hir::AssocItemContainer::Trait(_)))
-                        && convert_to_def_in_trait(self.sema.db, def) == self.def =>
-            {
-                let FileRange { file_id, range } = self.sema.original_range(name_ref.syntax());
-                let reference = FileReference {
-                    range,
-                    name: FileReferenceNode::NameRef(name_ref.clone()),
-                    category: ReferenceCategory::new(self.sema, &def, name_ref),
-                };
-                sink(file_id, reference)
-            }
-            // FIXME: special case type aliases, we can't filter between impl and trait defs here as we lack the substitutions
-            // so we always resolve all assoc type aliases to both their trait def and impl defs
-            Some(NameRefClass::Definition(def, _))
-                if self.assoc_item_container.is_some()
-                    && matches!(self.def, Definition::TypeAlias(_))
-                    && convert_to_def_in_trait(self.sema.db, def)
-                        == convert_to_def_in_trait(self.sema.db, self.def) =>
-            {
-                let FileRange { file_id, range } = self.sema.original_range(name_ref.syntax());
-                let reference = FileReference {
-                    range,
-                    name: FileReferenceNode::NameRef(name_ref.clone()),
-                    category: ReferenceCategory::new(self.sema, &def, name_ref),
-                };
-                sink(file_id, reference)
-            }
-            Some(NameRefClass::Definition(def, _))
-                if self.include_self_kw_refs.is_some()
-                    && self.include_self_kw_refs == def_to_ty(self.sema, &def) =>
+                        && convert_to_def_in_trait(self.sema.db, def) == self.def
+                    // FIXME: special case type aliases, we can't filter between impl and trait defs here as we lack the substitutions
+                    // so we always resolve all assoc type aliases to both their trait def and impl defs
+                    || self.assoc_item_container.is_some()
+                        && matches!(self.def, Definition::TypeAlias(_))
+                        && convert_to_def_in_trait(self.sema.db, def) == convert_to_def_in_trait(self.sema.db, self.def)
+                    || self.include_self_kw_refs.is_some()
+                        && self.include_self_kw_refs == def_to_ty(self.sema, &def) =>
             {
                 let FileRange { file_id, range } = self.sema.original_range(name_ref.syntax());
                 let reference = FileReference {
@@ -1345,23 +1324,18 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                 };
                 sink(file_id, reference)
             }
-            Some(NameClass::Definition(def)) if def != self.def => {
-                match (&self.assoc_item_container, self.def) {
-                    // for type aliases we always want to reference the trait def and all the trait impl counterparts
-                    // FIXME: only until we can resolve them correctly, see FIXME above
-                    (Some(_), Definition::TypeAlias(_))
-                        if convert_to_def_in_trait(self.sema.db, def)
-                            != convert_to_def_in_trait(self.sema.db, self.def) =>
-                    {
-                        return false;
-                    }
-                    (Some(_), Definition::TypeAlias(_)) => {}
-                    // We looking at an assoc item of a trait definition, so reference all the
-                    // corresponding assoc items belonging to this trait's trait implementations
-                    (Some(hir::AssocItemContainer::Trait(_)), _)
-                        if convert_to_def_in_trait(self.sema.db, def) == self.def => {}
-                    _ => return false,
-                }
+            Some(NameClass::Definition(def)) if def == self.def => false,
+            Some(NameClass::Definition(def)) if
+                // We looking at an assoc item of a trait definition, so reference all the
+                // corresponding assoc items belonging to this trait's trait implementations
+                matches!(self.assoc_item_container, Some(hir::AssocItemContainer::Trait(_)))
+                    && convert_to_def_in_trait(self.sema.db, def) == self.def
+                // for type aliases we always want to reference the trait def and all the trait impl counterparts
+                // FIXME: only until we can resolve them correctly, see FIXME above
+                || self.assoc_item_container.is_some()
+                    && matches!(self.def, Definition::TypeAlias(_))
+                    && convert_to_def_in_trait(self.sema.db, def) == convert_to_def_in_trait(self.sema.db, self.def) =>
+            {
                 let FileRange { file_id, range } = self.sema.original_range(name.syntax());
                 let reference = FileReference {
                     range,
