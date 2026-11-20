@@ -1,6 +1,6 @@
 //! Defining opaque types via inference.
 
-use rustc_type_ir::{TypeVisitableExt, fold_regions};
+use rustc_type_ir::TypeVisitableExt;
 use tracing::{debug, instrument};
 
 use crate::{
@@ -144,8 +144,8 @@ impl<'db> InferenceContext<'db> {
             Ok(hidden_type) => hidden_type,
             Err(_errors) => OpaqueHiddenType { ty: self.types.types.error },
         };
-        let hidden_type =
-            fold_regions(self.interner(), hidden_type, |_, _| self.types.regions.erased);
+        let hidden_type = hidden_type
+            .remap_generic_params_to_declaration_params(opaque_type_key, self.interner());
         UsageKind::HasDefiningUse(hidden_type)
     }
 }
