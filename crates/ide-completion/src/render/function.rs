@@ -250,7 +250,8 @@ pub(super) fn add_call_parens<'b>(
                                 ctx,
                                 text,
                                 &param.ty().instantiate_with_errors(ctx.db),
-                            );
+                            )
+                            .unwrap_or("");
                             f(&format_args!("${{{}:{ref_}{text}}}", index + offset))
                         }
                         None => {
@@ -264,10 +265,15 @@ pub(super) fn add_call_parens<'b>(
                 });
             match self_param {
                 Some(self_param) => {
+                    let ty = self_param.ty(ctx.db).instantiate_with_errors(ctx.db);
+                    let param = if let Some(ref_) = ref_of_param(ctx, "self", &ty) {
+                        format_smolstr!("{ref_}self")
+                    } else {
+                        self_param.display(ctx.db, ctx.display_target).to_smolstr()
+                    };
                     format!(
-                        "{}(${{1:{}}}{}{})$0",
+                        "{}(${{1:{param}}}{}{})$0",
                         escaped_name,
-                        self_param.display(ctx.db, ctx.display_target),
                         if params.is_empty() { "" } else { ", " },
                         function_params_snippet
                     )
@@ -304,7 +310,11 @@ pub(super) fn add_call_parens<'b>(
     builder.label(SmolStr::from_iter([&name, label_suffix])).insert_snippet(cap, snippet)
 }
 
-fn ref_of_param(ctx: &CompletionContext<'_, '_>, arg: &str, ty: &hir::Type<'_>) -> &'static str {
+fn ref_of_param(
+    ctx: &CompletionContext<'_, '_>,
+    arg: &str,
+    ty: &hir::Type<'_>,
+) -> Option<&'static str> {
     if let Some((_, mutability)) = ty.as_reference() {
         let ref_prefix = if mutability.is_mut() { "&mut " } else { "&" };
 
@@ -312,13 +322,17 @@ fn ref_of_param(ctx: &CompletionContext<'_, '_>, arg: &str, ty: &hir::Type<'_>) 
             if name.as_str() == arg {
                 let local_ty = local.ty(ctx.db);
                 let added_ref = local_ty.add_reference(ctx.db, mutability);
-                let needs_ref =
-                    !local_ty.could_coerce_to(ctx.db, ty) && added_ref.could_coerce_to(ctx.db, ty);
-                return if needs_ref { ref_prefix } else { "" };
+                let direct_match = local_ty.could_coerce_to(ctx.db, ty);
+                let needs_ref = !direct_match && added_ref.could_coerce_to(ctx.db, ty);
+                return match (direct_match, needs_ref) {
+                    (true, _) => Some(""),
+                    (false, true) => Some(ref_prefix),
+                    (false, false) => None,
+                };
             }
         }
     }
-    ""
+    None
 }
 
 fn detail(ctx: &CompletionContext<'_, '_>, func: hir::Function) -> String {
@@ -665,6 +679,97 @@ fn main() {
     let x = Foo {};
     let y = Bar {};
     y.apply_foo(${1:&x});$0
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn insert_ref_when_self_param_type_match() {
+        check_edit(
+            "foo",
+            r#"
+struct Foo {}
+impl Foo {
+    fn foo(&self) { Self::$0 }
+}
+"#,
+            r#"
+struct Foo {}
+impl Foo {
+    fn foo(&self) { Self::foo(${1:self});$0 }
+}
+"#,
+        );
+        check_edit(
+            "foo",
+            r#"
+struct Foo {}
+impl Foo {
+    fn foo(&mut self) { Self::$0 }
+}
+"#,
+            r#"
+struct Foo {}
+impl Foo {
+    fn foo(&mut self) { Self::foo(${1:self});$0 }
+}
+"#,
+        );
+        check_edit(
+            "foo",
+            r#"
+struct Foo {}
+impl Foo {
+    fn foo(&self) {}
+    fn bar(self) { Self::$0 }
+}
+"#,
+            r#"
+struct Foo {}
+impl Foo {
+    fn foo(&self) {}
+    fn bar(self) { Self::foo(${1:&self});$0 }
+}
+"#,
+        );
+        check_edit(
+            "foo",
+            r#"
+struct Foo {}
+impl Foo {
+    fn foo(&self) {}
+    fn bar(&mut self) { Self::$0 }
+}
+"#,
+            r#"
+struct Foo {}
+impl Foo {
+    fn foo(&self) {}
+    fn bar(&mut self) { Self::foo(${1:self});$0 }
+}
+"#,
+        );
+        check_edit(
+            "foo",
+            r#"
+struct Foo {}
+struct Bar {}
+impl Foo {
+    fn foo(&self) {}
+}
+impl Bar {
+    fn bar(&self) { Foo::$0 }
+}
+"#,
+            r#"
+struct Foo {}
+struct Bar {}
+impl Foo {
+    fn foo(&self) {}
+}
+impl Bar {
+    fn bar(&self) { Foo::foo(${1:&self});$0 }
 }
 "#,
         );
