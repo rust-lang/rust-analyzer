@@ -247,7 +247,8 @@ impl<'db> IntoKind for Const<'db> {
     }
 }
 
-impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Const<'db> {
+// SAFETY: manual impl is required in order to handle interned type
+unsafe impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Const<'db> {
     fn generic_visit_with(&self, visitor: &mut V) {
         if visitor.on_interned(self.interned).is_continue() {
             self.kind().generic_visit_with(visitor);

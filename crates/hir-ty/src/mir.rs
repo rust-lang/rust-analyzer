@@ -213,7 +213,9 @@ impl<V: PartialEq> ProjectionElem<V> {
 
 pub type PlaceElem = ProjectionElem<LocalId>;
 
-impl<W: crate::next_solver::WorldExposer> GenericTypeVisitable<W> for PlaceElem {
+// SAFETY: the type doesn't contain interned data, and so the impl
+// can be a no-op
+unsafe impl<W: crate::next_solver::WorldExposer> GenericTypeVisitable<W> for PlaceElem {
     fn generic_visit_with(&self, _: &mut W) {}
 }
 

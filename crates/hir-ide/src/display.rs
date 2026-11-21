@@ -54,7 +54,7 @@ use crate::{
     FieldType, GenericPredicates, ImplTraitId, MemoryMap, ParamEnvAndCrate, consteval,
     db::{GeneralConstId, HirDatabase},
     generics::{ProvenanceSplit, generics},
-    layout::Layout,
+    layout::{RustcFieldIdx, VariantLayout},
     mir::{IsSigned, pad16},
     next_solver::{
         AliasTy, Allocation, Clause, ClauseKind, Const, ConstKind, DbInterner,
@@ -999,7 +999,7 @@ fn render_const_scalar_inner<'db>(
                         f,
                         field_types,
                         f.db.trait_environment(def.into()),
-                        &layout,
+                        &VariantLayout::from_layout((*layout).clone()),
                         args,
                         b,
                         memory_map,
@@ -1025,7 +1025,7 @@ fn render_const_scalar_inner<'db>(
                         f,
                         field_types,
                         f.db.trait_environment(def.into()),
-                        var_layout,
+                        &var_layout,
                         args,
                         b,
                         memory_map,
@@ -1230,14 +1230,14 @@ fn render_variant_after_name<'db>(
     f: &mut HirFormatter<'_, 'db>,
     field_types: &'db ArenaMap<LocalFieldId, FieldType>,
     param_env: ParamEnv<'db>,
-    layout: &Layout,
+    layout: &VariantLayout,
     args: GenericArgs<'db>,
     b: &[u8],
     memory_map: &MemoryMap<'db>,
 ) -> Result {
     let param_env = ParamEnvAndCrate { param_env, krate: f.krate() };
     let render_field = |f: &mut HirFormatter<'_, 'db>, id: LocalFieldId| {
-        let offset = layout.fields.offset(u32::from(id.into_raw()) as usize).bytes_usize();
+        let offset = layout.field_offsets[RustcFieldIdx(id)].bytes_usize();
         let ty = field_types[id].ty().instantiate(f.interner, args).skip_norm_wip();
         let Ok(layout) = f.db.layout_of_ty(ty.store(), param_env.store()) else {
             return f.write_str("<layout-error>");

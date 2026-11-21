@@ -14,6 +14,7 @@ use crate::{
         Binder, Const, ConstKind, DbInterner, ErrorGuaranteed, GenericArgs, OpaqueTypeKey, Region,
         SolverDefId, Ty, TyKind,
         infer::opaque_types::{OpaqueHiddenType, table::OpaqueTypeStorageEntries},
+        region_constraint,
     },
 };
 
@@ -44,6 +45,35 @@ impl<'db> rustc_type_ir::InferCtxtLike for InferCtxt<'db> {
 
     fn create_next_universe(&self) -> UniverseIndex {
         self.create_next_universe()
+    }
+
+    fn insert_placeholder_assumptions(
+        &self,
+        _u: UniverseIndex,
+        _assumptions: Option<region_constraint::Assumptions<'db>>,
+    ) {
+        // FIXME(-Zassumptions-on-binders)
+        // self.universe_assumptions.borrow_mut().insert(u, assumptions);
+    }
+
+    fn get_placeholder_assumptions(
+        &self,
+        _u: UniverseIndex,
+    ) -> Option<region_constraint::Assumptions<'db>> {
+        // FIXME(-Zassumptions-on-binders)
+        None // self.universe_assumptions.borrow_mut().get(&u).unwrap().as_ref().cloned()
+    }
+
+    fn get_solver_region_constraint(&self) -> region_constraint::RegionConstraint<'db> {
+        // FIXME(-Zassumptions-on-binders)
+        region_constraint::RegionConstraint::default()
+    }
+
+    fn overwrite_solver_region_constraint(
+        &self,
+        _constraint: region_constraint::RegionConstraint<'db>,
+    ) {
+        // FIXME(-Zassumptions-on-binders)
     }
 
     fn universe_of_ty(&self, vid: TyVid) -> Option<UniverseIndex> {
@@ -280,6 +310,13 @@ impl<'db> rustc_type_ir::InferCtxtLike for InferCtxt<'db> {
         _span: Span,
     ) {
         self.inner.borrow_mut().unwrap_region_constraints().make_eqregion(a, b);
+    }
+
+    fn register_solver_region_constraint(
+        &self,
+        _c: rustc_type_ir::region_constraint::RegionConstraint<Self::Interner>,
+    ) {
+        // FIXME(-Zassumptions-on-binders)
     }
 
     fn register_ty_outlives(&self, _ty: Ty<'db>, _r: Region<'db>, _span: Span) {

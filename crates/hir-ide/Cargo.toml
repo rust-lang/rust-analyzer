@@ -40,6 +40,7 @@ base-db.workspace = true
 syntax.workspace = true
 span.workspace = true
 hir-ty.workspace = true
+hir-analysis.workspace = true
 
 [dev-dependencies]
 expect-test = "1.5.1"

@@ -38,11 +38,7 @@ mod display;
 #[doc(hidden)]
 pub use hir_def::ModuleId;
 
-use std::{
-    borrow::Borrow,
-    fmt, iter,
-    ops::{ControlFlow, Not},
-};
+use std::{borrow::Borrow, fmt, iter, ops::ControlFlow};
 
 use arrayvec::ArrayVec;
 use base_db::{
@@ -64,7 +60,7 @@ use hir_def::{
     },
     item_tree::ImportAlias,
     lang_item::LangItemTarget,
-    layout::{self, ReprOptions, TargetDataLayout},
+    layout::{self, LayoutData, ReprOptions, TargetDataLayout},
     per_ns::PerNs,
     resolver::{HasResolver, Resolver},
     signatures::{
@@ -92,7 +88,8 @@ use hir_ide::{
     mir_pretty::{MirBodyPretty as _, MirEvalErrorPretty as _},
     next_solver::{
         AliasTy, AnyImplId, ClauseKind, DbInterner, EarlyBinder, ErrorGuaranteed, FnSig,
-        GenericArg, GenericArgs, ParamEnv, PolyFnSig, Region, SolverDefId, Ty, TyKind, TypingMode,
+        GenericArg, GenericArgs, ParamEnv, PolyFnSig, Region, SolverDefId, Ty, TyKind, TypingEnv,
+        TypingMode,
         infer::{DbInternerInferExt, InferCtxt},
     },
     traits::{self, structurally_normalize_ty},
@@ -110,7 +107,7 @@ use syntax::{
     ast::{self, HasName as _, HasVisibility as _},
     format_smolstr,
 };
-use triomphe::Arc;
+use triomphe::{Arc, ThinArc};
 
 use crate::db::HirDatabase;
 
@@ -203,10 +200,10 @@ pub use {
     hir_ide::{
         CastError, PointerCast, attach_db, attach_db_allow_change,
         consteval::ConstEvalError,
+        db::DropGlue,
         diagnostics::UnsafetyReason,
         display::{ClosureStyle, DisplayTarget, HirDisplay, HirDisplayError, HirWrite},
-        drop::DropGlue,
-        dyn_compatibility::{DynCompatibilityViolation, MethodViolationCode},
+        dyn_compatibility::{AssocConstViolation, MethodViolation},
         impl_hir_database,
         layout::LayoutError,
         mir::{MirEvalError, MirLowerError},
@@ -1138,11 +1135,11 @@ impl EnumVariant {
         let parent_enum = self.parent_enum(db);
         let parent_layout = parent_enum.layout(db)?;
         Ok(match &parent_layout.0.variants {
-            layout::Variants::Multiple { variants, .. } => Layout(
+            layout::Variants::Multiple { .. } => Layout(
                 {
                     let lookup = self.id.lookup(db);
                     let rustc_enum_variant_idx = RustcEnumVariantIdx(lookup.index(db));
-                    Arc::new(variants[rustc_enum_variant_idx].clone())
+                    Arc::new(LayoutData::for_variant(&parent_layout.0, rustc_enum_variant_idx))
                 },
                 db.target_data_layout(parent_enum.krate(db).into()).unwrap(),
             ),
@@ -2282,24 +2279,14 @@ impl Trait {
             .count()
     }
 
-    pub fn dyn_compatibility(&self, db: &dyn HirDatabase) -> Option<DynCompatibilityViolation> {
-        hir_ide::dyn_compatibility::dyn_compatibility(db, self.id)
-    }
-
-    pub fn dyn_compatibility_all_violations(
+    pub fn dyn_compatibility_violations(
         &self,
         db: &dyn HirDatabase,
-    ) -> Option<Vec<DynCompatibilityViolation>> {
-        let mut violations = vec![];
-        _ = hir_ide::dyn_compatibility::dyn_compatibility_with_callback(
-            db,
-            self.id,
-            &mut |violation| {
-                violations.push(violation);
-                ControlFlow::Continue(())
-            },
-        );
-        violations.is_empty().not().then_some(violations)
+    ) -> Vec<DynCompatibilityViolation> {
+        match hir_ide::dyn_compatibility::dyn_compatibility_violations(db, self.id) {
+            Some(violations) => DynCompatibilityViolation::multiple_from_hir(violations),
+            None => Vec::new(),
+        }
     }
 
     /// `#[rust_analyzer::completions(...)]` mode.
@@ -2322,6 +2309,44 @@ impl Trait {
 
     pub fn must_implement_one_of(self, db: &dyn HirDatabase) -> Option<&[Name]> {
         AttrFlags::must_implement_one_of(db, self.id)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum DynCompatibilityViolation {
+    ExplicitlyDynIncompatible,
+    SizedSelf,
+    SupertraitSelf,
+    SupertraitNonLifetimeBinder,
+    SupertraitConst,
+    Method(Function, MethodViolation),
+    AssocConst(Const, AssocConstViolation),
+    GenericAssocTy(TypeAlias),
+    HasNonCompatibleSuperTrait(Trait, Vec<DynCompatibilityViolation>),
+}
+
+impl DynCompatibilityViolation {
+    fn from_hir(violation: &hir_ide::dyn_compatibility::DynCompatibilityViolation) -> Self {
+        use hir_ide::dyn_compatibility::DynCompatibilityViolation::*;
+        match violation {
+            ExplicitlyDynIncompatible => Self::ExplicitlyDynIncompatible,
+            SizedSelf => Self::SizedSelf,
+            SupertraitSelf => Self::SupertraitSelf,
+            SupertraitNonLifetimeBinder => Self::SupertraitNonLifetimeBinder,
+            SupertraitConst => Self::SupertraitConst,
+            &Method(id, violation) => Self::Method(id.into(), violation),
+            &AssocConst(id, violation) => Self::AssocConst(id.into(), violation),
+            &GenericAssocTy(id) => Self::GenericAssocTy(id.into()),
+            HasNonCompatibleSuperTrait(id, violations) => {
+                Self::HasNonCompatibleSuperTrait((*id).into(), Self::multiple_from_hir(violations))
+            }
+        }
+    }
+
+    fn multiple_from_hir(
+        violations: &ThinArc<(), hir_ide::dyn_compatibility::DynCompatibilityViolation>,
+    ) -> Vec<Self> {
+        violations.slice.iter().map(Self::from_hir).collect()
     }
 }
 
@@ -5779,9 +5804,12 @@ impl<'db> Type<'db> {
 
     pub fn drop_glue(&self, db: &'db dyn HirDatabase) -> DropGlue {
         let env = self.param_env(db);
-        let interner = DbInterner::new_with(db, env.krate);
-        let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
-        hir_ide::drop::has_drop_glue(&infcx, self.ty.skip_binder(), env.param_env)
+        let env = TypingEnv {
+            typing_mode: TypingMode::PostAnalysis,
+            krate: env.krate,
+            param_env: env.param_env,
+        };
+        db.has_drop_glue(self.ty.skip_binder(), env)
     }
 }
 
