@@ -28,10 +28,7 @@ mod structural_normalize;
 mod ty;
 pub mod util;
 
-use std::{mem::ManuallyDrop, sync::OnceLock};
-
 pub use allocation::*;
-use base_db::Crate;
 pub use binder::*;
 pub use consts::*;
 pub use def_id::*;
@@ -40,16 +37,21 @@ pub use interner::*;
 pub use opaques::*;
 pub use predicate::*;
 pub use region::*;
-use rustc_type_ir::MayBeErased;
 pub use solver::*;
 pub use ty::*;
 
 pub use crate::lower::ImplTraitIdx;
+pub use rustc_ast_ir::Mutability;
+
+use std::{mem::ManuallyDrop, sync::OnceLock};
+
+use base_db::Crate;
+use rustc_type_ir::MayBeErased;
+
 use crate::{
     db::HirDatabase,
     next_solver::infer::{DbInternerInferExt, InferCtxt},
 };
-pub use rustc_ast_ir::Mutability;
 
 pub type Binder<'db, T> = rustc_type_ir::Binder<DbInterner<'db>, T>;
 pub type EarlyBinder<'db, T> = rustc_type_ir::EarlyBinder<DbInterner<'db>, T>;
