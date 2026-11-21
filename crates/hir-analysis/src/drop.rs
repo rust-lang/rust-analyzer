@@ -7,18 +7,18 @@ use hir_def::{
 use rustc_hash::FxHashSet;
 use rustc_type_ir::inherent::{AdtDef, GenericArgs as _, IntoKind};
 
-use crate::{
+use hir_ty::{
     consteval,
-    db::HirDatabase,
+    db::{DropGlue, HirDatabase},
     method_resolution::TraitImpls,
     next_solver::{
-        DbInterner, ParamEnv, SimplifiedType, Ty, TyKind,
+        DbInterner, ParamEnv, SimplifiedType, Ty, TyKind, TypingEnv,
         infer::{InferCtxt, traits::ObligationCause},
         obligation_ctxt::ObligationCtxt,
     },
 };
 
-#[salsa::tracked]
+#[salsa::tracked(returns(copy))]
 pub fn destructor(db: &dyn HirDatabase, adt: AdtId) -> Option<ImplId> {
     let module = match adt {
         AdtId::EnumId(id) => id.loc(db).container,
@@ -34,19 +34,8 @@ pub fn destructor(db: &dyn HirDatabase, adt: AdtId) -> Option<ImplId> {
     impls.for_trait_and_self_ty(drop_trait, &SimplifiedType::Adt(adt.into())).0.first().copied()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum DropGlue {
-    // Order of variants is important.
-    None,
-    /// May have a drop glue if some type parameter has it.
-    ///
-    /// For the compiler this is considered as a positive result, IDE distinguishes this from "yes".
-    DependOnParams,
-    HasDropGlue,
-}
-
-pub fn has_drop_glue<'db>(infcx: &InferCtxt<'db>, ty: Ty<'db>, env: ParamEnv<'db>) -> DropGlue {
-    has_drop_glue_impl(infcx, ty, env, &mut FxHashSet::default())
+pub fn has_drop_glue<'db>(db: &'db dyn HirDatabase, ty: Ty<'db>, env: TypingEnv<'db>) -> DropGlue {
+    has_drop_glue_impl(&env.infcx(db), ty, env.param_env, &mut FxHashSet::default())
 }
 
 fn has_drop_glue_impl<'db>(

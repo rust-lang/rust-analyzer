@@ -32,7 +32,8 @@ impl<'db> std::ops::Deref for Allocation<'db> {
     }
 }
 
-impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Allocation<'db> {
+// SAFETY: manual impl is required in order to handle interned type
+unsafe impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Allocation<'db> {
     fn generic_visit_with(&self, visitor: &mut V) {
         if visitor.on_interned(self.interned).is_continue() {
             (**self).generic_visit_with(visitor);

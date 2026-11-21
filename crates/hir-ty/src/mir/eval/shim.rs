@@ -9,7 +9,7 @@ use rustc_type_ir::inherent::{GenericArgs as _, IntoKind, SliceLike, Ty as _};
 use stdx::never;
 
 use crate::{
-    drop::{DropGlue, has_drop_glue},
+    db::DropGlue,
     mir::eval::{
         Address, AdtId, Arc, Evaluator, FunctionId, GenericArgs, HasModule, Interval,
         IntervalAndTy, IntervalOrOwned, IsSigned, ItemContainerId, Layout, Locals, Lookup,
@@ -800,7 +800,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         "size_of generic arg is not provided".into(),
                     ));
                 };
-                let result = match has_drop_glue(&self.infcx, ty, self.param_env.param_env) {
+                let result = match self.db.has_drop_glue(ty, self.infcx.typing_env(self.param_env.param_env)) {
                     DropGlue::HasDropGlue => true,
                     DropGlue::None => false,
                     DropGlue::DependOnParams => {

@@ -413,7 +413,8 @@ impl<'db> rustc_type_ir::TypeVisitable<DbInterner<'db>> for Clauses<'db> {
     }
 }
 
-impl<'db, V: super::WorldExposer> rustc_type_ir::GenericTypeVisitable<V> for Clauses<'db> {
+// SAFETY: manual impl is required in order to handle interned type
+unsafe impl<'db, V: super::WorldExposer> rustc_type_ir::GenericTypeVisitable<V> for Clauses<'db> {
     fn generic_visit_with(&self, visitor: &mut V) {
         if visitor.on_interned_slice(self.interned).is_continue() {
             self.as_slice().iter().for_each(|it| it.generic_visit_with(visitor));
@@ -450,7 +451,7 @@ pub struct Clause<'db>(pub(crate) Predicate<'db>);
     Copy, Clone, Debug, Hash, PartialEq, Eq, TypeVisitable, TypeFoldable, GenericTypeVisitable,
 )]
 pub struct ParamEnv<'db> {
-    pub(crate) clauses: Clauses<'db>,
+    pub clauses: Clauses<'db>,
 }
 
 impl<'db> ParamEnv<'db> {
@@ -491,7 +492,8 @@ impl<'db> TypeVisitable<DbInterner<'db>> for Predicate<'db> {
     }
 }
 
-impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Predicate<'db> {
+// SAFETY: manual impl is required in order to handle interned type
+unsafe impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Predicate<'db> {
     fn generic_visit_with(&self, visitor: &mut V) {
         if visitor.on_interned(self.interned).is_continue() {
             self.kind().generic_visit_with(visitor);
@@ -788,6 +790,15 @@ impl<'db> IntoKind for Clause<'db> {
 impl<'db> Clause<'db> {
     pub fn as_predicate(self) -> Predicate<'db> {
         self.0
+    }
+
+    pub fn as_type_outlives_clause(self) -> Option<Binder<'db, TypeOutlivesPredicate<'db>>> {
+        let clause = self.kind();
+        if let ClauseKind::TypeOutlives(o) = clause.skip_binder() {
+            Some(clause.rebind(o))
+        } else {
+            None
+        }
     }
 }
 
