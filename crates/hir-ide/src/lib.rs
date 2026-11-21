@@ -16,8 +16,12 @@ pub mod mir_pretty;
 
 #[doc(hidden)]
 pub mod __private {
+    pub use base_db;
+    pub use hir_analysis;
     pub use hir_def;
+    pub use hir_ty;
     pub use salsa;
+    pub use std;
 }
 
 #[cfg(test)]
@@ -29,6 +33,7 @@ use hir_def::ModuleId;
 use hir_ty::{db::HirDatabase, next_solver::Const};
 use syntax::ast::{ConstArg, make};
 
+pub use hir_analysis::dyn_compatibility;
 pub use hir_ty::*;
 
 use crate::display::HirDisplay;
