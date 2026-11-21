@@ -5,7 +5,7 @@ use either::Either;
 use hir::{
     Adt, AsAssocItem, AsExternAssocItem, CaptureKind, DisplayTarget, DropGlue,
     DynCompatibilityViolation, HasCrate, HasSource, HirDisplay, Layout, LayoutError,
-    MethodViolationCode, Name, Semantics, Symbol, Trait, Type, TypeInfo, Variant,
+    MethodViolation, Name, Semantics, Symbol, Trait, Type, TypeInfo, Variant,
 };
 use ide_db::{
     RootDatabase,
@@ -749,7 +749,12 @@ pub(super) fn definition(
     let dyn_compatibility_info = || match def {
         Definition::Trait(it) => {
             let mut dyn_compatibility_info = String::new();
-            render_dyn_compatibility(db, &mut dyn_compatibility_info, it.dyn_compatibility(db));
+            // FIXME: Maybe show all dyn-compatibility violations?
+            render_dyn_compatibility(
+                db,
+                &mut dyn_compatibility_info,
+                it.dyn_compatibility_violations(db).into_iter().next(),
+            );
             Some(dyn_compatibility_info)
         }
         _ => None,
@@ -1343,44 +1348,52 @@ fn render_dyn_compatibility(
         DynCompatibilityViolation::SizedSelf => {
             buf.push_str("having a `Self: Sized` bound");
         }
-        DynCompatibilityViolation::SelfReferential => {
+        DynCompatibilityViolation::SupertraitSelf => {
             buf.push_str("having a bound that references `Self`");
         }
+        DynCompatibilityViolation::ExplicitlyDynIncompatible => {
+            buf.push_str("having opted out of dyn-compatibility")
+        }
+        DynCompatibilityViolation::SupertraitNonLifetimeBinder => {
+            buf.push_str("non-lifetime `for<...>` variables")
+        }
+        DynCompatibilityViolation::SupertraitConst => buf.push_str("having a `const` supertrait"),
         DynCompatibilityViolation::Method(func, mvc) => {
-            let name = hir::Function::from(func).name(db);
+            let name = func.name(db);
             format_to!(buf, "having a method `{}` that is not dispatchable due to ", name.as_str());
             let desc = match mvc {
-                MethodViolationCode::StaticMethod => "missing a receiver",
-                MethodViolationCode::ReferencesSelfInput => "having a parameter referencing `Self`",
-                MethodViolationCode::ReferencesSelfOutput => "the return type referencing `Self`",
-                MethodViolationCode::ReferencesImplTraitInTrait => {
+                MethodViolation::StaticMethod => "missing a receiver",
+                MethodViolation::ReferencesSelfInput => "having a parameter referencing `Self`",
+                MethodViolation::ReferencesSelfOutput => "the return type referencing `Self`",
+                MethodViolation::ReferencesImplTraitInTrait => {
                     "the return type containing `impl Trait`"
                 }
-                MethodViolationCode::AsyncFn => "being async",
-                MethodViolationCode::WhereClauseReferencesSelf => {
-                    "a where clause referencing `Self`"
-                }
-                MethodViolationCode::Generic => "having a const or type generic parameter",
-                MethodViolationCode::UndispatchableReceiver => {
+                MethodViolation::AsyncFn => "being async",
+                MethodViolation::WhereClauseReferencesSelf => "a where clause referencing `Self`",
+                MethodViolation::Generic => "having a const or type generic parameter",
+                MethodViolation::UndispatchableReceiver => {
                     "having a non-dispatchable receiver type"
                 }
+                MethodViolation::CVariadic => "being C-variadic",
             };
             buf.push_str(desc);
         }
-        DynCompatibilityViolation::AssocConst(const_) => {
-            let name = hir::Const::from(const_).name(db);
+        DynCompatibilityViolation::AssocConst(const_, _) => {
+            // FIXME: Handle the specific violation (matters only on nightly).
+            let name = const_.name(db);
             if let Some(name) = name {
                 format_to!(buf, "having an associated constant `{}`", name.as_str());
             } else {
                 buf.push_str("having an associated constant");
             }
         }
-        DynCompatibilityViolation::GAT(alias) => {
-            let name = hir::TypeAlias::from(alias).name(db);
+        DynCompatibilityViolation::GenericAssocTy(alias) => {
+            let name = alias.name(db);
             format_to!(buf, "having a generic associated type `{}`", name.as_str());
         }
-        DynCompatibilityViolation::HasNonCompatibleSuperTrait(super_trait) => {
-            let name = hir::Trait::from(super_trait).name(db);
+        DynCompatibilityViolation::HasNonCompatibleSuperTrait(super_trait, _) => {
+            // FIXME: Show the supertrait violations.
+            let name = super_trait.name(db);
             format_to!(buf, "having a dyn-incompatible supertrait `{}`", name.as_str());
         }
     }

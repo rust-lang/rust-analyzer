@@ -21,7 +21,7 @@ use crate::{
         AliasTy, AnyImplId, CanonicalVarKind, Clause, ClauseKind, CoercePredicate, ErrorGuaranteed,
         GenericArgs, ImplOrTraitAssocTermId, OpaqueTyIdWrapper, ParamEnv, Predicate, PredicateKind,
         RegionConstraint, SubtypePredicate, TermId, TraitAssocTermId, Ty, TyKind, TypingMode,
-        UnevaluatedConst, fold::fold_tys, util::sizedness_fast_path,
+        UnevaluatedConst, UnevaluatedConstKind, fold::fold_tys, util::sizedness_fast_path,
     },
 };
 
@@ -259,16 +259,20 @@ impl<'db> SolverDelegate for SolverContext<'db> {
         param_env: ParamEnv<'db>,
         uv: UnevaluatedConst<'db>,
     ) -> Option<Const<'db>> {
-        let ec = match uv.def.0 {
-            GeneralConstId::ConstId(c) => {
-                let subst = uv.args;
-                self.cx().db.const_eval(c, subst, None)
-            }
-            GeneralConstId::StaticId(c) => self.cx().db.const_eval_static(c),
-            GeneralConstId::AnonConstId(c) => {
-                let subst = uv.args;
-                self.cx().db.anon_const_eval(c, subst, None)
-            }
+        let ec = match uv.kind {
+            UnevaluatedConstKind::Anon { def_id } => match def_id.0 {
+                GeneralConstId::ConstId(c) => {
+                    let subst = uv.args;
+                    self.cx().db.const_eval(c, subst, None)
+                }
+                GeneralConstId::StaticId(c) => self.cx().db.const_eval_static(c),
+                GeneralConstId::AnonConstId(c) => {
+                    let subst = uv.args;
+                    self.cx().db.anon_const_eval(c, subst, None)
+                }
+            },
+            // FIXME: This is a stub -- replace with actual evaluation.
+            _ => return Some(Const::new_error(self.interner, ErrorGuaranteed)),
         };
         let konst = match ec {
             Ok(ec) => Const::new_from_allocation(

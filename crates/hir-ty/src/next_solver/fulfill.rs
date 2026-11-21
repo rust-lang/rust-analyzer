@@ -249,7 +249,8 @@ impl<'db> FulfillmentCtxt<'db> {
             TypingMode::Coherence
             | TypingMode::Borrowck { defining_opaque_types: _ }
             | TypingMode::PostBorrowckAnalysis { defined_opaque_types: _ }
-            | TypingMode::PostAnalysis => return Default::default(),
+            | TypingMode::PostAnalysis
+            | TypingMode::Codegen => return Default::default(),
         };
         let stalled_coroutines = stalled_coroutines.as_slice();
 

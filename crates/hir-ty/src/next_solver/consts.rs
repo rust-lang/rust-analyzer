@@ -30,6 +30,7 @@ pub use self::{int::*, valtree::*};
 
 pub type ConstKind<'db> = rustc_type_ir::ConstKind<DbInterner<'db>>;
 pub type UnevaluatedConst<'db> = rustc_type_ir::UnevaluatedConst<DbInterner<'db>>;
+pub type UnevaluatedConstKind<'db> = rustc_type_ir::UnevaluatedConstKind<DbInterner<'db>>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Const<'db> {
@@ -247,7 +248,8 @@ impl<'db> IntoKind for Const<'db> {
     }
 }
 
-impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Const<'db> {
+// SAFETY: manual impl is required in order to handle interned type
+unsafe impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Const<'db> {
     fn generic_visit_with(&self, visitor: &mut V) {
         if visitor.on_interned(self.interned).is_continue() {
             self.kind().generic_visit_with(visitor);
@@ -380,10 +382,7 @@ impl<'db> rustc_type_ir::inherent::Const<DbInterner<'db>> for Const<'db> {
         Const::new(interner, ConstKind::Placeholder(param))
     }
 
-    fn new_unevaluated(
-        interner: DbInterner<'db>,
-        uv: rustc_type_ir::UnevaluatedConst<DbInterner<'db>>,
-    ) -> Self {
+    fn new_unevaluated(interner: DbInterner<'db>, uv: UnevaluatedConst<'db>) -> Self {
         Const::new(interner, ConstKind::Unevaluated(uv))
     }
 

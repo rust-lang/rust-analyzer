@@ -2071,12 +2071,6 @@ fn f<T, F: FnMut(&T, u16) -> &T>(f: F) {
 
     #[test]
     fn regression_13579() {
-        // FIXME(next-solver): There should be signature help available here.
-        // The reason it is not is because of a trait solver bug. Since `Error` is not provided
-        // nor it can be inferred, it becomes an error type. The bug is that the solver ignores
-        // predicates on error types, and they do not guide infer vars, not allowing us to infer
-        // that `take`'s return type is callable.
-        // https://github.com/rust-lang/rust/pull/146602 should fix the solver bug.
         check(
             r#"
 //- minicore: sized, fn
@@ -2090,7 +2084,9 @@ fn take<C, Error>(
     move || count
 }
 "#,
-            expect![""],
+            expect![[r#"
+                impl Fn() -> i32
+            "#]],
         );
     }
 

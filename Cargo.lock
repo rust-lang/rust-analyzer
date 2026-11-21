@@ -839,6 +839,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "hir-analysis"
+version = "0.0.0"
+dependencies = [
+ "base-db",
+ "hir-def",
+ "hir-ty",
+ "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ra-ap-rustc_abi",
+ "ra-ap-rustc_index",
+ "ra-ap-rustc_type_ir",
+ "rustc-hash 2.1.2",
+ "salsa",
+ "smallvec",
+ "tracing",
+ "triomphe",
+]
+
+[[package]]
 name = "hir-def"
 version = "0.0.0"
 dependencies = [
@@ -909,6 +927,7 @@ dependencies = [
  "cov-mark",
  "either",
  "expect-test 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hir-analysis",
  "hir-def",
  "hir-expand",
  "hir-ty",
@@ -2109,9 +2128,9 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "ra-ap-rustc_abi"
-version = "0.166.0"
+version = "0.170.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2cf1b1ffe31b6226c00b40cddfda65002b7729f9f4ed2d547b5856cdab0011c"
+checksum = "f87ed20df0708797271d87b4a8f37ccaa68afd250383a99eacefb88ae7082e2f"
 dependencies = [
  "bitflags",
  "ra-ap-rustc_hashes",
@@ -2121,33 +2140,33 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_ast_ir"
-version = "0.166.0"
+version = "0.170.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ef42605e36e1305e815ccfc8830eb870f74d78534bca19a61629149536d8e98"
+checksum = "908d3a428b96a1a27819765ca571b7fb815259b8bc16e6069f12f8211c94cd5b"
 
 [[package]]
 name = "ra-ap-rustc_hashes"
-version = "0.166.0"
+version = "0.170.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9f5542968215c17275920791b2fa13a43014287506ed0450777c79845102e86"
+checksum = "0d8d7d022001fd33f057f804f73ce66a3f931abf45fa19aa7c13f3e675e7b92c"
 dependencies = [
  "rustc-stable-hash",
 ]
 
 [[package]]
 name = "ra-ap-rustc_index"
-version = "0.166.0"
+version = "0.170.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d9e47b9ca7d92cfb0d6653503adbabd41938b84474317397a664326b208d6c6"
+checksum = "bcde028eff7f33c4e4299048b237e08f514d64d4887414e5d2889e13d344259d"
 dependencies = [
  "ra-ap-rustc_index_macros",
 ]
 
 [[package]]
 name = "ra-ap-rustc_index_macros"
-version = "0.166.0"
+version = "0.170.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d744a7a2852a22f06210bcff9e4667ed0cacbfbe94894cc294044d25e876341"
+checksum = "5875e21675ffb1b48af1601e83ba1e1ba53491b0a523dd5332c55af1713c8567"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2167,9 +2186,9 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_next_trait_solver"
-version = "0.166.0"
+version = "0.170.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7a9663a8d7c369e934aac2b74a638537ad7eb4be75b4530d765384dc071c936"
+checksum = "52032cd7df56c447f0f37d3c6dacc889464094fe06f799b791913274b7b09ce9"
 dependencies = [
  "derive-where",
  "ra-ap-rustc_index",
@@ -2190,9 +2209,9 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_pattern_analysis"
-version = "0.166.0"
+version = "0.170.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42ca286f90e99bb97cd9274c088f3c874a05d1ee90cabf40a3928afedabe99fd"
+checksum = "2485d6e6ea45310292b1c503f0a5b939b18d77ff11f90968d00ba2cc859c51b8"
 dependencies = [
  "ra-ap-rustc_index",
  "rustc-hash 2.1.2",
@@ -2203,9 +2222,9 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_type_ir"
-version = "0.166.0"
+version = "0.170.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26d6efb6008f665a9485e0afecf9f4950a6c4bedd8ddd330a9df8986a6c0160b"
+checksum = "6912ab32b9f56e688f8ad9df4b50df072450a74b84e580db1dfa6ba845a13a13"
 dependencies = [
  "arrayvec",
  "bitflags",
@@ -2224,9 +2243,9 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_type_ir_macros"
-version = "0.166.0"
+version = "0.170.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f4fd2355e2bbf1f343c730f623596efc6e465b5e3685b606a437567ebb75bf8"
+checksum = "5d92faa1c18dc7d98cd7426171b19b2214cfd1af1cbcd04f739057ec5720dbad"
 dependencies = [
  "proc-macro2",
  "quote",
