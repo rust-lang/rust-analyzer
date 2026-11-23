@@ -809,33 +809,6 @@ impl<'db> Ty<'db> {
             _ => None,
         }
     }
-
-    /// FIXME: Get rid of this, it's not a good abstraction
-    pub fn equals_ctor(self, other: Ty<'db>) -> bool {
-        match (self.kind(), other.kind()) {
-            (TyKind::Adt(adt, ..), TyKind::Adt(adt2, ..)) => adt.def_id() == adt2.def_id(),
-            (TyKind::Slice(_), TyKind::Slice(_)) | (TyKind::Array(_, _), TyKind::Array(_, _)) => {
-                true
-            }
-            (TyKind::FnDef(def_id, ..), TyKind::FnDef(def_id2, ..)) => def_id == def_id2,
-            (TyKind::Alias(alias), TyKind::Alias(alias2)) => alias.kind == alias2.kind,
-            (TyKind::Foreign(ty_id, ..), TyKind::Foreign(ty_id2, ..)) => ty_id == ty_id2,
-            (TyKind::Closure(id1, _), TyKind::Closure(id2, _)) => id1 == id2,
-            (TyKind::Ref(.., mutability), TyKind::Ref(.., mutability2))
-            | (TyKind::RawPtr(.., mutability), TyKind::RawPtr(.., mutability2)) => {
-                mutability == mutability2
-            }
-            (TyKind::FnPtr(sig, hdr), TyKind::FnPtr(sig2, hdr2)) => sig == sig2 && hdr == hdr2,
-            (TyKind::Tuple(tys), TyKind::Tuple(tys2)) => tys.len() == tys2.len(),
-            (TyKind::Str, TyKind::Str)
-            | (TyKind::Never, TyKind::Never)
-            | (TyKind::Char, TyKind::Char)
-            | (TyKind::Bool, TyKind::Bool) => true,
-            (TyKind::Int(int), TyKind::Int(int2)) => int == int2,
-            (TyKind::Float(float), TyKind::Float(float2)) => float == float2,
-            _ => false,
-        }
-    }
 }
 
 pub fn references_non_lt_error<'db, T: TypeVisitableExt<DbInterner<'db>>>(t: &T) -> bool {
