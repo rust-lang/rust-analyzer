@@ -1,6 +1,6 @@
 //! Compiled declarative macro expanders (`macro_rules!` and `macro`)
 
-use std::ops::ControlFlow;
+use std::{cell::Cell, ops::ControlFlow};
 
 use base_db::{Crate, SourceDatabase};
 use span::{Edition, Span, SyntaxContext};
@@ -36,6 +36,7 @@ impl DeclarativeMacroExpander {
         span: Span,
     ) -> ExpandResult<(tt::TopSubtree, Option<u32>)> {
         let loc = call_id.loc(db);
+        let last_mark = Cell::new(None);
         match self.mac.err() {
             Some(_) => ExpandResult::new(
                 (tt::TopSubtree::empty(tt::DelimSpan { open: span, close: span }), None),
@@ -47,8 +48,22 @@ impl DeclarativeMacroExpander {
                     db,
                     tt,
                     |s| {
-                        s.ctx =
-                            apply_mark(db, s.ctx, call_id.into(), self.transparency, self.edition)
+                        // `apply_mark` is relatively expensive, and most macros only have one
+                        // context. Caching the result avoids doing extra work.
+                        s.ctx = match last_mark.get() {
+                            Some((ctx, marked)) if ctx == s.ctx => marked,
+                            _ => {
+                                let marked = apply_mark(
+                                    db,
+                                    s.ctx,
+                                    call_id.into(),
+                                    self.transparency,
+                                    self.edition,
+                                );
+                                last_mark.set(Some((s.ctx, marked)));
+                                marked
+                            }
+                        };
                     },
                     loc.kind.call_style(),
                     span,
