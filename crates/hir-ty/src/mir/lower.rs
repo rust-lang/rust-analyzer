@@ -2252,10 +2252,6 @@ pub fn lower_body_to_mir<'db>(
     }
 }
 
-/// # Parameters
-/// - `is_root`: `true` when `root_expr` is the body's top-level expression (picks
-///   bindings with no owner); `false` when lowering an inline const or anonymous
-///   const (picks bindings owned by `root_expr`).
 pub fn lower_to_mir_with_store<'db>(
     db: &'db dyn HirDatabase,
     owner: InferBodyId<'db>,
