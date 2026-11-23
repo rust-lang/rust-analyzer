@@ -123,12 +123,12 @@ rayon = "1.10.0"
 rowan = "0.18.0-alpha.2"
 # Ideally we'd not enable the macros feature but unfortunately the `tracked` attribute does not work
 # on impls without it
-salsa = { version = "0.28.5", default-features = false, features = [
+salsa = { version = "0.28.6", default-features = false, features = [
     "rayon",
     "salsa_unstable",
     "macros",
     "inventory",
-    "triomphe"
+    "triomphe",
 ] }
 semver = "1.0.26"
 serde = { version = "1.0.219" }

@@ -104,6 +104,7 @@ fn glb(v1: Variance, v2: Variance) -> Variance {
 pub(crate) fn variances_of_cycle_initial(
     db: &dyn HirDatabase,
     _: salsa::Id,
+    _previous: Option<&StoredVariancesOf>,
     def: GenericDefId,
 ) -> StoredVariancesOf {
     let generics = generics(db, def);
