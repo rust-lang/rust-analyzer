@@ -2424,7 +2424,7 @@ dependencies = [
  "mimalloc",
  "num_cpus",
  "oorandom",
- "parking_lot 0.12.5",
+ "parking_lot 0.13.0",
  "parser",
  "paths",
  "proc-macro-api",
