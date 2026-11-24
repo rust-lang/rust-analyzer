@@ -1269,6 +1269,53 @@ fn main() {
     }
 
     #[test]
+    fn postfix_completion_dbg_for_nots() {
+        check_edit(
+            "dbg",
+            r#"
+enum NestedStuff {
+    Variants,
+    Dont,
+    Matter,
+}
+
+impl NestedStuff {
+    fn random_method(self) -> bool {
+        return true;
+    }
+}
+
+fn some_func() {
+    let my_enum = NestedStuff::Matter;
+    if !my_enum.random_method().dbg$0 {
+        println!("Hello");
+    }
+}
+"#,
+            r#"
+enum NestedStuff {
+    Variants,
+    Dont,
+    Matter,
+}
+
+impl NestedStuff {
+    fn random_method(self) -> bool {
+        return true;
+    }
+}
+
+fn some_func() {
+    let my_enum = NestedStuff::Matter;
+    if dbg!(!my_enum.random_method()) {
+        println!("Hello");
+    }
+}
+"#,
+        )
+    }
+
+    #[test]
     fn postfix_completion_if_else_in_value() {
         check_edit(
             "if",
