@@ -101,6 +101,7 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::TypeMismatch<'_>) -> Option<
         remove_unnecessary_wrapper(ctx, d, expr_ptr, &mut fixes);
         remove_semicolon(ctx, d, expr_ptr, &mut fixes);
         str_ref_to_owned(ctx, d, expr_ptr, &mut fixes);
+        literal_kind(ctx, d, expr_ptr, &mut fixes);
         add_await(ctx, d, expr_ptr, &mut fixes);
         array_length(ctx, d, expr_ptr, &mut fixes);
     }
@@ -424,6 +425,79 @@ fn add_await(
     let edit = insert_postfix(&expr, range, ".await");
     let source_change = SourceChange::from_text_edit(file_id.file_id(ctx.db()), edit);
     acc.push(fix("add_await", "Add .await here", source_change, range));
+
+    Some(())
+}
+
+fn literal_kind(
+    ctx: &DiagnosticsContext<'_, '_>,
+    d: &hir::TypeMismatch<'_>,
+    expr_ptr: &InFile<AstPtr<ast::Expr>>,
+    acc: &mut Vec<Assist>,
+) -> Option<()> {
+    let root = expr_ptr.file_id.parse_or_expand(ctx.db());
+    let Expr::Literal(lit) = expr_ptr.value.to_node(&root) else { return None };
+    let token = lit.token();
+
+    let kind = Kind::new(d, token.text())?;
+    let hir::FileRange { file_id, range } = ctx.sema.original_range_opt(lit.syntax())?;
+
+    let (edit, label) = match kind {
+        Kind::ToFloat => {
+            (TextEdit::insert(token.text_range().end(), ".0".to_owned()), "Change to float literal")
+        }
+        Kind::ToBytes => (
+            TextEdit::insert(token.text_range().start(), "b".to_owned()),
+            "Change to integer literal",
+        ),
+        Kind::ToInt(suf) => (
+            TextEdit::delete(syntax::TextRange::at(token.text_range().end() - suf, suf)),
+            "Change to bytes literal",
+        ),
+        Kind::ToNonBytes(pre) => (
+            TextEdit::delete(syntax::TextRange::at(token.text_range().start(), pre)),
+            "Change to non-bytes literal",
+        ),
+    };
+    let source_change = SourceChange::from_text_edit(file_id.file_id(ctx.db()), edit);
+    acc.push(fix("change_literal_kind", label, source_change, range));
+
+    enum Kind {
+        ToFloat,
+        ToInt(TextSize),
+        ToBytes,
+        ToNonBytes(TextSize),
+    }
+    impl Kind {
+        fn new(d: &hir::TypeMismatch<'_>, token: &str) -> Option<Self> {
+            let expected = d.expected.strip_references();
+            let actual = d.actual.strip_references();
+
+            if actual.is_int_or_uint() && expected.is_float() {
+                if token.contains(char::is_alphabetic) {
+                    return None;
+                }
+                Some(Kind::ToFloat)
+            } else if actual.is_float() && expected.is_int_or_uint() {
+                let suf = token.rsplit_once('.')?.1;
+                if !suf.chars().all(|ch| ch == '0') {
+                    return None;
+                }
+                Some(Kind::ToInt(TextSize::of(suf) + TextSize::of('.')))
+            } else if actual.is_str() && expected.is_bytes()
+                || actual.is_char() && expected.is_uint8()
+            {
+                Some(Kind::ToBytes)
+            } else if actual.is_bytes() && expected.is_str()
+                || actual.is_uint8() && expected.is_char()
+            {
+                token.starts_with('b').then_some(())?;
+                Some(Kind::ToNonBytes(TextSize::of('b')))
+            } else {
+                None
+            }
+        }
+    }
 
     Some(())
 }
@@ -1662,6 +1736,51 @@ identity! {
 }
             "#,
         );
+    }
+
+    #[test]
+    fn change_literal_kind() {
+        // FIXME: Strangely 'type annotations needed' diagnostic
+        check_diagnostics(
+            r#"
+fn main() {
+    float(123);
+        //^^^ 💡 error: expected f64, found i32
+    integer(123.0);
+          //^^^^^ 💡 error: expected i32, found f64
+    integer(123.);
+          //^^^^ 💡 error: expected i32, found f64
+    bytes("a");
+        //^^^ 💡 error: expected &[u8], found &'static str
+    bytes_arr("a");
+  //^^^^^^^^^ error: type annotations needed
+  //        | full type: `fn bytes_arr<_>(&[u8; _])`
+            //^^^ 💡 error: expected &[u8; _], found &'static str
+
+    float(123i32);
+        //^^^^^^ error: expected f64, found i32
+    integer(123f32);
+          //^^^^^^ error: expected i32, found f32
+    integer(123.1);
+          //^^^^^ error: expected i32, found f64
+    integer(get_float());
+          //^^^^^^^^^^^ error: expected i32, found f64
+}
+fn float(_arg: f64) {}
+fn integer(_arg: i32) {}
+fn bytes(_arg: &[u8]) {}
+fn bytes_arr<const N: usize>(_arg: &[u8; N]) {}
+fn get_float() -> f64 { 1.0 }
+"#,
+        );
+
+        check_fix(r#"fn main() { let _: f64 = 2$0; }"#, r#"fn main() { let _: f64 = 2.0; }"#);
+        check_fix(r#"fn main() { let _: i64 = 2.0$0; }"#, r#"fn main() { let _: i64 = 2; }"#);
+        check_fix(r#"fn main() { let _: i64 = 2.$0; }"#, r#"fn main() { let _: i64 = 2; }"#);
+        check_fix(r#"fn main() { let _: &[u8] = ""$0; }"#, r#"fn main() { let _: &[u8] = b""; }"#);
+        check_fix(r#"fn main() { let _: &str = b""$0; }"#, r#"fn main() { let _: &str = ""; }"#);
+        check_fix(r#"fn main() { let _: u8 = 'a'$0; }"#, r#"fn main() { let _: u8 = b'a'; }"#);
+        check_fix(r#"fn main() { let _: char = b'a'$0; }"#, r#"fn main() { let _: char = 'a'; }"#);
     }
 
     #[test]
