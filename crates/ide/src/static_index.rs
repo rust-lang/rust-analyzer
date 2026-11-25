@@ -12,7 +12,7 @@ use ide_db::{
     famous_defs::FamousDefs,
     ra_fixture::RaFixtureConfig,
 };
-use syntax::{AstNode, NodeOrToken, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
+use syntax::{AstNode, AstToken, NodeOrToken, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, ast};
 
 use crate::navigation_target::UpmappingResult;
 use crate::{
@@ -260,6 +260,21 @@ impl<'a> StaticIndex<'a> {
         for token in tokens {
             let range = token.text_range();
             let node = token.parent().unwrap();
+            if let Some(string) = ast::String::cast(token.clone()) {
+                let parts = hir::attach_db(self.db, || sema.as_format_args_parts(&string));
+                for (part, res) in parts.into_iter().flatten() {
+                    let Some(def) = res.map(Definition::from) else { continue };
+                    // Macros such as `thiserror` rewrite the template under its original span,
+                    // so a part is kept only where the source still spells the name.
+                    if let Some(written) = part
+                        .checked_sub(range.start())
+                        .and_then(|it| string.text().get(std::ops::Range::<usize>::from(it)))
+                        && def.name(self.db).is_some_and(|name| name.as_str() == written)
+                    {
+                        add_token(def, part, &node);
+                    }
+                }
+            }
             match hir::attach_db(self.db, || get_definitions(&sema, token.clone())) {
                 Some(defs) => {
                     for (def, _) in defs {
@@ -468,6 +483,64 @@ mod tests {
                 panic!("unfound reference {range:?}");
             }
         }
+    }
+
+    #[test]
+    fn format_args_template() {
+        check_references(
+            r#"
+//- minicore: fmt
+const NAME: &str = "a";
+           //^^^
+const OTHER: u32 = 1;
+           //^^^
+fn foo() {
+    let local = 2;
+    format_args!("{NAME} {} {OTHER:?} {local}", OTHER);
+  //^^^^^^^^^^^    ^^^^      ^^^^^     ^^^^^    ^^^^^
+}
+"#,
+            VendoredLibrariesConfig::Included {
+                workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
+            },
+        );
+    }
+
+    #[test]
+    fn format_args_template_without_references() {
+        check_references(
+            r#"
+//- minicore: fmt
+const NAME: &str = "a";
+           //^^^
+fn foo() {
+    format_args!("{{NAME}} {MISSING} {NAME}");
+  //^^^^^^^^^^^                       ^^^^
+    format_args_nl!("{NAME}");
+  //^^^^^^^^^^^^^^    ^^^^
+}
+"#,
+            VendoredLibrariesConfig::Included {
+                workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
+            },
+        );
+    }
+
+    #[test]
+    fn asm_template() {
+        check_references(
+            r#"
+//- minicore: asm
+fn foo() {
+    let x = 0;
+    core::arch::asm!("{0} {named}", in(reg) x, named = in(reg) x);
+  //^^^^  ^^^^  ^^^        ^^^^^       ^^^  ^             ^^^  ^
+}
+"#,
+            VendoredLibrariesConfig::Included {
+                workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
+            },
+        );
     }
 
     #[test]
