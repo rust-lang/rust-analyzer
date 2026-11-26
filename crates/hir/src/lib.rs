@@ -4255,12 +4255,7 @@ impl<'db> ClosureCapture<'db> {
                 hir_ide::closure_analysis::ProjectionKind::Field { field_idx, variant_idx } => {
                     last_derefs = 0;
 
-                    let mut ty = self.capture.place.ty_before_projection(i);
-
-                    while let Some(deref_ty) = ty.builtin_deref(false) {
-                        ty = deref_ty;
-                    }
-
+                    let ty = self.capture.place.ty_before_projection(i);
                     match ty.kind() {
                         TyKind::Tuple(_) => format_to!(result, ".{field_idx}"),
                         TyKind::Adt(adt_def, _) => {
