@@ -184,7 +184,7 @@ struct V(i32);
 
 fn func(func_arg: &mut V) {
     let closure = || {
-//                ^ move(func_arg.0, &mut func_arg.0)
+//                ^ move(func_arg)
         let x;
         V(x) = func_arg;
         func_arg.0 = 0;

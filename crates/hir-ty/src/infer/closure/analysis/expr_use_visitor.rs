@@ -1555,6 +1555,19 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, 'db, D> {
                 }
             };
         }
+
+        if matches!(
+            self.cx.store[pat],
+            Pat::Tuple { .. } | Pat::TupleStruct { .. } | Pat::Record { .. } | Pat::Slice { .. }
+        ) {
+            while matches!(
+                self.cx.structurally_resolve_type(pat.into(), place_with_id.place.ty()).kind(),
+                TyKind::Ref(..)
+            ) {
+                place_with_id = self.cat_deref(pat.into(), place_with_id)?;
+            }
+        }
+
         let place_with_id = place_with_id; // lose mutability
         debug!("applied adjustment derefs to get place_with_id={:?}", place_with_id);
 
