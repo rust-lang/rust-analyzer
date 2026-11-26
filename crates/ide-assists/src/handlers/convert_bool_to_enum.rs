@@ -1168,7 +1168,9 @@ enum Foo {
 }
 
 fn main() {
+    let baz = true;
     let foo = Foo::Bar { bar: true };
+    let _ = Foo::Bar { bar: baz };
 
     match foo {
         Foo::Bar { bar } => {
@@ -1190,7 +1192,9 @@ enum Foo {
 }
 
 fn main() {
+    let baz = true;
     let foo = Foo::Bar { bar: Bool::True };
+    let _ = Foo::Bar { bar: if baz { Bool::True } else { Bool::False } };
 
     match foo {
         Foo::Bar { bar } => {

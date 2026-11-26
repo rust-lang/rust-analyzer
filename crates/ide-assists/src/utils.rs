@@ -1071,7 +1071,9 @@ pub(crate) fn replace_record_field_expr(
     record_field: ast::RecordExprField,
     initializer: ast::Expr,
 ) {
-    if let Some(ast::Expr::PathExpr(path_expr)) = record_field.expr() {
+    if let Some(ast::Expr::PathExpr(path_expr)) = record_field.expr()
+        && record_field.colon_token().is_none()
+    {
         // replace field shorthand
         let file_range = ctx.sema.original_range(path_expr.syntax());
         edit.insert(file_range.range.end(), format!(": {}", initializer.syntax().text()))
