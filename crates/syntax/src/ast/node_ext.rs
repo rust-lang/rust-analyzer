@@ -617,6 +617,14 @@ impl ast::RecordExprField {
             .or_else(|| syn.ancestors().nth(4).and_then(ast::RecordExprField::cast))
     }
 
+    pub fn for_shorthand(expr: &ast::Expr) -> Option<ast::RecordExprField> {
+        if matches!(expr, ast::Expr::PathExpr(_)) {
+            expr.syntax().parent().and_then(Self::cast).filter(|it| it.colon_token().is_none())
+        } else {
+            None
+        }
+    }
+
     /// Deals with field init shorthand
     pub fn field_name(&self) -> Option<ast::NameRef> {
         if let Some(name_ref) = self.name_ref() {
@@ -749,6 +757,14 @@ impl ast::RecordPatField {
         match candidate.field_name()? {
             NameOrNameRef::Name(name) if name == *field_name => Some(candidate),
             _ => None,
+        }
+    }
+
+    pub fn for_shorthand(pat: &ast::Pat) -> Option<ast::RecordPatField> {
+        if matches!(pat, ast::Pat::IdentPat(_)) {
+            pat.syntax().parent().and_then(Self::cast).filter(|it| it.colon_token().is_none())
+        } else {
+            None
         }
     }
 

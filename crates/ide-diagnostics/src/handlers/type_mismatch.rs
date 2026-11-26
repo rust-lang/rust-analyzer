@@ -482,7 +482,9 @@ fn array_length(
 }
 
 fn insert_prefix(expr: &Expr, range: syntax::TextRange, text: &str) -> TextEdit {
-    if expr.precedence().needs_parentheses_in(ast::prec::ExprPrecedence::Prefix) {
+    if ast::RecordExprField::for_shorthand(expr).is_some() {
+        TextEdit::insert(range.end(), format!(": {text}{expr}"))
+    } else if expr.precedence().needs_parentheses_in(ast::prec::ExprPrecedence::Prefix) {
         let mut builder = TextEdit::builder();
         builder.insert(range.start(), format!("{text}("));
         builder.insert(range.end(), ")".to_owned());
@@ -493,7 +495,9 @@ fn insert_prefix(expr: &Expr, range: syntax::TextRange, text: &str) -> TextEdit 
 }
 
 fn insert_postfix(expr: &Expr, range: syntax::TextRange, text: &str) -> TextEdit {
-    if expr.precedence().needs_parentheses_in(ast::prec::ExprPrecedence::Postfix) {
+    if ast::RecordExprField::for_shorthand(expr).is_some() {
+        TextEdit::insert(range.end(), format!(": {expr}{text}"))
+    } else if expr.precedence().needs_parentheses_in(ast::prec::ExprPrecedence::Postfix) {
         let mut builder = TextEdit::builder();
         builder.insert(range.start(), "(".to_owned());
         builder.insert(range.end(), format!("){text}"));
@@ -564,6 +568,28 @@ fn main() {
     }
 
     #[test]
+    fn str_ref_to_owned_in_shorthand() {
+        check_fix(
+            r#"
+struct String;
+struct Foo { x: String }
+fn main() {
+    let x = "";
+    Foo { x$0 };
+}
+            "#,
+            r#"
+struct String;
+struct Foo { x: String }
+fn main() {
+    let x = "";
+    Foo { x: x.to_owned() };
+}
+            "#,
+        );
+    }
+
+    #[test]
     fn missing_reference() {
         check_diagnostics(
             r#"
@@ -573,6 +599,26 @@ fn main() {
 }
 fn test(_arg: &i32) {}
 "#,
+        );
+    }
+
+    #[test]
+    fn add_reference_in_shorthand() {
+        check_fix(
+            r#"
+struct Foo { x: &'static i32 }
+fn main() {
+    let x = 123;
+    Foo { x$0 };
+}
+            "#,
+            r#"
+struct Foo { x: &'static i32 }
+fn main() {
+    let x = 123;
+    Foo { x: &x };
+}
+            "#,
         );
     }
 
