@@ -344,6 +344,67 @@ fn allocator() {
 }
 
 #[test]
+fn overflowing_signed_add() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn add_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+const GOAL: bool = add_with_overflow(127i8, 1).1;
+"#,
+        1,
+    );
+}
+
+#[test]
+fn overflowing_unsigned_mul() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn mul_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+const GOAL: bool = mul_with_overflow(65535u16, 256).1;
+"#,
+        1,
+    );
+}
+
+#[test]
+fn signed_division_intrinsics() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn unchecked_div<T>(x: T, y: T) -> T;
+
+const GOAL: i8 = unchecked_div(-6i8, 2);
+"#,
+        -3,
+    );
+}
+
+#[test]
+fn wrapping_shifts_respect_operand_width() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn wrapping_shl<T>(x: T, y: u32) -> T;
+
+const GOAL: u8 = wrapping_shl(1u8, 9);
+"#,
+        2,
+    );
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn wrapping_shr<T>(x: T, y: u32) -> T;
+
+const GOAL: i8 = wrapping_shr(-2i8, 9);
+"#,
+        -1,
+    );
+}
+
+#[test]
 fn overflowing_add() {
     check_number(
         r#"
