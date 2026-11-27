@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DelimiterKind","IdentKind","Leaf","LitKind","Spacing"],"fn":["literal_from_lexer","literal_from_str","literal_from_str_or_err"],"struct":["DelimSpan","Delimiter","Ident","Literal","Punct"],"type":["DefaultSpan"]};

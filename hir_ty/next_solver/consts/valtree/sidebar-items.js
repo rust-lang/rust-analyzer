@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["allocation_to_const"],"struct":["StoredValTree","ValTree","ValTreeInterned","ValueConst"],"type":["ValTreeKind"]};

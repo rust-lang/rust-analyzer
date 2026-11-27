@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Change","ChangeKind","FileContents","FileExcluded","FileState","LineEndings"],"mod":["anchored_path","file_set","line_endings","loader","path_interner","vfs_path"],"struct":["AbsPath","AbsPathBuf","AnchoredPath","AnchoredPathBuf","ChangedFile","FileId","Vfs","VfsPath"]};

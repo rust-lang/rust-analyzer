@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_GLUED_PUNCT_LEN"],"enum":["TokenTree","TransformTtAction"],"fn":["pretty","print_debug_subtree","print_debug_token","transform_tt"],"struct":["Span","Subtree","SubtreeView","TextRange","TextSize","TokenTreesView"]};
