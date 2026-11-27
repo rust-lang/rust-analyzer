@@ -259,6 +259,10 @@ fn match_attr_flags(attr_flags: &mut AttrFlags, attr: ast::Meta) -> ControlFlow<
                     "rustc_skip_array_during_method_dispatch" => {
                         attr_flags.insert(AttrFlags::RUSTC_SKIP_ARRAY_DURING_METHOD_DISPATCH)
                     }
+                    "rustc_dyn_incompatible_trait" => {
+                        attr_flags.insert(AttrFlags::RUSTC_DYN_INCOMPATIBLE_TRAIT)
+                    }
+                    "rustc_always_gca" => attr_flags.insert(AttrFlags::RUSTC_ALWAYS_GCA),
                     _ => {}
                 },
                 Some(second_segment) => match &*first_segment {
@@ -353,6 +357,8 @@ bitflags::bitflags! {
         const DIAGNOSTIC_DO_NOT_RECOMMEND = 1 << 51;
 
         const HAS_RUSTC_MUST_IMPLEMENT_ONE_OF = 1 << 52;
+        const RUSTC_DYN_INCOMPATIBLE_TRAIT = 1 << 53;
+        const RUSTC_ALWAYS_GCA = 1 << 54;
     }
 }
 
