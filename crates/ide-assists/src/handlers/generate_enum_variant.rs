@@ -143,19 +143,11 @@ impl PathParent {
 }
 
 fn name_from_field(make: &SyntaxFactory, field: &ast::RecordExprField) -> ast::Name {
-    let text = match field.name_ref() {
+    let text = match field.field_name() {
         Some(it) => it.to_string(),
-        None => name_from_field_shorthand(field).unwrap_or("unknown".to_owned()),
+        None => "unknown".to_owned(),
     };
     make.name(&text)
-}
-
-fn name_from_field_shorthand(field: &ast::RecordExprField) -> Option<String> {
-    let path = match field.expr()? {
-        ast::Expr::PathExpr(path_expr) => path_expr.path(),
-        _ => None,
-    }?;
-    Some(path.as_single_name_ref()?.to_string())
 }
 
 fn expr_ty(
