@@ -5,12 +5,12 @@ use either::Either;
 use hir::{
     Adt, AsAssocItem, AsExternAssocItem, CaptureKind, DisplayTarget, DropGlue,
     DynCompatibilityViolation, HasCrate, HasSource, HirDisplay, Layout, LayoutError,
-    MethodViolationCode, Name, Semantics, Symbol, Trait, Type, TypeInfo, Variant,
+    MethodViolationCode, Name, Semantics, Symbol, Trait, Type, TypeInfo, Variant, db::HirDatabase,
 };
 use ide_db::{
     RootDatabase,
-    defs::{Definition, find_std_module},
-    documentation::{Documentation, HasDocs},
+    defs::{Definition, find_std_constant, find_std_module},
+    documentation::Documentation,
     famous_defs::FamousDefs,
     generated::lints::{CLIPPY_LINTS, DEFAULT_LINTS, FEATURES},
     syntax_helpers::prettify_macro_expansion,
@@ -250,14 +250,22 @@ pub(super) fn keyword(
     let parent = token.parent()?;
     let famous_defs = FamousDefs(sema, sema.scope(&parent)?.krate());
 
-    let KeywordHint { description, keyword_mod, actions } =
+    let KeywordHint { description, keyword_mod, actions, read_doc_attribute } =
         keyword_hints(sema, token, parent, edition, display_target);
 
-    let doc_owner = find_std_module(&famous_defs, &keyword_mod, edition)?;
-    let docs = doc_owner.docs_with_rangemap(sema.db)?;
-    let (markup, range_map) =
-        markup(Some(Either::Left(docs)), description, None, None, String::new());
-    let markup = process_markup(sema.db, Definition::Module(doc_owner), &markup, range_map, config);
+    let token_text = if token.text() == "Self" { "SelfTy" } else { token.text() };
+
+    let doc_owner = match find_std_constant(&famous_defs, token_text, |constant| {
+        read_doc_attribute(*constant, sema.db)
+    }) {
+        Some(constant) => Definition::Const(constant),
+        None => Definition::Module(find_std_module(&famous_defs, &keyword_mod, edition)?),
+    };
+
+    let docs = doc_owner.docs_with_rangemap(sema.db, Some(&famous_defs), display_target)?;
+
+    let (markup, range_map) = markup(Some(docs), description, None, None, String::new());
+    let markup = process_markup(sema.db, doc_owner, &markup, range_map, config);
     Some(HoverResult { markup, actions })
 }
 
@@ -1267,11 +1275,17 @@ struct KeywordHint {
     description: String,
     keyword_mod: String,
     actions: Vec<HoverAction>,
+    read_doc_attribute: fn(hir::Const, &dyn HirDatabase) -> Option<Symbol>,
 }
 
 impl KeywordHint {
     fn new(description: String, keyword_mod: String) -> Self {
-        Self { description, keyword_mod, actions: Vec::default() }
+        Self {
+            description,
+            keyword_mod,
+            actions: Vec::default(),
+            read_doc_attribute: hir::Const::doc_keyword,
+        }
     }
 }
 
@@ -1307,22 +1321,30 @@ fn keyword_hints(
                         actions: HoverAction::goto_type_from_targets(sema, targets, edition)
                             .into_iter()
                             .collect(),
+                        read_doc_attribute: hir::Const::doc_keyword,
                     }
                 }
                 _ => KeywordHint {
                     description: token.text().to_owned(),
                     keyword_mod,
                     actions: Vec::new(),
+                    read_doc_attribute: hir::Const::doc_keyword,
                 },
             }
         }
         T![fn] => {
-            let module = match ast::FnPtrType::cast(parent) {
+            match ast::FnPtrType::cast(parent) {
                 // treat fn keyword inside function pointer type as primitive
-                Some(_) => format!("prim_{}", token.text()),
-                None => format!("{}_keyword", token.text()),
-            };
-            KeywordHint::new(token.text().to_owned(), module)
+                Some(_) => KeywordHint {
+                    description: token.text().to_owned(),
+                    keyword_mod: format!("prim_{}", token.text()),
+                    actions: Vec::new(),
+                    read_doc_attribute: hir::Const::doc_primitive,
+                },
+                None => {
+                    KeywordHint::new(token.text().to_owned(), format!("{}_keyword", token.text()))
+                }
+            }
         }
         T![Self] => KeywordHint::new(token.text().to_owned(), "self_upper_keyword".into()),
         _ => KeywordHint::new(token.text().to_owned(), format!("{}_keyword", token.text())),

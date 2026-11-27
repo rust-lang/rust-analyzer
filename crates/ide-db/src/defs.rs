@@ -12,6 +12,7 @@ use crate::documentation::{Documentation, HasDocs};
 use crate::famous_defs::FamousDefs;
 use arrayvec::ArrayVec;
 use either::Either;
+use hir::Symbol;
 use hir::{
     Adt, AsAssocItem, AsExternAssocItem, AssocItem, AttributeTemplate, BuiltinAttr, BuiltinType,
     Const, Crate, DefWithBody, DeriveHelper, DisplayTarget, DocLinkDef, EnumVariant,
@@ -250,8 +251,14 @@ impl<'db> Definition<'db> {
                     // std exposes prim_{} modules with docstrings on the root to document the builtins
                     let primitive_mod =
                         format!("prim_{}", it.name().display(fd.0.db, display_target.edition));
-                    let doc_owner = find_std_module(fd, &primitive_mod, display_target.edition)?;
-                    doc_owner.docs_with_rangemap(db)
+
+                    match find_std_constant(fd, it.name().as_str(), |constant| {
+                        constant.doc_primitive(db)
+                    }) {
+                        Some(constant) => constant.docs_with_rangemap(db),
+                        None => find_std_module(fd, &primitive_mod, display_target.edition)?
+                            .docs_with_rangemap(db),
+                    }
                 })
             }
             Definition::BuiltinLifetime(StaticLifetime) => None,
@@ -378,6 +385,25 @@ pub fn find_std_module(
     let std_root_module = std_crate.root_module(famous_defs.0.db);
     std_root_module.children(db).find(|module| {
         module.name(db).is_some_and(|module| module.display(db, edition).to_string() == name)
+    })
+}
+
+pub fn find_std_constant(
+    famous_defs: &FamousDefs<'_, '_>,
+    name: &str,
+    read_doc_attribute: impl Fn(&Const) -> Option<Symbol>,
+) -> Option<Const> {
+    let db = famous_defs.0.db;
+    let std_crate = famous_defs.std()?;
+    let std_root_module = std_crate.root_module(famous_defs.0.db);
+    std_root_module.declarations(db).into_iter().find_map(|module_def| match module_def {
+        hir::ModuleDef::Const(constant)
+            if read_doc_attribute(&constant)
+                .is_some_and(|keyword_name| keyword_name.as_str() == name) =>
+        {
+            Some(constant)
+        }
+        _ => None,
     })
 }
 
