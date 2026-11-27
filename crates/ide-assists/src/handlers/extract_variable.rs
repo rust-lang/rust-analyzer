@@ -132,6 +132,7 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             .descendants()
             .take_while(|it| range.contains_range(it.text_range()))
             .find_map(valid_target_expr(ctx))?;
+        let expr = borrow_of_place(&expr).unwrap_or(expr);
         let to_extract = expr.syntax().syntax_element();
         (to_extract.clone()..=to_extract, expr, None)
     };
@@ -340,6 +341,17 @@ fn extract_token_range_of(
     }
 
     Some((first, last))
+}
+
+/// Extracting a borrowed place would borrow a copy of it, so return the borrow instead.
+fn borrow_of_place(expr: &ast::Expr) -> Option<ast::Expr> {
+    let ref_expr = expr.syntax().parent().and_then(ast::RefExpr::cast)?;
+    let is_place = match peel_parens(expr.clone()) {
+        ast::Expr::PathExpr(_) | ast::Expr::FieldExpr(_) | ast::Expr::IndexExpr(_) => true,
+        ast::Expr::PrefixExpr(prefix) => prefix.op_kind() == Some(ast::UnaryOp::Deref),
+        _ => false,
+    };
+    is_place.then_some(ast::Expr::RefExpr(ref_expr))
 }
 
 fn peel_parens(mut expr: ast::Expr) -> ast::Expr {
@@ -2758,6 +2770,65 @@ fn foo() {
 fn foo() {
     let mut $0var_name = 0;
     let v = &mut var_name;
+}"#,
+            "Extract into variable",
+        );
+    }
+
+    #[test]
+    fn extract_var_mutable_borrow_of_place() {
+        check_assist_by_label(
+            extract_variable,
+            r#"
+fn push(v: &mut Vec<i32>) { v.push(0); }
+fn foo(vs: &mut [Vec<i32>], i: usize) {
+    push(&mut $0vs[i]$0);
+}"#,
+            r#"
+fn push(v: &mut Vec<i32>) { v.push(0); }
+fn foo(vs: &mut [Vec<i32>], i: usize) {
+    let $0v = &mut vs[i];
+    push(v);
+}"#,
+            "Extract into variable",
+        );
+    }
+
+    #[test]
+    fn extract_var_mutable_borrow_of_place_in_deref() {
+        check_assist_by_label(
+            extract_variable,
+            r#"
+fn main() {
+    let mut a = [1, 2, 3];
+    *&mut $0a[1]$0 = 999;
+}"#,
+            r#"
+fn main() {
+    let mut a = [1, 2, 3];
+    let $0var_name = &mut a[1];
+    *var_name = 999;
+}"#,
+            "Extract into variable",
+        );
+    }
+
+    #[test]
+    fn extract_var_shared_borrow_of_field() {
+        check_assist_by_label(
+            extract_variable,
+            r#"
+struct S { name: String }
+fn len(s: &String) -> usize { s.len() }
+fn foo(s: S) -> usize {
+    len(&$0s.name$0)
+}"#,
+            r#"
+struct S { name: String }
+fn len(s: &String) -> usize { s.len() }
+fn foo(s: S) -> usize {
+    let $0s1 = &s.name;
+    len(s1)
 }"#,
             "Extract into variable",
         );
