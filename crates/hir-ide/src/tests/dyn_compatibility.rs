@@ -1,5 +1,3 @@
-use std::ops::ControlFlow;
-
 use hir_def::signatures::TraitSignature;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ToSmolStr;
@@ -7,9 +5,10 @@ use test_fixture::WithFixture;
 
 use crate::{
     dyn_compatibility::{
+        AssocConstViolation::{self, *},
         DynCompatibilityViolation,
-        MethodViolationCode::{self, *},
-        dyn_compatibility_with_callback,
+        MethodViolation::{self, *},
+        dyn_compatibility_violations,
     },
     test_db::TestDB,
 };
@@ -18,20 +17,26 @@ use DynCompatibilityViolationKind::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum DynCompatibilityViolationKind {
+    ExplicitlyDynIncompatible,
     SizedSelf,
-    SelfReferential,
-    Method(MethodViolationCode),
-    AssocConst,
-    Gat,
+    SupertraitSelf,
+    SupertraitNonLifetimeBinder,
+    SupertraitConst,
+    Method(MethodViolation),
+    AssocConst(AssocConstViolation),
+    GenericAssocTy,
     HasNonCompatibleSuperTrait,
 }
 
-fn check_dyn_compatibility<'a>(
+#[track_caller]
+fn check_dyn_compatibility(
     #[rust_analyzer::rust_fixture] ra_fixture: &str,
-    expected: impl IntoIterator<Item = (&'a str, Vec<DynCompatibilityViolationKind>)>,
+    expected: &[(&str, &[DynCompatibilityViolationKind])],
 ) {
-    let mut expected: FxHashMap<_, _> =
-        expected.into_iter().map(|(id, osvs)| (id, FxHashSet::from_iter(osvs))).collect();
+    let mut expected: FxHashMap<_, _> = expected
+        .iter()
+        .map(|(id, osvs)| (*id, FxHashSet::from_iter(osvs.iter().cloned())))
+        .collect();
     let (db, file_ids) = TestDB::with_many_files(ra_fixture);
     for (trait_id, name) in file_ids.into_iter().flat_map(|file_id| {
         let module_id = db.module_for_file(file_id.file_id(&db));
@@ -57,21 +62,23 @@ fn check_dyn_compatibility<'a>(
         };
         let mut osvs = FxHashSet::default();
         let db = &db;
-        crate::attach_db(db, || {
-            _ = dyn_compatibility_with_callback(db, trait_id, &mut |osv| {
-                osvs.insert(match osv {
-                    DynCompatibilityViolation::SizedSelf => SizedSelf,
-                    DynCompatibilityViolation::SelfReferential => SelfReferential,
-                    DynCompatibilityViolation::Method(_, mvc) => Method(mvc),
-                    DynCompatibilityViolation::AssocConst(_) => AssocConst,
-                    DynCompatibilityViolation::GAT(_) => Gat,
-                    DynCompatibilityViolation::HasNonCompatibleSuperTrait(_) => {
-                        HasNonCompatibleSuperTrait
-                    }
-                });
-                ControlFlow::Continue(())
-            });
-        });
+        let Some(violations) = crate::attach_db(db, || dyn_compatibility_violations(db, trait_id))
+        else {
+            return;
+        };
+        osvs.extend(violations.slice.iter().map(|osv| match osv {
+            DynCompatibilityViolation::ExplicitlyDynIncompatible => ExplicitlyDynIncompatible,
+            DynCompatibilityViolation::SizedSelf => SizedSelf,
+            DynCompatibilityViolation::SupertraitSelf => SupertraitSelf,
+            DynCompatibilityViolation::SupertraitNonLifetimeBinder => SupertraitNonLifetimeBinder,
+            DynCompatibilityViolation::SupertraitConst => SupertraitConst,
+            DynCompatibilityViolation::Method(_, v) => Method(*v),
+            DynCompatibilityViolation::AssocConst(_, v) => AssocConst(*v),
+            DynCompatibilityViolation::GenericAssocTy(_) => GenericAssocTy,
+            DynCompatibilityViolation::HasNonCompatibleSuperTrait(_, _) => {
+                HasNonCompatibleSuperTrait
+            }
+        }));
         assert_eq!(osvs, expected, "dyn-compatibility violations for `{name}` do not match;");
     }
 
@@ -90,7 +97,7 @@ pub trait Foo {
     type Z: PartialEq<Self::Y>;
 }
 "#,
-        [("Foo", vec![])],
+        &[("Foo", &[])],
     );
 }
 
@@ -102,7 +109,7 @@ trait Bar {
     const X: usize;
 }
 "#,
-        [("Bar", vec![AssocConst])],
+        &[("Bar", &[AssocConst(FeatureNotEnabled)])],
     );
 }
 
@@ -115,7 +122,7 @@ trait X {
     type U: PartialEq<Self>;
 }
 "#,
-        [("X", vec![SelfReferential])],
+        &[],
     );
 }
 
@@ -137,7 +144,7 @@ trait Quux {
     fn baz(self: Self) where Self : Sized;
 }
 "#,
-        [("Bar", vec![]), ("Baz", vec![]), ("Quux", vec![])],
+        &[("Bar", &[]), ("Baz", &[]), ("Quux", &[])],
     );
 }
 
@@ -159,7 +166,7 @@ trait Qax {
     fn bar<'a>(&self, t: &'a ());
 }
 "#,
-        [("Bar", vec![Method(Generic)]), ("Quux", vec![]), ("Qax", vec![])],
+        &[("Bar", &[Method(MethodViolation::Generic)]), ("Quux", &[]), ("Qax", &[])],
     );
 }
 
@@ -180,10 +187,10 @@ trait Quux {
     fn quux(&self, s: &Self) -> Self where Self : Sized;
 }
 "#,
-        [
-            ("Bar", vec![Method(ReferencesSelfInput)]),
-            ("Baz", vec![Method(ReferencesSelfOutput)]),
-            ("Quux", vec![]),
+        &[
+            ("Bar", &[Method(ReferencesSelfInput)]),
+            ("Baz", &[Method(ReferencesSelfOutput)]),
+            ("Quux", &[]),
         ],
     );
 }
@@ -197,7 +204,7 @@ trait Foo {
     fn foo() {}
 }
 "#,
-        [("Foo", vec![Method(StaticMethod)])],
+        &[("Foo", &[Method(StaticMethod)])],
     );
 }
 
@@ -210,7 +217,7 @@ trait Bar: Sized {
     fn bar<T>(&self, t: T);
 }
 "#,
-        [("Bar", vec![SizedSelf, Method(Generic)])],
+        &[("Bar", &[SizedSelf, Method(MethodViolation::Generic)])],
     );
 
     check_dyn_compatibility(
@@ -222,7 +229,7 @@ trait Bar
     fn bar<T>(&self, t: T);
 }
 "#,
-        [("Bar", vec![SizedSelf, Method(Generic)])],
+        &[("Bar", &[SizedSelf, Method(MethodViolation::Generic)])],
     );
 }
 
@@ -232,12 +239,12 @@ fn supertrait_gat() {
         r#"
 //- minicore: dispatch_from_dyn
 trait GatTrait {
-    type Gat<T>;
+    type GenericAssocTy<T>;
 }
 
 trait SuperTrait<T>: GatTrait {}
 "#,
-        [("GatTrait", vec![Gat]), ("SuperTrait", vec![HasNonCompatibleSuperTrait])],
+        &[("GatTrait", &[GenericAssocTy]), ("SuperTrait", &[HasNonCompatibleSuperTrait])],
     );
 }
 
@@ -254,7 +261,7 @@ trait Baz : Bar<Self> {
 }
 "#,
         // FIXME: We should also report `SizedSelf` here
-        [("Bar", vec![]), ("Baz", vec![SelfReferential])],
+        &[("Bar", &[]), ("Baz", &[SupertraitSelf])],
     );
 }
 
@@ -269,7 +276,7 @@ trait Foo {
 
 trait Bar: Foo {}
 "#,
-        [("Foo", vec![Method(Generic)]), ("Bar", vec![HasNonCompatibleSuperTrait])],
+        &[("Foo", &[Method(MethodViolation::Generic)]), ("Bar", &[HasNonCompatibleSuperTrait])],
     );
 }
 
@@ -284,7 +291,7 @@ trait Expr: Debug + PartialEq {
     fn print_element_count(&self);
 }
 "#,
-        [("Expr", vec![SelfReferential])],
+        &[("Expr", &[SupertraitSelf])],
     );
 }
 
@@ -316,7 +323,7 @@ pub trait Fetcher: Send + Sync {
     }
 }
 "#,
-        [("Fetcher", vec![Method(UndispatchableReceiver)])],
+        &[("Fetcher", &[Method(UndispatchableReceiver)])],
     );
 }
 
@@ -354,7 +361,7 @@ pub trait B2: Service<Response = i32> + B1 {
     fn foo(&self) {}
 }
         "#,
-        [("A2", vec![]), ("B2", vec![])],
+        &[("A2", &[]), ("B2", &[])],
     );
 }
 
@@ -367,7 +374,7 @@ pub trait Trait {
     fn method(&self) where Self: Sync;
 }
 "#,
-        [("Trait", vec![])],
+        &[("Trait", &[])],
     );
 }
 
@@ -384,7 +391,7 @@ pub trait Error: core::fmt::Debug + core::fmt::Display {
     fn provide<'a>(&'a self, request: &mut Request<'a>);
 }
 "#,
-        [("Error", vec![])],
+        &[("Error", &[])],
     );
 }
 
@@ -397,6 +404,6 @@ trait Foo {
     type Bar<'a>;
 }
 "#,
-        [("Foo", vec![DynCompatibilityViolationKind::Gat])],
+        &[("Foo", &[GenericAssocTy])],
     );
 }

@@ -33,7 +33,7 @@ use crate::{
     Span,
     next_solver::{
         ArgOutlivesPredicate, BoundConst, BoundRegion, BoundTy, BoundVariableKind, Goal, Predicate,
-        SolverContext,
+        SolverContext, TypingEnv,
         fold::BoundVarReplacerDelegate,
         infer::{at::ToTrace, select::EvaluationResult, traits::PredicateObligation},
         obligation_ctxt::ObligationCtxt,
@@ -382,6 +382,14 @@ impl<'db> InferCtxt<'db> {
     #[inline(always)]
     pub fn typing_mode_unchecked(&self) -> TypingMode<'db> {
         self.typing_mode
+    }
+
+    #[inline]
+    pub fn typing_env(&self, param_env: ParamEnv<'db>) -> TypingEnv<'db> {
+        // FIXME: rustc removes defining opaques/generators here, should we?
+        // https://github.com/rust-lang/rust/blob/bd4c6cc4aeef0eb9919c6f73c1e690677e9c6b38/compiler/rustc_infer/src/infer/mod.rs#L1676-L1697
+        let typing_mode = self.typing_mode;
+        TypingEnv { typing_mode, krate: self.interner.expect_crate(), param_env }
     }
 
     /// Evaluates whether the predicate can be satisfied (by any means)

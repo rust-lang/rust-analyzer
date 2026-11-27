@@ -398,7 +398,9 @@ impl<'db> IntoKind for GenericArg<'db> {
     }
 }
 
-impl<'db, V> GenericTypeVisitable<V> for GenericArg<'db>
+// SAFETY: `GenericArg` is an optimized representation -- we get to the actual
+// fields by calling `.kind()`
+unsafe impl<'db, V> GenericTypeVisitable<V> for GenericArg<'db>
 where
     GenericArgKind<'db>: GenericTypeVisitable<V>,
 {
@@ -407,7 +409,9 @@ where
     }
 }
 
-impl<'db, V> GenericTypeVisitable<V> for Term<'db>
+// SAFETY: `Term` is an optimized representation -- we get to the actual
+// fields by calling `.kind()`
+unsafe impl<'db, V> GenericTypeVisitable<V> for Term<'db>
 where
     TermKind<'db>: GenericTypeVisitable<V>,
 {

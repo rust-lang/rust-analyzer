@@ -183,7 +183,8 @@ macro_rules! interned_slice {
         }
 
 
-        impl<'db, V: $crate::next_solver::interner::WorldExposer>
+        // SAFETY: manual impl is required in order to handle interned type
+        unsafe impl<'db, V: $crate::next_solver::interner::WorldExposer>
             rustc_type_ir::GenericTypeVisitable<V> for $name<'db>
         {
             #[inline]
@@ -435,6 +436,15 @@ interned_slice!(
 
 pub type BoundVariableKind<'db> = rustc_type_ir::BoundVariableKind<DbInterner<'db>>;
 
+impl<'db> rustc_type_ir::inherent::BoundVarKinds<DbInterner<'db>> for BoundVarKinds<'db> {
+    fn from_vars(
+        _cx: DbInterner<'db>,
+        iter: impl IntoIterator<Item = BoundVariableKind<'db>>,
+    ) -> Self {
+        Self::new_from_iter(iter)
+    }
+}
+
 interned_slice!(
     CanonicalVarsStorage,
     CanonicalVarKinds,
@@ -656,7 +666,7 @@ impl<'db> inherent::AdtDef<DbInterner<'db>> for AdtDef {
     }
 
     fn destructor(self, interner: DbInterner<'db>) -> Option<AdtDestructorKind> {
-        crate::drop::destructor(interner.db, self.def_id()).map(|_| AdtDestructorKind::NotConst)
+        interner.db.destructor(self.def_id()).map(|_| AdtDestructorKind::NotConst)
     }
 
     fn field_representing_type_info(
@@ -815,7 +825,8 @@ impl<'db> rustc_type_ir::TypeVisitable<DbInterner<'db>> for Pattern<'db> {
     }
 }
 
-impl<'db, V: WorldExposer> rustc_type_ir::GenericTypeVisitable<V> for Pattern<'db> {
+// SAFETY: manual impl is required in order to handle interned type
+unsafe impl<'db, V: WorldExposer> rustc_type_ir::GenericTypeVisitable<V> for Pattern<'db> {
     fn generic_visit_with(&self, visitor: &mut V) {
         if visitor.on_interned(self.interned).is_continue() {
             self.kind().generic_visit_with(visitor);
@@ -1223,6 +1234,11 @@ impl<'db> Interner for DbInterner<'db> {
         Features
     }
 
+    fn assumptions_on_binders(self) -> bool {
+        // FIXME(-Zassumptions-on-binders)
+        false
+    }
+
     fn fn_sig(
         self,
         def_id: Self::FunctionId,
@@ -1264,7 +1280,7 @@ impl<'db> Interner for DbInterner<'db> {
 
     fn generics_require_sized_self(self, def_id: Self::DefId) -> bool {
         match GenericDefId::try_from(def_id) {
-            Ok(def_id) => crate::dyn_compatibility::generics_require_sized_self(self.db, def_id),
+            Ok(def_id) => self.db.generics_require_sized_self(def_id),
             Err(_) => false,
         }
     }
@@ -1656,7 +1672,7 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn trait_is_dyn_compatible(self, trait_: Self::TraitId) -> bool {
-        crate::dyn_compatibility::dyn_compatibility(self.db(), trait_.0).is_none()
+        self.db.trait_is_dyn_compatible(trait_.0)
     }
 
     fn trait_is_fundamental(self, trait_: Self::TraitId) -> bool {
@@ -1945,7 +1961,7 @@ impl<'db> Interner for DbInterner<'db> {
             // No builtin derive allow specialization currently.
             return false;
         };
-        crate::specialization::specializes(self.db, specializing_impl_def_id, parent_impl_def_id)
+        self.db.specializes(specializing_impl_def_id, parent_impl_def_id)
     }
 
     fn next_trait_solver_globally(self) -> bool {
@@ -2165,7 +2181,9 @@ macro_rules! TrivialTypeTraversalImpls {
                 }
             }
 
-            impl<V> rustc_type_ir::GenericTypeVisitable<V> for $ty {
+            // SAFETY: the type doesn't contain interned data, and so the impl
+            // can be a no-op
+            unsafe impl<V> rustc_type_ir::GenericTypeVisitable<V> for $ty {
                 #[inline]
                 fn generic_visit_with(&self, _visitor: &mut V) {}
             }

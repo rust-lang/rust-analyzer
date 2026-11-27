@@ -3,10 +3,9 @@
 use hir_def::{HasModule, ImplId, signatures::ImplSignature, unstable_features::UnstableFeatures};
 use tracing::debug;
 
-use crate::{
-    Span,
+use hir_ty::{
+    GenericPredicates, Span,
     db::HirDatabase,
-    lower::GenericPredicates,
     next_solver::{
         DbInterner, TypingMode, Unnormalized,
         infer::{DbInternerInferExt, traits::ObligationCause},
@@ -134,7 +133,7 @@ fn specializes_query(
 
 // This function is used to avoid creating the query for crates that does not define `#![feature(specialization)]`,
 // as the solver is calling this a lot, and creating the query consumes a lot of memory.
-pub(crate) fn specializes(
+pub fn specializes(
     db: &dyn HirDatabase,
     specializing_impl_def_id: ImplId,
     parent_impl_def_id: ImplId,
