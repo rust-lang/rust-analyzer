@@ -1,6 +1,26 @@
 use super::*;
 
 #[test]
+fn ambiguous_module_does_not_resolve_either_file() {
+    check(
+        r#"
+//- /lib.rs
+mod foo;
+//- /foo.rs
+pub struct FromFile;
+//- /foo/mod.rs
+pub struct FromDirectory;
+"#,
+        expect![[r#"
+            crate
+            - foo : type
+
+            crate::foo
+        "#]],
+    );
+}
+
+#[test]
 fn name_res_works_for_broken_modules() {
     cov_mark::check!(name_res_works_for_broken_modules);
     check(

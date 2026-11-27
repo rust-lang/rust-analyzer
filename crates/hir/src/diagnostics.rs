@@ -130,6 +130,7 @@ macro_rules! diagnostics {
 }
 
 diagnostics![AnyDiagnostic<'db> ->
+    AmbiguousModule,
     ArrayPatternWithoutFixedLength,
     AwaitOutsideOfAsync,
     BreakOutsideOfLoop,
@@ -225,6 +226,12 @@ pub struct BreakOutsideOfLoop {
 pub struct TypedHole<'db> {
     pub expr: InFile<ExprOrPatPtr>,
     pub expected: Type<'db>,
+}
+
+#[derive(Debug)]
+pub struct AmbiguousModule {
+    pub decl: InFile<AstPtr<ast::Module>>,
+    pub candidates: [String; 2],
 }
 
 #[derive(Debug)]
@@ -797,6 +804,16 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
 
     fn emit_def_diagnostic(&mut self, diag: &DefDiagnosticKind) {
         match diag {
+            DefDiagnosticKind::AmbiguousModule { ast: declaration, candidates } => {
+                let decl = declaration.to_ptr(self.db);
+                self.acc.push(
+                    AmbiguousModule {
+                        decl: InFile::new(declaration.file_id, decl),
+                        candidates: candidates.clone(),
+                    }
+                    .into(),
+                )
+            }
             DefDiagnosticKind::UnresolvedModule { ast: declaration, candidates } => {
                 let decl = declaration.to_ptr(self.db);
                 self.acc.push(

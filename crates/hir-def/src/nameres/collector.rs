@@ -47,7 +47,7 @@ use crate::{
         attr_resolution::{attr_macro_as_call_id, derive_macro_as_call_id},
         crate_def_map,
         diagnostics::DefDiagnostic,
-        mod_resolution::ModDir,
+        mod_resolution::{ModDir, ModResolutionError},
         path_resolution::{ReachedFixedPoint, ResolvePathResult},
         proc_macro::{ProcMacroDef, ProcMacroKind, parse_macro_name_and_helper_attrs},
         sub_namespace_match,
@@ -2386,16 +2386,22 @@ impl ModCollector<'_, '_> {
                             }
                         }
                     }
-                    Err(candidates) => {
+                    Err(error) => {
                         self.push_child_module(
                             module.name.clone(),
                             ast_id.value,
                             None,
                             &self.item_tree[module.visibility],
                         );
-                        self.def_collector.def_map.diagnostics.push(
-                            DefDiagnostic::unresolved_module(self.module_id, ast_id, candidates),
-                        );
+                        let diagnostic = match error {
+                            ModResolutionError::Unresolved(candidates) => {
+                                DefDiagnostic::unresolved_module(self.module_id, ast_id, candidates)
+                            }
+                            ModResolutionError::Ambiguous(candidates) => {
+                                DefDiagnostic::ambiguous_module(self.module_id, ast_id, candidates)
+                            }
+                        };
+                        self.def_collector.def_map.diagnostics.push(diagnostic);
                     }
                 };
             }
