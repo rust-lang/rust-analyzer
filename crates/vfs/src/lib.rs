@@ -220,12 +220,12 @@ impl Vfs {
         let file_id = self.alloc_file_id(path);
         let state: FileState = self.get(file_id);
 
-        let normalize_line_endings = |v: Vec<u8>| {
-            str::from_utf8(&v)
-                .ok()
-                .map(|text| LineEndings::normalize(text.to_owned()))
-                .map(|(text, ln)| (text.into_bytes(), Some(ln)))
-                .unwrap_or_else(|| (v, None))
+        let normalize_line_endings = |v: Vec<u8>| match String::from_utf8(v) {
+            Ok(text) => {
+                let (text, line_endings) = LineEndings::normalize(text);
+                (text.into_bytes(), Some(line_endings))
+            }
+            Err(err) => (err.into_bytes(), None),
         };
 
         let change = match (state, contents) {
