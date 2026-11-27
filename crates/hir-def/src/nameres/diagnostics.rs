@@ -11,6 +11,7 @@ use crate::{AstId, nameres::ModuleId};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DefDiagnosticKind {
+    AmbiguousModule { ast: AstId<ast::Module>, candidates: [String; 2] },
     UnresolvedModule { ast: AstId<ast::Module>, candidates: Box<[String]> },
     UnresolvedExternCrate { ast: AstId<ast::ExternCrate> },
     UnresolvedImport { id: AstId<ast::Use>, index: Idx<ast::UseTree> },
@@ -48,6 +49,17 @@ pub struct DefDiagnostic {
 }
 
 impl DefDiagnostic {
+    pub(super) fn ambiguous_module(
+        container: ModuleId,
+        declaration: AstId<ast::Module>,
+        candidates: [String; 2],
+    ) -> Self {
+        Self {
+            in_module: container,
+            kind: DefDiagnosticKind::AmbiguousModule { ast: declaration, candidates },
+        }
+    }
+
     pub(super) fn unresolved_module(
         container: ModuleId,
         declaration: AstId<ast::Module>,

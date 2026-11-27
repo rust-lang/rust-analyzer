@@ -29,6 +29,7 @@
 extern crate rustc_driver as _;
 
 mod handlers {
+    pub(crate) mod ambiguous_module;
     pub(crate) mod array_pattern_without_fixed_length;
     pub(crate) mod await_outside_of_async;
     pub(crate) mod bad_rtn;
@@ -439,6 +440,7 @@ pub fn semantic_diagnostics(
 
     for diag in diags {
         let d = match diag {
+            AnyDiagnostic::AmbiguousModule(d) => handlers::ambiguous_module::ambiguous_module(&ctx, &d),
             AnyDiagnostic::AwaitOutsideOfAsync(d) => handlers::await_outside_of_async::await_outside_of_async(&ctx, &d),
             AnyDiagnostic::CannotBeDereferenced(d) => handlers::cannot_be_dereferenced::cannot_be_dereferenced(&ctx, &d),
             AnyDiagnostic::UnaryOperatorCannotBeApplied(d) => handlers::unary_operator_cannot_be_applied::unary_operator_cannot_be_applied(&ctx, &d),

@@ -19,6 +19,11 @@ pub(super) struct ModDir {
     depth: u32,
 }
 
+pub(super) enum ModResolutionError {
+    Unresolved(Box<[String]>),
+    Ambiguous([String; 2]),
+}
+
 impl ModDir {
     pub(super) fn root() -> ModDir {
         ModDir { dir_path: DirPath::empty(), root_non_dir_owner: false, depth: 0 }
@@ -62,7 +67,7 @@ impl ModDir {
         file_id: HirFileId,
         name: &Name,
         attr_path: Option<&str>,
-    ) -> Result<(EditionedFileId, bool, ModDir), Box<[String]>> {
+    ) -> Result<(EditionedFileId, bool, ModDir), ModResolutionError> {
         let name = name.as_str();
 
         let mut candidate_files = ArrayVec::<_, 2>::new();
@@ -77,28 +82,32 @@ impl ModDir {
         };
 
         let orig_file_id = file_id.original_file_respecting_includes(db);
+        let mut resolved_file = None;
         for candidate in candidate_files.iter() {
             let path = AnchoredPath { anchor: orig_file_id.file_id(db), path: candidate.as_str() };
             if let Some(file_id) = db.resolve_path(path) {
-                let is_mod_rs = candidate.ends_with("/mod.rs");
-
-                let root_dir_owner = is_mod_rs || attr_path.is_some();
-                let dir_path = if root_dir_owner {
-                    DirPath::empty()
-                } else {
-                    DirPath::new(format!("{name}/"))
-                };
-                if let Some(mod_dir) = self.child(dir_path, !root_dir_owner) {
-                    return Ok((
-                        // FIXME: Edition, is this rightr?
-                        EditionedFileId::new(db, file_id, orig_file_id.edition(db)),
-                        is_mod_rs,
-                        mod_dir,
+                if resolved_file.is_some() {
+                    return Err(ModResolutionError::Ambiguous(
+                        candidate_files.into_inner().unwrap(),
                     ));
                 }
+                resolved_file = Some((file_id, candidate.ends_with("/mod.rs")));
             }
         }
-        Err(candidate_files.into_iter().collect())
+        if let Some((file_id, is_mod_rs)) = resolved_file {
+            let root_dir_owner = is_mod_rs || attr_path.is_some();
+            let dir_path =
+                if root_dir_owner { DirPath::empty() } else { DirPath::new(format!("{name}/")) };
+            if let Some(mod_dir) = self.child(dir_path, !root_dir_owner) {
+                return Ok((
+                    // FIXME: Edition, is this rightr?
+                    EditionedFileId::new(db, file_id, orig_file_id.edition(db)),
+                    is_mod_rs,
+                    mod_dir,
+                ));
+            }
+        }
+        Err(ModResolutionError::Unresolved(candidate_files.into_iter().collect()))
     }
 }
 
