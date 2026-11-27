@@ -1839,12 +1839,7 @@ impl<'db> SemanticsImpl<'db> {
             },
         );
         assert!(subst.next().is_none(), "too many subst");
-        Some(match self.db.lookup_impl_method(env.param_env(self.db), func, substs).0 {
-            Either::Left(it) => it.into(),
-            Either::Right((impl_, method)) => {
-                Function { id: AnyFunctionId::BuiltinDeriveImplMethod { method, impl_ } }
-            }
-        })
+        Some(self.db.lookup_impl_method(env.param_env(self.db), func, substs).0.into())
     }
 
     fn resolve_range_pat(&self, range_pat: &ast::RangePat) -> Option<StructId> {

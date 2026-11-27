@@ -63,8 +63,8 @@ use syntax::{
 };
 
 use crate::{
-    Adt, AnyFunctionId, AssocItem, BindingMode, BuiltinAttr, BuiltinType, Callable, Const,
-    DeriveHelper, EnumVariant, Field, Function, GenericSubstitution, Local, Macro, ModuleDef,
+    Adt, AssocItem, BindingMode, BuiltinAttr, BuiltinType, Callable, Const, DeriveHelper,
+    EnumVariant, Field, Function, GenericSubstitution, Local, Macro, ModuleDef,
     PredicateEvaluationResult, SemanticsImpl, Static, Struct, ToolModule, Trait, TupleField, Type,
     TypeAlias, TypeOwnerId,
     db::HirDatabase,
@@ -1728,12 +1728,7 @@ impl<'db> SourceAnalyzer<'db> {
         };
         let env = self.param_and(db.trait_environment(owner));
         let (func, args) = db.lookup_impl_method(env, func, substs);
-        match func {
-            Either::Left(func) => (func.into(), args),
-            Either::Right((impl_, method)) => {
-                (Function { id: AnyFunctionId::BuiltinDeriveImplMethod { method, impl_ } }, args)
-            }
-        }
+        (func.into(), args)
     }
 
     fn resolve_impl_const_or_trait_def_with_subst(
