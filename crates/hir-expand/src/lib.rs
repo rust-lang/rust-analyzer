@@ -186,15 +186,31 @@ impl ExpandErrorKind {
                 kind: RenderedExpandError::DISABLED,
             },
             &ExpandErrorKind::MissingProcMacroExpander(def_crate) => {
-                match ProcMacros::get_for_crate(db, def_crate).and_then(|it| it.get_error()) {
-                    Some(e) => RenderedExpandError {
+                let crate_label = || match &def_crate.extra_data(db).display_name {
+                    Some(name) => format!("`{}` ({def_crate:?})", name.canonical_name()),
+                    None => format!("{def_crate:?}"),
+                };
+                match ProcMacros::get_for_crate(db, def_crate).map(|it| it.get_error()) {
+                    Some(Some(e)) => RenderedExpandError {
                         message: e.to_string(),
                         error: e.is_hard_error(),
                         kind: RenderedExpandError::GENERAL_KIND,
                     },
+                    // Loading can succeed even when the library does not export a macro
+                    // declared in the source we are analyzing.
+                    Some(None) => RenderedExpandError {
+                        message: format!(
+                            "proc-macro is missing from the loaded library for crate {}; \
+                             the source and compiled library may be out of sync, try rebuilding the proc-macro crate",
+                            crate_label()
+                        ),
+                        error: true,
+                        kind: RenderedExpandError::GENERAL_KIND,
+                    },
                     None => RenderedExpandError {
                         message: format!(
-                            "internal error: proc-macro map is missing error entry for crate {def_crate:?}"
+                            "internal error: proc-macro map is missing entry for crate {}",
+                            crate_label()
                         ),
                         error: true,
                         kind: RenderedExpandError::GENERAL_KIND,
