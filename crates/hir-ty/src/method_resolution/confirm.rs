@@ -265,7 +265,7 @@ impl<'a, 'db> ConfirmContext<'a, 'db> {
                 // the receiver is not valid), then there's a chance that we will not
                 // actually be able to recover the object by derefing the receiver like
                 // we should if it were valid.
-                if self.db().dyn_compatibility_of_trait(trait_def_id).is_some() {
+                if !self.db().trait_is_dyn_compatible(trait_def_id) {
                     return GenericArgs::error_for_item(self.interner(), trait_def_id.into());
                 }
 

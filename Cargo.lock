@@ -839,6 +839,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "hir-analysis"
+version = "0.0.0"
+dependencies = [
+ "base-db",
+ "hir-def",
+ "hir-ty",
+ "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ra-ap-rustc_abi",
+ "ra-ap-rustc_index",
+ "ra-ap-rustc_type_ir",
+ "rustc-hash 2.1.2",
+ "salsa",
+ "smallvec",
+ "tracing",
+ "triomphe",
+]
+
+[[package]]
 name = "hir-def"
 version = "0.0.0"
 dependencies = [
@@ -909,6 +927,7 @@ dependencies = [
  "cov-mark",
  "either",
  "expect-test 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hir-analysis",
  "hir-def",
  "hir-expand",
  "hir-ty",

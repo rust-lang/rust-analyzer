@@ -28,8 +28,6 @@ mod structural_normalize;
 mod ty;
 pub mod util;
 
-use std::{mem::ManuallyDrop, sync::OnceLock};
-
 pub use allocation::*;
 pub use binder::*;
 pub use consts::*;
@@ -39,12 +37,21 @@ pub use interner::*;
 pub use opaques::*;
 pub use predicate::*;
 pub use region::*;
-use rustc_type_ir::MayBeErased;
 pub use solver::*;
 pub use ty::*;
 
 pub use crate::lower::ImplTraitIdx;
 pub use rustc_ast_ir::Mutability;
+
+use std::{mem::ManuallyDrop, sync::OnceLock};
+
+use base_db::Crate;
+use rustc_type_ir::MayBeErased;
+
+use crate::{
+    db::HirDatabase,
+    next_solver::infer::{DbInternerInferExt, InferCtxt},
+};
 
 pub type Binder<'db, T> = rustc_type_ir::Binder<DbInterner<'db>, T>;
 pub type EarlyBinder<'db, T> = rustc_type_ir::EarlyBinder<DbInterner<'db>, T>;
@@ -60,6 +67,26 @@ pub type TypingMode<'db, S = MayBeErased> = rustc_type_ir::TypingMode<DbInterner
 pub type TypeError<'db> = rustc_type_ir::error::TypeError<DbInterner<'db>>;
 pub type QueryResult<'db> = rustc_type_ir::solve::QueryResult<DbInterner<'db>>;
 pub type FxIndexMap<K, V> = rustc_type_ir::data_structures::IndexMap<K, V>;
+
+/// The environment in which to do trait solving.
+#[derive(Clone, Copy)]
+pub struct TypingEnv<'db> {
+    pub typing_mode: TypingMode<'db>,
+    pub krate: Crate,
+    pub param_env: ParamEnv<'db>,
+}
+
+impl<'db> TypingEnv<'db> {
+    #[inline]
+    pub fn interner(&self, db: &'db dyn HirDatabase) -> DbInterner<'db> {
+        DbInterner::new_with(db, self.krate)
+    }
+
+    #[inline]
+    pub fn infcx(&self, db: &'db dyn HirDatabase) -> InferCtxt<'db> {
+        self.interner(db).infer_ctxt().build(self.typing_mode)
+    }
+}
 
 pub struct DefaultTypes<'db> {
     pub usize: Ty<'db>,

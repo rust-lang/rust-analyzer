@@ -1,5 +1,7 @@
 //! Things related to tys in the next-trait-solver.
 
+mod erase_regions;
+
 use std::ops::ControlFlow;
 
 use hir_def::{

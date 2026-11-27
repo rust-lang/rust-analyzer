@@ -450,7 +450,7 @@ pub struct Clause<'db>(pub(crate) Predicate<'db>);
     Copy, Clone, Debug, Hash, PartialEq, Eq, TypeVisitable, TypeFoldable, GenericTypeVisitable,
 )]
 pub struct ParamEnv<'db> {
-    pub(crate) clauses: Clauses<'db>,
+    pub clauses: Clauses<'db>,
 }
 
 impl<'db> ParamEnv<'db> {
@@ -788,6 +788,15 @@ impl<'db> IntoKind for Clause<'db> {
 impl<'db> Clause<'db> {
     pub fn as_predicate(self) -> Predicate<'db> {
         self.0
+    }
+
+    pub fn as_type_outlives_clause(self) -> Option<Binder<'db, TypeOutlivesPredicate<'db>>> {
+        let clause = self.kind();
+        if let ClauseKind::TypeOutlives(o) = clause.skip_binder() {
+            Some(clause.rebind(o))
+        } else {
+            None
+        }
     }
 }
 
