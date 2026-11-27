@@ -672,7 +672,7 @@ impl GlobalState {
             let vfs = &self.vfs.read().0;
             self.mem_docs
                 .iter()
-                .map(|path| vfs.file_id(path).unwrap())
+                .filter_map(|path| vfs.file_id(path))
                 .filter_map(|(file_id, excluded)| {
                     (excluded == vfs::FileExcluded::No).then_some(file_id)
                 })
@@ -774,7 +774,7 @@ impl GlobalState {
         let subscriptions = self
             .mem_docs
             .iter()
-            .map(|path| self.vfs.read().0.file_id(path).unwrap())
+            .filter_map(|path| self.vfs.read().0.file_id(path))
             .filter_map(|(file_id, excluded)| {
                 (excluded == vfs::FileExcluded::No).then_some(file_id)
             })
