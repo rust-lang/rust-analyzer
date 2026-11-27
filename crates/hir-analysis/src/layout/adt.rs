@@ -7,18 +7,19 @@ use hir_def::{
     attrs::AttrFlags,
     signatures::{StructFlags, StructSignature, VariantFields},
 };
+use hir_ty::{
+    db::HirDatabase,
+    layout::{Layout, LayoutError},
+    next_solver::StoredGenericArgs,
+    representability::{Representability, representability},
+    traits::StoredParamEnvAndCrate,
+};
 use rustc_abi::{Integer, ReprOptions, TargetDataLayout};
 use rustc_index::IndexVec;
 use smallvec::SmallVec;
 use triomphe::Arc;
 
-use crate::{
-    db::HirDatabase,
-    layout::{Layout, LayoutCx, LayoutError, field_ty},
-    next_solver::StoredGenericArgs,
-    representability::{Representability, representability},
-    traits::StoredParamEnvAndCrate,
-};
+use crate::layout::{LayoutCx, field_ty};
 
 #[salsa::tracked(cycle_result = layout_of_adt_cycle_result, returns(clone))]
 pub fn layout_of_adt_query(

@@ -20,6 +20,15 @@ use super::{SolverDefId, interner::DbInterner};
 pub type RegionKind<'db> = rustc_type_ir::RegionKind<DbInterner<'db>>;
 pub type RegionConstraint<'db> = rustc_type_ir::RegionConstraint<DbInterner<'db>>;
 
+/// shim for [`rustc_type_ir::region_constraint`]
+pub mod region_constraint {
+    use super::DbInterner;
+
+    pub type Assumptions<'db> = rustc_type_ir::region_constraint::Assumptions<DbInterner<'db>>;
+    pub type RegionConstraint<'db> =
+        rustc_type_ir::region_constraint::RegionConstraint<DbInterner<'db>>;
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Region<'db> {
     pub(super) interned: InternedRef<'db, RegionInterned>,
@@ -301,7 +310,8 @@ impl<'db> rustc_type_ir::inherent::Region<DbInterner<'db>> for Region<'db> {
     }
 }
 
-impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Region<'db> {
+// SAFETY: manual impl is required in order to handle interned type
+unsafe impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Region<'db> {
     fn generic_visit_with(&self, visitor: &mut V) {
         if visitor.on_interned(self.interned).is_continue() {
             self.kind().generic_visit_with(visitor);

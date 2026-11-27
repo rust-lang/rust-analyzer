@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Representability {
+pub enum Representability {
     Representable,
     Infinite,
 }
@@ -24,7 +24,7 @@ macro_rules! rtry {
 }
 
 #[salsa::tracked(cycle_result = representability_cycle, returns(copy))]
-pub(crate) fn representability(db: &dyn HirDatabase, id: AdtId) -> Representability {
+pub fn representability(db: &dyn HirDatabase, id: AdtId) -> Representability {
     match id {
         AdtId::StructId(id) => variant_representability(db, id.into()),
         AdtId::UnionId(id) => variant_representability(db, id.into()),
