@@ -910,8 +910,8 @@ impl<'a, 'db> CompletionContext<'a, 'db> {
         let exclude_subitems = exclude_flyimport
             .iter()
             .flat_map(|it| match it {
-                (ModuleDef::Module(module), AutoImportExclusionType::SubItems) => {
-                    module.scope(db, None)
+                (ModuleDef::Module(exclude_module), AutoImportExclusionType::SubItems) => {
+                    exclude_module.scope(db, Some(module))
                 }
                 _ => vec![],
             })
