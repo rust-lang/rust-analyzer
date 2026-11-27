@@ -542,8 +542,12 @@ fn load_crate_graph_into_db(
     }
     let changes = vfs.take_changes();
     for (_, file) in changes {
-        if let vfs::Change::Create(v, _, _) | vfs::Change::Modify(v, _, _) = file.change {
-            analysis_change.change_file(file.file_id, String::from_utf8(v).ok())
+        if let vfs::Change::Create(contents, _) | vfs::Change::Modify(contents, _) = file.change {
+            let text = match contents {
+                vfs::FileContents::Text { text, .. } => Some(text),
+                vfs::FileContents::Binary(_) => None,
+            };
+            analysis_change.change_file(file.file_id, text)
         }
     }
     let source_roots = source_root_config.partition(vfs);

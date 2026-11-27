@@ -360,7 +360,7 @@ impl GlobalState {
                     { analysis_host }.0.trigger_cancellation()
                 });
 
-                // downgrade to read lock to allow more readers while we are normalizing text
+                // Allow other readers while we inspect the changes and prepare database inputs.
                 let guard = RwLockWriteGuard::downgrade_to_upgradable(guard);
                 let vfs: &Vfs = &guard.0;
 
@@ -410,15 +410,14 @@ impl GlobalState {
                         self.diagnostics.clear_native_for(file.file_id);
                     }
 
-                    let text = if let vfs::Change::Create(v, _, line_endings)
-                    | vfs::Change::Modify(v, _, line_endings) = file.change
-                    {
-                        String::from_utf8(v).ok().zip(line_endings)
-                    } else {
-                        None
+                    let text = match file.change {
+                        vfs::Change::Create(vfs::FileContents::Text { text, line_endings }, _)
+                        | vfs::Change::Modify(vfs::FileContents::Text { text, line_endings }, _) => {
+                            Some((text, line_endings))
+                        }
+                        _ => None,
                     };
-                    // delay `line_endings_map` changes until we are done normalizing the text
-                    // this allows delaying the re-acquisition of the write lock
+                    // Batch `line_endings_map` updates so we can delay upgrading to a write lock.
                     bytes.push((file.file_id, text));
                 }
                 let (vfs, line_endings_map) = &mut *RwLockUpgradableReadGuard::upgrade(guard);

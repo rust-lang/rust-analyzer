@@ -1,9 +1,9 @@
 //! Enhances `ide::LineIndex` with additional info required to convert offsets
 //! into lsp positions.
 //!
-//! We maintain invariant that all internal strings use `\n` as line separator.
-//! This module does line ending conversion and detection (so that we can
-//! convert back to `\r\n` on the way out).
+//! The VFS normalizes UTF-8 file contents to use `\n` as the line separator.
+//! We retain the detected line-ending convention here so outgoing LSP edits
+//! can restore `\r\n` when needed.
 
 use ide_db::line_index::WideEncoding;
 use triomphe::Arc;

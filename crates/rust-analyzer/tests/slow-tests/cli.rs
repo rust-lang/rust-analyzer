@@ -1,7 +1,35 @@
 use expect_test::expect;
 use test_utils::skip_slow_tests;
 
-use crate::support::Project;
+use crate::{support::Project, testdir::TestDir};
+
+#[test]
+fn ssr_preserves_crlf() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let dir = TestDir::new();
+    std::fs::create_dir(dir.path().join("src")).unwrap();
+    std::fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"foo\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    let source = dir.path().join("src/lib.rs");
+    std::fs::write(&source, "fn foo() {}\r\nfn bar() { foo(); }\r\n").unwrap();
+
+    let output = toolchain::command(
+        env!("CARGO_BIN_EXE_rust-analyzer"),
+        dir.path(),
+        &rustc_hash::FxHashMap::default(),
+    )
+    .args(["ssr", "foo() ==>> 1"])
+    .output()
+    .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(std::fs::read(&source).unwrap(), b"fn foo() {}\r\nfn bar() { 1; }\r\n");
+}
 
 // If you choose to change the test fixture here, please inform the ferrocene/needy maintainers by
 // opening an issue at https://github.com/ferrocene/needy as the tool relies on specific token

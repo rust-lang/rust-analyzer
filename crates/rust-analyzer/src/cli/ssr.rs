@@ -38,6 +38,9 @@ impl flags::Ssr {
             if let Some(path) = vfs.file_path(file_id).as_path() {
                 let mut contents = db.file_text(file_id).text(db).to_string();
                 edit.apply(&mut contents);
+                if vfs.line_endings(file_id) == Some(vfs::LineEndings::Dos) {
+                    contents = contents.replace('\n', "\r\n");
+                }
                 std::fs::write(path, contents)
                     .with_context(|| format!("failed to write {path}"))?;
             }
