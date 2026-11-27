@@ -65,18 +65,31 @@ mod in_ra {
                 Leaf::Literal(it) => &it.span,
                 Leaf::Punct(it) => &it.span,
                 Leaf::Ident(it) => &it.span,
+                Leaf::DocComment(it) => &it.span,
+            }
+        }
+
+        pub fn span_mut(&mut self) -> &mut Span {
+            match self {
+                Leaf::Literal(it) => &mut it.span,
+                Leaf::Punct(it) => &mut it.span,
+                Leaf::Ident(it) => &mut it.span,
+                Leaf::DocComment(it) => &mut it.span,
             }
         }
 
         pub(crate) fn symbol(&self) -> Option<&Symbol> {
             match self {
                 Leaf::Literal(Literal { text_and_suffix: symbol, .. })
-                | Leaf::Ident(Ident { sym: symbol, .. }) => Some(symbol),
+                | Leaf::Ident(Ident { sym: symbol, .. })
+                | Leaf::DocComment(DocComment { text_with_comment_signs: symbol, .. }) => {
+                    Some(symbol)
+                }
                 Leaf::Punct(_) => None,
             }
         }
     }
-    impl_from!(Literal, Punct, Ident for Leaf);
+    impl_from!(Literal, Punct, Ident, DocComment for Leaf);
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Subtree {

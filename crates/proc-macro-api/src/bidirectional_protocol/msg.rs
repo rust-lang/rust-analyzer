@@ -1,4 +1,7 @@
 //! Bidirectional protocol messages
+
+#![expect(clippy::large_enum_variant, reason = "this is just for serialization")]
+
 use std::{
     io::{self, BufRead, Write},
     ops::Range,

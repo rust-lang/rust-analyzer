@@ -17,7 +17,7 @@ fn check_punct_spacing(fixture: &str) {
         source_file.syntax(),
         DummyTestSpanMap,
         DUMMY,
-        DocCommentDesugarMode::Mbe,
+        DocCommentDesugarMode::Keep,
     );
     let mut annotations: FxHashMap<_, _> = extract_annotations(fixture)
         .into_iter()
