@@ -538,6 +538,7 @@ impl flags::AnalysisStats {
             let parse = sema.parse_guess_edition(file_id.into());
             let file_txt = db.file_text(file_id.into());
             let path = vfs.file_path(file_id.into()).as_path().unwrap();
+            let line_endings = vfs.line_endings(file_id.into());
 
             for node in parse.syntax().descendants() {
                 let expr = match syntax::ast::Expr::cast(node.clone()) {
@@ -622,6 +623,9 @@ impl flags::AnalysisStats {
                     edit.apply(&mut txt);
 
                     if self.validate_term_search {
+                        if line_endings == Some(vfs::LineEndings::Dos) {
+                            txt = txt.replace('\n', "\r\n");
+                        }
                         std::fs::write(path, txt).unwrap();
 
                         let res = ws.run_build_scripts(&cargo_config, &|_| ()).unwrap();
@@ -675,9 +679,14 @@ impl flags::AnalysisStats {
                 }
                 bar.set_message(msg);
             }
-            // Revert file back to original state
+            // Restore the original text using the detected line-ending convention.
+            // Files with mixed line endings are restored with uniform CRLF.
             if self.validate_term_search {
-                std::fs::write(path, file_txt.text(db).to_string()).unwrap();
+                let mut text = file_txt.text(db).to_string();
+                if line_endings == Some(vfs::LineEndings::Dos) {
+                    text = text.replace('\n', "\r\n");
+                }
+                std::fs::write(path, text).unwrap();
             }
 
             bar.inc(1);

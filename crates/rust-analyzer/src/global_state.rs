@@ -29,14 +29,14 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use stdx::thread;
 use tracing::{Level, span, trace};
 use triomphe::Arc;
-use vfs::{AbsPathBuf, AnchoredPathBuf, ChangeKind, Vfs, VfsPath};
+use vfs::{AbsPathBuf, AnchoredPathBuf, ChangeKind, LineEndings, Vfs, VfsPath};
 
 use crate::{
     config::{Config, ConfigChange, ConfigErrors, RatomlFileKind},
     diagnostics::{CheckFixes, DiagnosticCollection},
     discover,
     flycheck::{FlycheckHandle, FlycheckMessage, PackageSpecifier},
-    line_index::{LineEndings, LineIndex},
+    line_index::LineIndex,
     lsp::{from_proto, to_proto::url_from_abs_path},
     lsp_ext,
     main_loop::Task,
@@ -360,7 +360,7 @@ impl GlobalState {
                     { analysis_host }.0.trigger_cancellation()
                 });
 
-                // downgrade to read lock to allow more readers while we are normalizing text
+                // Allow other readers while we inspect the changes and prepare database inputs.
                 let guard = RwLockWriteGuard::downgrade_to_upgradable(guard);
                 let vfs: &Vfs = &guard.0;
 
@@ -410,20 +410,14 @@ impl GlobalState {
                         self.diagnostics.clear_native_for(file.file_id);
                     }
 
-                    let text = if let vfs::Change::Create(v, _) | vfs::Change::Modify(v, _) =
-                        file.change
-                    {
-                        String::from_utf8(v).ok().map(|text| {
-                            // FIXME: Consider doing normalization in the `vfs` instead? That allows
-                            // getting rid of some locking
-                            let (text, line_endings) = LineEndings::normalize(text);
-                            (text, line_endings)
-                        })
-                    } else {
-                        None
+                    let text = match file.change {
+                        vfs::Change::Create(vfs::FileContents::Text { text, line_endings }, _)
+                        | vfs::Change::Modify(vfs::FileContents::Text { text, line_endings }, _) => {
+                            Some((text, line_endings))
+                        }
+                        _ => None,
                     };
-                    // delay `line_endings_map` changes until we are done normalizing the text
-                    // this allows delaying the re-acquisition of the write lock
+                    // Batch `line_endings_map` updates so we can delay upgrading to a write lock.
                     bytes.push((file.file_id, text));
                 }
                 let (vfs, line_endings_map) = &mut *RwLockUpgradableReadGuard::upgrade(guard);

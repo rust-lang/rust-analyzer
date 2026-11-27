@@ -40,6 +40,7 @@
 
 mod anchored_path;
 pub mod file_set;
+mod line_endings;
 pub mod loader;
 mod path_interner;
 mod vfs_path;
@@ -48,6 +49,7 @@ use std::{fmt, hash::BuildHasherDefault, mem};
 
 use crate::path_interner::PathInterner;
 
+pub use crate::line_endings::LineEndings;
 pub use crate::{
     anchored_path::{AnchoredPath, AnchoredPathBuf},
     vfs_path::VfsPath,
@@ -96,8 +98,8 @@ pub struct Vfs {
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum FileState {
-    /// The file exists with the given content hash.
-    Exists(u64),
+    /// The file exists with the given content hash and detected line endings.
+    Exists { hash: u64, line_endings: Option<LineEndings> },
     /// The file is deleted.
     Deleted,
     /// The file was specifically excluded by the user. We still include excluded files
@@ -149,11 +151,20 @@ impl ChangedFile {
 #[derive(Eq, PartialEq, Debug)]
 pub enum Change {
     /// The file was (re-)created
-    Create(Vec<u8>, u64),
+    Create(FileContents, u64),
     /// The file was modified
-    Modify(Vec<u8>, u64),
+    Modify(FileContents, u64),
     /// The file was deleted
     Delete,
+}
+
+/// File contents after UTF-8 validation and line-ending normalization.
+#[derive(Eq, PartialEq, Debug, Hash)]
+pub enum FileContents {
+    /// UTF-8 text with CRLF normalized to LF, and its original line-ending convention.
+    Text { text: String, line_endings: LineEndings },
+    /// Non-UTF-8 bytes, preserved unchanged.
+    Binary(Vec<u8>),
 }
 
 /// Kind of [file change](ChangedFile).
@@ -179,7 +190,7 @@ impl Vfs {
         let file_id = self.interner.get(path)?;
         let file_state = self.get(file_id);
         match file_state {
-            FileState::Exists(_) => Some((file_id, FileExcluded::No)),
+            FileState::Exists { .. } => Some((file_id, FileExcluded::No)),
             FileState::Deleted => None,
             FileState::Excluded => Some((file_id, FileExcluded::Yes)),
         }
@@ -194,13 +205,21 @@ impl Vfs {
         self.interner.lookup(file_id)
     }
 
+    /// The detected line-ending convention.
+    pub fn line_endings(&self, file_id: FileId) -> Option<LineEndings> {
+        match self.data.get(file_id.0 as usize)? {
+            FileState::Exists { line_endings, .. } => *line_endings,
+            FileState::Deleted | FileState::Excluded => None,
+        }
+    }
+
     /// Returns an iterator over the stored ids and their corresponding paths.
     ///
     /// This will skip deleted files.
     pub fn iter(&self) -> impl Iterator<Item = (FileId, &VfsPath)> + '_ {
         (0..self.data.len())
             .map(|it| FileId(it as u32))
-            .filter(move |&file_id| matches!(self.get(file_id), FileState::Exists(_)))
+            .filter(move |&file_id| matches!(self.get(file_id), FileState::Exists { .. }))
             .map(move |file_id| {
                 let path = self.interner.lookup(file_id);
                 (file_id, path)
@@ -217,26 +236,43 @@ impl Vfs {
         let _p = span!(Level::INFO, "Vfs::set_file_contents").entered();
         let file_id = self.alloc_file_id(path);
         let state: FileState = self.get(file_id);
+
+        let normalize_line_endings = |v: Vec<u8>| match String::from_utf8(v) {
+            Ok(text) => {
+                let (text, line_endings) = LineEndings::normalize(text);
+                FileContents::Text { text, line_endings }
+            }
+            Err(err) => FileContents::Binary(err.into_bytes()),
+        };
+
         let change = match (state, contents) {
             (FileState::Deleted, None) => return false,
             (FileState::Deleted, Some(v)) => {
-                let hash = hash_once::<FxHasher>(&*v);
-                Change::Create(v, hash)
+                let contents = normalize_line_endings(v);
+                let hash = hash_once::<FxHasher>(&contents);
+                Change::Create(contents, hash)
             }
-            (FileState::Exists(_), None) => Change::Delete,
-            (FileState::Exists(hash), Some(v)) => {
-                let new_hash = hash_once::<FxHasher>(&*v);
+            (FileState::Exists { .. }, None) => Change::Delete,
+            (FileState::Exists { hash, .. }, Some(v)) => {
+                let contents = normalize_line_endings(v);
+                let new_hash = hash_once::<FxHasher>(&contents);
                 if new_hash == hash {
                     return false;
                 }
-                Change::Modify(v, new_hash)
+                Change::Modify(contents, new_hash)
             }
             (FileState::Excluded, _) => return false,
         };
 
-        let mut set_data = |change_kind| {
+        let mut set_data = |change_kind: &Change| {
             self.data[file_id.0 as usize] = match change_kind {
-                &Change::Create(_, hash) | &Change::Modify(_, hash) => FileState::Exists(hash),
+                Change::Create(contents, hash) | Change::Modify(contents, hash) => {
+                    let line_endings = match contents {
+                        FileContents::Text { line_endings, .. } => Some(*line_endings),
+                        FileContents::Binary(_) => None,
+                    };
+                    FileState::Exists { hash: *hash, line_endings }
+                }
                 Change::Delete => FileState::Deleted,
             };
         };
@@ -287,7 +323,7 @@ impl Vfs {
 
     /// Provides a panic-less way to verify file_id validity.
     pub fn exists(&self, file_id: FileId) -> bool {
-        matches!(self.get(file_id), FileState::Exists(_))
+        matches!(self.get(file_id), FileState::Exists { .. })
     }
 
     /// Returns the id associated with `path`
@@ -325,5 +361,131 @@ impl Vfs {
 impl fmt::Debug for Vfs {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vfs").field("n_files", &self.data.len()).finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn line_endings_survive_draining_changes() {
+        let mut vfs = Vfs::default();
+        let path = VfsPath::new_virtual_path("/test.rs".into());
+        assert_eq!(vfs.line_endings(FileId(0)), None);
+
+        vfs.set_file_contents(path.clone(), Some(b"text\n".to_vec()));
+        let (file_id, _) = vfs.file_id(&path).unwrap();
+        vfs.set_file_contents(path.clone(), Some(b"text\r\n".to_vec()));
+        assert_eq!(vfs.line_endings(file_id), Some(LineEndings::Dos));
+        vfs.take_changes();
+        assert_eq!(vfs.line_endings(file_id), Some(LineEndings::Dos));
+
+        vfs.set_file_contents(path.clone(), Some(b"\xff\r\n".to_vec()));
+        vfs.take_changes();
+        assert_eq!(vfs.line_endings(file_id), None);
+
+        vfs.set_file_contents(path.clone(), Some(b"text\n".to_vec()));
+        vfs.take_changes();
+        assert_eq!(vfs.line_endings(file_id), Some(LineEndings::Unix));
+
+        vfs.set_file_contents(path.clone(), None);
+        vfs.take_changes();
+        assert_eq!(vfs.line_endings(file_id), None);
+
+        vfs.set_file_contents(path.clone(), Some(b"text\r\n".to_vec()));
+        vfs.take_changes();
+        assert_eq!(vfs.line_endings(file_id), Some(LineEndings::Dos));
+        vfs.insert_excluded_file(path);
+        assert_eq!(vfs.line_endings(file_id), None);
+    }
+
+    #[test]
+    fn changes_preserve_text_and_binary_contents() {
+        let mut vfs = Vfs::default();
+        let path = VfsPath::new_virtual_path("/test.rs".into());
+        for (bytes, expected) in [
+            (
+                "α\r\n".as_bytes(),
+                FileContents::Text { text: "α\n".into(), line_endings: LineEndings::Dos },
+            ),
+            (b"\xff\r\n".as_slice(), FileContents::Binary(b"\xff\r\n".to_vec())),
+            (
+                "β\n".as_bytes(),
+                FileContents::Text { text: "β\n".into(), line_endings: LineEndings::Unix },
+            ),
+        ] {
+            let bytes = bytes.to_vec();
+            let allocation = bytes.as_ptr();
+            assert!(vfs.set_file_contents(path.clone(), Some(bytes)));
+            let changes = vfs.take_changes();
+            assert_eq!(changes.len(), 1);
+            let (Change::Create(contents, _) | Change::Modify(contents, _)) =
+                &changes.values().next().unwrap().change
+            else {
+                panic!("expected file contents");
+            };
+            assert_eq!(*contents, expected);
+            let contents_ptr = match contents {
+                FileContents::Text { text, .. } => text.as_ptr(),
+                FileContents::Binary(bytes) => bytes.as_ptr(),
+            };
+            assert_eq!(contents_ptr, allocation);
+        }
+    }
+
+    #[test]
+    fn coalesced_changes_keep_latest_line_endings() {
+        for modify in [false, true] {
+            for previous in [b"unix\n".as_slice(), &[0xff]] {
+                let mut vfs = Vfs::default();
+                let path = VfsPath::new_virtual_path("/test.rs".into());
+                if modify {
+                    vfs.set_file_contents(path.clone(), Some(b"initial\n".to_vec()));
+                    vfs.take_changes();
+                }
+                vfs.set_file_contents(path.clone(), Some(previous.to_vec()));
+                vfs.set_file_contents(path.clone(), Some(b"dos\r\n".to_vec()));
+
+                let changes = vfs.take_changes();
+                assert_eq!(changes.len(), 1);
+                let file = changes.values().next().unwrap();
+                assert_eq!(file.is_modified(), modify);
+                let (Change::Create(contents, _) | Change::Modify(contents, _)) = &file.change
+                else {
+                    panic!("expected file contents");
+                };
+                assert_eq!(
+                    contents,
+                    &FileContents::Text { text: "dos\n".into(), line_endings: LineEndings::Dos }
+                );
+                assert!(!vfs.set_file_contents(path, Some(b"dos\r\n".to_vec())));
+            }
+        }
+    }
+
+    #[test]
+    fn line_ending_only_changes_are_reported() {
+        let mut vfs = Vfs::default();
+        let path = VfsPath::new_virtual_path("/test.rs".into());
+        vfs.set_file_contents(path.clone(), Some(b"text\n".to_vec()));
+        vfs.take_changes();
+
+        for (bytes, expected) in
+            [(b"text\r\n".as_slice(), LineEndings::Dos), (b"text\n".as_slice(), LineEndings::Unix)]
+        {
+            assert!(vfs.set_file_contents(path.clone(), Some(bytes.to_vec())));
+            let changes = vfs.take_changes();
+            assert_eq!(changes.len(), 1);
+            let Change::Modify(contents, _) = &changes.values().next().unwrap().change else {
+                panic!("expected modification");
+            };
+            assert_eq!(
+                contents,
+                &FileContents::Text { text: "text\n".into(), line_endings: expected }
+            );
+            assert!(!vfs.set_file_contents(path.clone(), Some(bytes.to_vec())));
+            assert!(vfs.take_changes().is_empty());
+        }
     }
 }
