@@ -1,5 +1,7 @@
 //! Things related to tys in the next-trait-solver.
 
+mod erase_regions;
+
 use std::ops::ControlFlow;
 
 use hir_def::{
@@ -866,7 +868,8 @@ impl<'db> IntoKind for Ty<'db> {
     }
 }
 
-impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Ty<'db> {
+// SAFETY: manual impl is required in order to handle interned type
+unsafe impl<'db, V: super::WorldExposer> GenericTypeVisitable<V> for Ty<'db> {
     fn generic_visit_with(&self, visitor: &mut V) {
         if visitor.on_interned(self.interned).is_continue() {
             self.kind().generic_visit_with(visitor);
@@ -1438,7 +1441,8 @@ pub type BoundTyKind<'db> = rustc_type_ir::BoundTyKind<DbInterner<'db>>;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct ErrorGuaranteed;
 
-impl<V> GenericTypeVisitable<V> for ErrorGuaranteed {
+// SAFETY: unit struct, nothing to visit
+unsafe impl<V> GenericTypeVisitable<V> for ErrorGuaranteed {
     fn generic_visit_with(&self, _visitor: &mut V) {}
 }
 

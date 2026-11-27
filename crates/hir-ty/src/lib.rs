@@ -23,11 +23,11 @@ pub mod builtin_derive;
 pub mod generics;
 mod infer;
 pub mod inhabitedness;
+pub mod layout;
 mod lower;
 pub mod next_solver;
 mod opaques;
-mod representability;
-mod specialization;
+pub mod representability;
 mod target_feature;
 pub mod utils;
 mod variance;
@@ -35,10 +35,7 @@ mod variance;
 pub mod autoderef;
 pub mod consteval;
 pub mod db;
-pub mod drop;
-pub mod dyn_compatibility;
 pub mod lang_items;
-pub mod layout;
 pub mod method_resolution;
 pub mod mir;
 pub mod primitive;
@@ -73,7 +70,6 @@ use traits::FnTrait;
 
 use crate::{
     db::{AnonConstId, HirDatabase},
-    lower::SupertraitsInfo,
     next_solver::{
         AliasTy, Binder, BoundConst, BoundRegion, BoundRegionKind, BoundTy, BoundTyKind, Canonical,
         CanonicalVarKind, CanonicalVarKinds, ClauseKind, Const, ConstKind, DbInterner, GenericArgs,
@@ -95,8 +91,8 @@ pub use infer::{
 };
 pub use lower::{
     FieldType, GenericDefaults, GenericDefaultsRef, GenericPredicates, LifetimeElisionKind,
-    LifetimeLoweringMode, LoweringMode, TyDefId, TyLoweringContext, TyLoweringInferVarsCtx,
-    TyLoweringResult, ValueTyDefId, diagnostics::*,
+    LifetimeLoweringMode, LoweringMode, SupertraitsInfo, TyDefId, TyLoweringContext,
+    TyLoweringInferVarsCtx, TyLoweringResult, ValueTyDefId, diagnostics::*,
 };
 pub use next_solver::interner::{attach_db, attach_db_allow_change, with_attached_db};
 pub use target_feature::TargetFeatures;
