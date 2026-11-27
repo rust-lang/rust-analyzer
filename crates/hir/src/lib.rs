@@ -4807,6 +4807,18 @@ impl<'db> Type<'db> {
         matches!(self.ty.skip_binder().kind(), TyKind::Uint(rustc_type_ir::UintTy::Usize))
     }
 
+    pub fn is_uint8(&self) -> bool {
+        matches!(self.ty.skip_binder().kind(), TyKind::Uint(rustc_type_ir::UintTy::U8))
+    }
+
+    pub fn is_bytes(&self) -> bool {
+        let wrapped = match self.ty.skip_binder().kind() {
+            TyKind::Array(ty, _) | TyKind::Slice(ty) => ty.kind(),
+            _ => return false,
+        };
+        matches!(wrapped, TyKind::Uint(rustc_type_ir::UintTy::U8))
+    }
+
     pub fn is_float(&self) -> bool {
         matches!(self.ty.skip_binder().kind(), TyKind::Float(_))
     }
