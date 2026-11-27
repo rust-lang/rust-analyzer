@@ -1,8 +1,6 @@
 //! The home of `HirDatabase`, which is the Salsa database containing all the
 //! type inference-related queries.
 
-use std::sync::LazyLock;
-
 use arrayvec::ArrayVec;
 use base_db::{Crate, SourceDatabase, target::TargetLoadError};
 use either::Either;
@@ -27,7 +25,6 @@ use crate::{
     FieldType, GenericDefaultsRef, GenericPredicates, ImplTraitId, InferBodyId, TyDefId,
     TyLoweringDiagnostic, TyLoweringResult, ValueTyDefId,
     consteval::ConstEvalError,
-    dyn_compatibility::DynCompatibilityViolation,
     layout::{Layout, LayoutError},
     lower::{
         ConstParamTypes, FieldTypes, GenericDefaults, SelfAndAssocBounds, TrackedStructToken,
@@ -36,7 +33,8 @@ use crate::{
     mir::{MirBody, MirLowerError},
     next_solver::{
         Allocation, Clause, EarlyBinder, GenericArgs, ParamEnv, PolyFnSig, StoredEarlyBinder,
-        StoredGenericArgs, StoredPolyFnSig, StoredTraitRef, StoredTy, TraitRef, Ty, VariancesOf,
+        StoredGenericArgs, StoredPolyFnSig, StoredTraitRef, StoredTy, TraitRef, Ty, TypingEnv,
+        VariancesOf,
     },
     traits::{ParamEnvAndCrate, StoredParamEnvAndCrate},
 };
@@ -131,7 +129,7 @@ pub trait HirDatabase: SourceDatabase + 'static {
         env: ParamEnvAndCrate<'db>,
         func: FunctionId,
         fn_subst: GenericArgs<'db>,
-    ) -> (Either<FunctionId, (BuiltinDeriveImplId, BuiltinDeriveImplMethod)>, GenericArgs<'db>)
+    ) -> (Either<FunctionId, (BuiltinDeriveImplId<'db>, BuiltinDeriveImplMethod)>, GenericArgs<'db>)
     {
         let db = self.as_dyn();
         crate::method_resolution::lookup_impl_method_query(db, env, func, fn_subst)
@@ -144,36 +142,17 @@ pub trait HirDatabase: SourceDatabase + 'static {
         def: AdtId,
         args: StoredGenericArgs,
         trait_env: StoredParamEnvAndCrate,
-    ) -> Result<Arc<Layout>, LayoutError> {
-        let db = self.as_dyn();
-        crate::layout::layout_of_adt_query(db, def, args, trait_env)
-    }
+    ) -> Result<Arc<Layout>, LayoutError>;
 
     fn layout_of_ty(
         &self,
         ty: StoredTy,
         env: StoredParamEnvAndCrate,
-    ) -> Result<Arc<Layout>, LayoutError> {
-        let db = self.as_dyn();
-        crate::layout::layout_of_ty_query(db, ty, env)
-    }
+    ) -> Result<Arc<Layout>, LayoutError>;
 
-    fn target_data_layout(&self, krate: Crate) -> Result<&TargetDataLayout, TargetLoadError> {
-        let db = self.as_dyn();
-        crate::layout::target_data_layout_query(db, krate).map_err(|err| err.clone())
-    }
+    fn target_data_layout(&self, krate: Crate) -> Result<&TargetDataLayout, TargetLoadError>;
 
-    fn target_data_layout_or_default(&self, krate: Crate) -> &TargetDataLayout {
-        static DEFAULT: LazyLock<TargetDataLayout> = LazyLock::new(TargetDataLayout::default);
-
-        let db = self.as_dyn();
-        crate::layout::target_data_layout_query(db, krate).unwrap_or_else(|_| &*DEFAULT)
-    }
-
-    fn dyn_compatibility_of_trait(&self, trait_: TraitId) -> Option<DynCompatibilityViolation> {
-        let db = self.as_dyn();
-        crate::dyn_compatibility::dyn_compatibility_of_trait_query(db, trait_)
-    }
+    fn target_data_layout_or_default(&self, krate: Crate) -> &TargetDataLayout;
 
     fn ty<'db>(&'db self, def: TyDefId) -> EarlyBinder<'db, Ty<'db>> {
         let db = self.as_dyn();
@@ -346,6 +325,32 @@ pub trait HirDatabase: SourceDatabase + 'static {
 
     // HACK: We need this for MIR intrinsic `type_name()`, and it can't access the display infra because it is inside `hir-ide`.
     fn type_name<'db>(&'db self, ty: Ty<'db>, module: ModuleId) -> String;
+
+    // region:hir-analysis
+
+    fn specializes(&self, specializing_impl_def_id: ImplId, parent_impl_def_id: ImplId) -> bool;
+
+    fn destructor(&self, adt: AdtId) -> Option<ImplId>;
+
+    fn has_drop_glue<'db>(&'db self, ty: Ty<'db>, env: TypingEnv<'db>) -> DropGlue;
+
+    fn generics_require_sized_self(&self, def_id: GenericDefId) -> bool;
+
+    fn trait_is_dyn_compatible(&self, trait_: TraitId) -> bool;
+
+    // endregion:hir-analysis
+}
+
+// FIXME: Find a better place for this.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DropGlue {
+    // Order of variants is important.
+    None,
+    /// May have a drop glue if some type parameter has it.
+    ///
+    /// For the compiler this is considered as a positive result, IDE distinguishes this from "yes".
+    DependOnParams,
+    HasDropGlue,
 }
 
 #[test]

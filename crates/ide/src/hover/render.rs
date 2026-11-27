@@ -5,7 +5,7 @@ use either::Either;
 use hir::{
     Adt, AsAssocItem, AsExternAssocItem, CaptureKind, DisplayTarget, DropGlue,
     DynCompatibilityViolation, HasCrate, HasSource, HirDisplay, Layout, LayoutError,
-    MethodViolationCode, Name, Semantics, Symbol, Trait, Type, TypeInfo, Variant,
+    MethodViolation, Name, Semantics, Symbol, Trait, Type, TypeInfo, Variant,
 };
 use ide_db::{
     RootDatabase,
@@ -57,8 +57,8 @@ pub(super) fn closure_expr(
     closure_ty(sema, config, &TypeInfo { original, adjusted: None }, edition, display_target)
 }
 
-pub(super) fn try_expr(
-    sema: &Semantics<'_, RootDatabase>,
+pub(super) fn try_expr<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     _config: &HoverConfig<'_>,
     try_expr: &ast::TryExpr,
     edition: Edition,
@@ -119,8 +119,8 @@ pub(super) fn try_expr(
 
     let mut res = HoverResult::default();
 
-    let mut targets: Vec<hir::ModuleDef> = Vec::new();
-    let mut push_new_def = |item: hir::ModuleDef| {
+    let mut targets: Vec<hir::ModuleDef<'db>> = Vec::new();
+    let mut push_new_def = |item: hir::ModuleDef<'db>| {
         if !targets.contains(&item) {
             targets.push(item);
         }
@@ -152,8 +152,8 @@ pub(super) fn try_expr(
     Some(res)
 }
 
-pub(super) fn deref_expr(
-    sema: &Semantics<'_, RootDatabase>,
+pub(super) fn deref_expr<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     _config: &HoverConfig<'_>,
     deref_expr: &ast::PrefixExpr,
     edition: Edition,
@@ -164,8 +164,8 @@ pub(super) fn deref_expr(
         sema.type_of_expr(&ast::Expr::from(deref_expr.clone()))?;
 
     let mut res = HoverResult::default();
-    let mut targets: Vec<hir::ModuleDef> = Vec::new();
-    let mut push_new_def = |item: hir::ModuleDef| {
+    let mut targets: Vec<hir::ModuleDef<'db>> = Vec::new();
+    let mut push_new_def = |item: hir::ModuleDef<'db>| {
         if !targets.contains(&item) {
             targets.push(item);
         }
@@ -264,8 +264,8 @@ pub(super) fn keyword(
 /// Returns missing types in a record pattern.
 /// Only makes sense when there's a rest pattern in the record pattern.
 /// i.e. `let S {a, ..} = S {a: 1, b: 2}`
-pub(super) fn struct_rest_pat(
-    sema: &Semantics<'_, RootDatabase>,
+pub(super) fn struct_rest_pat<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     _config: &HoverConfig<'_>,
     pattern: &ast::RecordPat,
     edition: Edition,
@@ -278,8 +278,8 @@ pub(super) fn struct_rest_pat(
     // example, S {a: 1, b: 2, ..} when struct S {a: u32, b: u32}
 
     let mut res = HoverResult::default();
-    let mut targets: Vec<hir::ModuleDef> = Vec::new();
-    let mut push_new_def = |item: hir::ModuleDef| {
+    let mut targets: Vec<hir::ModuleDef<'db>> = Vec::new();
+    let mut push_new_def = |item: hir::ModuleDef<'db>| {
         if !targets.contains(&item) {
             targets.push(item);
         }
@@ -749,7 +749,12 @@ pub(super) fn definition(
     let dyn_compatibility_info = || match def {
         Definition::Trait(it) => {
             let mut dyn_compatibility_info = String::new();
-            render_dyn_compatibility(db, &mut dyn_compatibility_info, it.dyn_compatibility(db));
+            // FIXME: Maybe show all dyn-compatibility violations?
+            render_dyn_compatibility(
+                db,
+                &mut dyn_compatibility_info,
+                it.dyn_compatibility_violations(db).into_iter().next(),
+            );
             Some(dyn_compatibility_info)
         }
         _ => None,
@@ -968,8 +973,8 @@ fn render_notable_trait(
     }
 }
 
-fn type_info(
-    sema: &Semantics<'_, RootDatabase>,
+fn type_info<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     config: &HoverConfig<'_>,
     ty: TypeInfo<'_>,
     edition: Edition,
@@ -981,8 +986,8 @@ fn type_info(
     let db = sema.db;
     let TypeInfo { original, adjusted } = ty;
     let mut res = HoverResult::default();
-    let mut targets: Vec<hir::ModuleDef> = Vec::new();
-    let mut push_new_def = |item: hir::ModuleDef| {
+    let mut targets: Vec<hir::ModuleDef<'db>> = Vec::new();
+    let mut push_new_def = |item: hir::ModuleDef<'db>| {
         if !targets.contains(&item) {
             targets.push(item);
         }
@@ -1027,8 +1032,8 @@ fn type_info(
     Some(res)
 }
 
-fn closure_ty(
-    sema: &Semantics<'_, RootDatabase>,
+fn closure_ty<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     config: &HoverConfig<'_>,
     TypeInfo { original, adjusted }: &TypeInfo<'_>,
     edition: Edition,
@@ -1051,8 +1056,8 @@ fn closure_ty(
     if captures_rendered.trim().is_empty() {
         "This closure captures nothing".clone_into(&mut captures_rendered);
     }
-    let mut targets: Vec<hir::ModuleDef> = Vec::new();
-    let mut push_new_def = |item: hir::ModuleDef| {
+    let mut targets: Vec<hir::ModuleDef<'db>> = Vec::new();
+    let mut push_new_def = |item: hir::ModuleDef<'db>| {
         if !targets.contains(&item) {
             targets.push(item);
         }
@@ -1275,8 +1280,8 @@ impl KeywordHint {
     }
 }
 
-fn keyword_hints(
-    sema: &Semantics<'_, RootDatabase>,
+fn keyword_hints<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     token: &SyntaxToken,
     parent: syntax::SyntaxNode,
     edition: Edition,
@@ -1289,8 +1294,8 @@ fn keyword_hints(
             match ast::Expr::cast(parent).and_then(|site| sema.type_of_expr(&site)) {
                 // ignore the unit type ()
                 Some(ty) if !ty.adjusted.as_ref().unwrap_or(&ty.original).is_unit() => {
-                    let mut targets: Vec<hir::ModuleDef> = Vec::new();
-                    let mut push_new_def = |item: hir::ModuleDef| {
+                    let mut targets: Vec<hir::ModuleDef<'db>> = Vec::new();
+                    let mut push_new_def = |item: hir::ModuleDef<'db>| {
                         if !targets.contains(&item) {
                             targets.push(item);
                         }
@@ -1332,7 +1337,7 @@ fn keyword_hints(
 fn render_dyn_compatibility(
     db: &RootDatabase,
     buf: &mut String,
-    safety: Option<DynCompatibilityViolation>,
+    safety: Option<DynCompatibilityViolation<'_>>,
 ) {
     let Some(osv) = safety else {
         buf.push_str("Is dyn-compatible");
@@ -1343,44 +1348,52 @@ fn render_dyn_compatibility(
         DynCompatibilityViolation::SizedSelf => {
             buf.push_str("having a `Self: Sized` bound");
         }
-        DynCompatibilityViolation::SelfReferential => {
+        DynCompatibilityViolation::SupertraitSelf => {
             buf.push_str("having a bound that references `Self`");
         }
+        DynCompatibilityViolation::ExplicitlyDynIncompatible => {
+            buf.push_str("having opted out of dyn-compatibility")
+        }
+        DynCompatibilityViolation::SupertraitNonLifetimeBinder => {
+            buf.push_str("non-lifetime `for<...>` variables")
+        }
+        DynCompatibilityViolation::SupertraitConst => buf.push_str("having a `const` supertrait"),
         DynCompatibilityViolation::Method(func, mvc) => {
-            let name = hir::Function::from(func).name(db);
+            let name = func.name(db);
             format_to!(buf, "having a method `{}` that is not dispatchable due to ", name.as_str());
             let desc = match mvc {
-                MethodViolationCode::StaticMethod => "missing a receiver",
-                MethodViolationCode::ReferencesSelfInput => "having a parameter referencing `Self`",
-                MethodViolationCode::ReferencesSelfOutput => "the return type referencing `Self`",
-                MethodViolationCode::ReferencesImplTraitInTrait => {
+                MethodViolation::StaticMethod => "missing a receiver",
+                MethodViolation::ReferencesSelfInput => "having a parameter referencing `Self`",
+                MethodViolation::ReferencesSelfOutput => "the return type referencing `Self`",
+                MethodViolation::ReferencesImplTraitInTrait => {
                     "the return type containing `impl Trait`"
                 }
-                MethodViolationCode::AsyncFn => "being async",
-                MethodViolationCode::WhereClauseReferencesSelf => {
-                    "a where clause referencing `Self`"
-                }
-                MethodViolationCode::Generic => "having a const or type generic parameter",
-                MethodViolationCode::UndispatchableReceiver => {
+                MethodViolation::AsyncFn => "being async",
+                MethodViolation::WhereClauseReferencesSelf => "a where clause referencing `Self`",
+                MethodViolation::Generic => "having a const or type generic parameter",
+                MethodViolation::UndispatchableReceiver => {
                     "having a non-dispatchable receiver type"
                 }
+                MethodViolation::CVariadic => "being C-variadic",
             };
             buf.push_str(desc);
         }
-        DynCompatibilityViolation::AssocConst(const_) => {
-            let name = hir::Const::from(const_).name(db);
+        DynCompatibilityViolation::AssocConst(const_, _) => {
+            // FIXME: Handle the specific violation (matters only on nightly).
+            let name = const_.name(db);
             if let Some(name) = name {
                 format_to!(buf, "having an associated constant `{}`", name.as_str());
             } else {
                 buf.push_str("having an associated constant");
             }
         }
-        DynCompatibilityViolation::GAT(alias) => {
-            let name = hir::TypeAlias::from(alias).name(db);
+        DynCompatibilityViolation::GenericAssocTy(alias) => {
+            let name = alias.name(db);
             format_to!(buf, "having a generic associated type `{}`", name.as_str());
         }
-        DynCompatibilityViolation::HasNonCompatibleSuperTrait(super_trait) => {
-            let name = hir::Trait::from(super_trait).name(db);
+        DynCompatibilityViolation::HasNonCompatibleSuperTrait(super_trait, _) => {
+            // FIXME: Show the supertrait violations.
+            let name = super_trait.name(db);
             format_to!(buf, "having a dyn-incompatible supertrait `{}`", name.as_str());
         }
     }

@@ -475,7 +475,7 @@ fn build_postfix_snippet_builder<'ctx>(
     ctx: &'ctx CompletionContext<'_, '_>,
     cap: SnippetCap,
     receiver: &'ctx ast::Expr,
-) -> Option<impl Fn(&str, &str, String) -> Builder + 'ctx> {
+) -> Option<impl Fn(&str, &str, String) -> Builder<'static> + 'ctx> {
     let receiver_range = ctx.sema.original_range_opt(receiver.syntax())?.range;
     if ctx.source_range().end() < receiver_range.start() {
         // This shouldn't happen, yet it does. I assume this might be due to an incorrect token
@@ -491,7 +491,7 @@ fn build_postfix_snippet_builder<'ctx>(
         ctx: &'ctx CompletionContext<'_, '_>,
         cap: SnippetCap,
         delete_range: TextRange,
-    ) -> impl Fn(&str, &str, String) -> Builder + 'ctx {
+    ) -> impl Fn(&str, &str, String) -> Builder<'static> + 'ctx {
         move |label, detail, snippet| {
             let edit = TextEdit::replace(delete_range, snippet);
             let mut item = CompletionItem::new(
@@ -519,7 +519,7 @@ fn build_postfix_snippet_builder<'ctx>(
 fn add_custom_postfix_completions(
     acc: &mut Completions,
     ctx: &CompletionContext<'_, '_>,
-    postfix_snippet: impl Fn(&str, &str, String) -> Builder,
+    postfix_snippet: impl Fn(&str, &str, String) -> Builder<'static>,
     receiver_text: &str,
 ) -> Option<()> {
     ImportScope::find_insert_use_container(&ctx.token.parent()?, &ctx.sema)?;
