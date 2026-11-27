@@ -1076,7 +1076,11 @@ impl<'db> SemanticsImpl<'db> {
     ///
     /// Note that if this token itself is within the context of a macro expansion does not matter.
     /// That is, we strictly check if it lies inside the input of a macro call.
-    pub fn is_inside_macro_call(&self, token @ InFile { value, .. }: InFile<&SyntaxToken>) -> bool {
+    pub fn is_inside_macro_call(
+        &self,
+        check_derive: bool,
+        token @ InFile { value, .. }: InFile<&SyntaxToken>,
+    ) -> bool {
         value.parent_ancestors().any(|ancestor| {
             if let Some(macro_call) = ast::MacroCall::cast(ancestor.clone())
                 // If this is the *path* of a macro, it's not inside the call.
@@ -1100,7 +1104,7 @@ impl<'db> SemanticsImpl<'db> {
                     ast::Item::Union(it) => it.into(),
                     _ => return false,
                 };
-                ctx.file_of_adt_has_derives(token.with_value(&adt))
+                check_derive && ctx.file_of_adt_has_derives(token.with_value(&adt))
             })
         })
     }

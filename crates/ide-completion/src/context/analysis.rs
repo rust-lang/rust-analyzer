@@ -152,7 +152,7 @@ fn expand_maybe_stop(
     // But hopefully checking just the real one should be enough.
     if token_at_offset_ignore_whitespace(&original_file.value, original_offset + relative_offset)
         .is_some_and(|original_token| {
-            !sema.is_inside_macro_call(original_file.with_value(&original_token))
+            !sema.is_inside_macro_call(false, original_file.with_value(&original_token))
         })
     {
         // Recursion base case.

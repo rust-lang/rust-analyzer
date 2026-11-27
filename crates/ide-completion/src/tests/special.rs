@@ -1088,6 +1088,55 @@ fn main() {
 }
 
 #[test]
+fn completes_types_from_derive_macros() {
+    check_no_kw(
+        r#"
+//- minicore: derive
+macro_rules! foo {
+    ($ty:ty) => {
+        #[derive(Clone)]
+        struct Foo($ty);
+    };
+}
+foo!(V$0);
+"#,
+        expect![[r#"
+            ma foo!(…) macro_rules! foo
+            md core::
+            sp Self                 Foo
+            st Foo                  Foo
+            bt u32                  u32
+        "#]],
+    )
+}
+
+#[test]
+fn completes_from_derive_macro_helper_attribute_inputs() {
+    check_no_kw(
+        r#"
+//- proc_macros: derive_attribute
+//- minicore: derive
+macro_rules! foo {
+    ($($t:tt)*) => {
+        #[derive(proc_macros::DeriveAttribute)]
+        #[from_derive($($t)*)]
+        struct Foo(i32);
+    };
+}
+foo!(V$0);
+"#,
+        expect![[r#"
+            lc inside_derive        u32
+            ma foo!(…) macro_rules! foo
+            md core::
+            md proc_macros::
+            st Foo                  Foo
+            bt u32                  u32
+        "#]],
+    )
+}
+
+#[test]
 fn regression_12644() {
     check_no_kw(
         r#"
