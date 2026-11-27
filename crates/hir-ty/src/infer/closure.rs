@@ -1111,8 +1111,7 @@ impl<'db> InferenceContext<'db> {
         if output_assoc_item.map(Into::into) != Some(predicate.def_id().0) {
             panic!(
                 "projecting associated item `{:?}` from future, which is not Output `{:?}`",
-                predicate.projection_term.kind(self.interner()),
-                output_assoc_item,
+                predicate.projection_term.kind, output_assoc_item,
             );
         }
 

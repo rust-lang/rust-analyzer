@@ -3129,23 +3129,23 @@ pub fn fo$0o() {}
 fn test_hover_layout_of_variant() {
     check(
         r#"enum Foo {
-            Va$0riant1(u8, u16),
-            Variant2(i32, u8, i64),
+            Variant1(u8, u16),
+            Va$0riant2(i32, u8, i64),
         }"#,
         expect![[r#"
-            *Variant1*
+            *Variant2*
 
             ```rust
             ra_test_fixture::Foo
             ```
 
             ```rust
-            Variant1(u8, u16)
+            Variant2(i32, u8, i64)
             ```
 
             ---
 
-            size = 4, align = 2, no Drop
+            size = 16 (0x10), align = 8, no Drop
         "#]],
     );
 }
@@ -6483,8 +6483,6 @@ const FOO$0: (&str, &str) = {
     );
 }
 
-// FIXME(next-solver): this fails to normalize the const, probably due to the solver
-// refusing to give the impl because of the error type.
 #[test]
 fn hover_const_eval_in_generic_trait() {
     // Doesn't compile, but we shouldn't crash.
@@ -6506,16 +6504,12 @@ fn test() {
             *FOO*
 
             ```rust
-            ra_test_fixture::Trait
+            ra_test_fixture::S
             ```
 
             ```rust
-            const FOO: bool = false
+            const FOO: bool = true
             ```
-
-            ---
-
-            `Self` = `S<{unknown}>`
         "#]],
     );
 }

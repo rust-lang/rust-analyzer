@@ -50,7 +50,7 @@ use crate::{
     },
     next_solver::{
         Const, DbInterner, ParamConst, ParamEnv, Region, StoredGenericArgs, StoredTy, TyKind,
-        TypingMode, UnevaluatedConst,
+        TypingMode, UnevaluatedConst, UnevaluatedConstKind,
         infer::{DbInternerInferExt, InferCtxt},
     },
 };
@@ -1394,16 +1394,21 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
         subst: GenericArgs<'db>,
         const_id: GeneralConstId<'db>,
     ) -> Result<'db, Operand> {
+        let interner = self.interner();
         let konst = Const::new_unevaluated(
-            self.interner(),
-            UnevaluatedConst { def: const_id.into(), args: subst },
+            interner,
+            UnevaluatedConst::new(
+                interner,
+                UnevaluatedConstKind::new_from_def_id(interner, const_id.into()),
+                subst,
+            ),
         );
         let ty = match const_id {
             GeneralConstId::ConstId(id) => self.db.value_ty(id.into()).unwrap(),
             GeneralConstId::StaticId(id) => self.db.value_ty(id.into()).unwrap(),
             GeneralConstId::AnonConstId(id) => id.loc(self.db).ty.get(),
         };
-        let ty = ty.instantiate(self.interner(), subst).skip_norm_wip();
+        let ty = ty.instantiate(interner, subst).skip_norm_wip();
         Ok(Operand {
             kind: OperandKind::Constant { konst: konst.store(), ty: ty.store() },
             span: None,

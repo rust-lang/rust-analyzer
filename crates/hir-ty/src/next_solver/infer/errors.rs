@@ -16,7 +16,7 @@ use crate::{
     next_solver::{
         AliasTerm, AnyImplId, Binder, ClauseKind, Const, ConstKind, DbInterner,
         HostEffectPredicate, PolyTraitPredicate, Predicate, PredicateKind, SolverContext, Term,
-        TraitPredicate, Ty, TyKind, TypeError,
+        TraitPredicate, Ty, TyKind, TypeError, UnevaluatedConst, UnevaluatedConstKind,
         fulfill::NextSolverError,
         infer::{
             InferCtxt,
@@ -131,13 +131,17 @@ fn fulfillment_error_for_no_solution<'db>(
         }
         PredicateKind::Clause(ClauseKind::ConstArgHasType(ct, expected_ty)) => {
             let ct_ty = match ct.kind() {
-                ConstKind::Unevaluated(uv) => {
-                    let ct_ty = match uv.def.0 {
+                ConstKind::Unevaluated(UnevaluatedConst {
+                    kind: UnevaluatedConstKind::Anon { def_id },
+                    args,
+                    ..
+                }) => {
+                    let ct_ty = match def_id.0 {
                         GeneralConstId::ConstId(konst) => db.value_ty(konst.into()).unwrap(),
                         GeneralConstId::StaticId(statik) => db.value_ty(statik.into()).unwrap(),
                         GeneralConstId::AnonConstId(konst) => konst.loc(db).ty.get(),
                     };
-                    ct_ty.instantiate(interner, uv.args).skip_norm_wip()
+                    ct_ty.instantiate(interner, args).skip_norm_wip()
                 }
                 ConstKind::Param(param_ct) => param_ct.find_const_ty_from_env(obligation.param_env),
                 ConstKind::Value(cv) => cv.ty,
@@ -503,7 +507,6 @@ impl<'db> BestObligation<'db> {
         &mut self,
         goal: &inspect::InspectGoal<'_, 'db>,
     ) -> <Self as ProofTreeVisitor<'db>>::Result {
-        let interner = goal.infcx().interner;
         let pred_kind = goal.goal().predicate.kind();
 
         match pred_kind.no_bound_vars() {
@@ -512,7 +515,7 @@ impl<'db> BestObligation<'db> {
             }
             Some(PredicateKind::NormalizesTo(pred))
                 if let AliasTermKind::ProjectionTy { .. }
-                | AliasTermKind::ProjectionConst { .. } = pred.alias.kind(interner) =>
+                | AliasTermKind::ProjectionConst { .. } = pred.alias.kind =>
             {
                 self.detect_error_in_self_ty_normalization(goal, pred.alias.self_ty())?;
                 self.detect_non_well_formed_assoc_item(goal, pred.alias)?;
@@ -574,7 +577,7 @@ impl<'db> ProofTreeVisitor<'db> for BestObligation<'db> {
             }
             PredicateKind::NormalizesTo(normalizes_to)
                 if matches!(
-                    normalizes_to.alias.kind(interner),
+                    normalizes_to.alias.kind,
                     AliasTermKind::ProjectionTy { .. } | AliasTermKind::ProjectionConst { .. }
                 ) =>
             {

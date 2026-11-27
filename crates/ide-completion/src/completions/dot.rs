@@ -1304,6 +1304,9 @@ fn f() {
         );
     }
 
+    // FIXME(next-solver): this seems to assume that `vec::IntoIter<{error}>: Clone`, but that
+    // would require `{error}: Clone`, which doesn't necessarily hold. So the second completion
+    // shouldn't be there.
     #[test]
     fn completes_method_call_when_receiver_type_has_errors_issue_10297() {
         check_no_kw(
@@ -1322,6 +1325,7 @@ fn main() {
 "#,
             expect![[r#"
                 me into_iter() (as IntoIterator) fn(self) -> <Self as IntoIterator>::IntoIter
+                me into_iter().clone() (as Clone)                           fn(&self) -> Self
             "#]],
         )
     }

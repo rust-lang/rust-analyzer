@@ -39,11 +39,12 @@ use crate::{
     consteval::{self, ConstEvalError, try_const_usize},
     db::{GeneralConstId, HirDatabase, InternedClosureId},
     infer::PointerCast,
-    layout::{Layout, LayoutError, RustcEnumVariantIdx},
+    layout::{Layout, LayoutError, RustcEnumVariantIdx, RustcFieldIdx},
     method_resolution::{is_dyn_method, lookup_impl_const},
     next_solver::{
         AliasTy, Allocation, AllocationData, Const, ConstKind, DbInterner, ErrorGuaranteed,
-        GenericArgs, Region, StoredTy, Ty, TyKind, TypingMode, UnevaluatedConst, ValTree,
+        GenericArgs, Region, StoredTy, Ty, TyKind, TypingMode, UnevaluatedConst,
+        UnevaluatedConstKind, ValTree,
         infer::{DbInternerInferExt, InferCtxt, traits::ObligationCause},
         obligation_ctxt::ObligationCtxt,
     },
@@ -710,10 +711,16 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                 }
                 ProjectionElem::Field(f) => {
                     let layout = self.layout(prev_ty.ty)?;
-                    let variant_layout = match &layout.variants {
-                        Variants::Single { .. } | Variants::Empty => &layout,
+                    let field_idx = f.0 as usize;
+                    let field_offset = match &layout.variants {
+                        Variants::Empty => {
+                            return Err(MirEvalError::InternalError(
+                                "attempted field access on an uninhabited type".into(),
+                            ));
+                        }
+                        Variants::Single { .. } => layout.fields.offset(field_idx),
                         Variants::Multiple { variants, .. } => {
-                            &variants[match prev_ty.variant_id {
+                            let variant_idx = match prev_ty.variant_id {
                                 Some(hir_def::VariantId::EnumVariantId(it)) => {
                                     RustcEnumVariantIdx(it.index(self.db))
                                 }
@@ -722,11 +729,11 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                                         "mismatched layout".into(),
                                     ));
                                 }
-                            }]
+                            };
+                            variants[variant_idx].field_offsets[RustcFieldIdx::new(field_idx)]
                         }
                     };
-                    let offset = variant_layout.fields.offset(f.0 as usize).bytes_usize();
-                    addr = addr.offset(offset);
+                    addr = addr.offset(field_offset.bytes_usize());
                     // Unsized field metadata is equal to the metadata of the struct
                     if self.size_align_of(ty.ty, locals)?.is_some() {
                         metadata = None;
@@ -1693,6 +1700,8 @@ impl<'a, 'db> Evaluator<'a, 'db> {
         })
     }
 
+    // NOTE: One would expect this to return `VariantLayout` instead, but that's complicated by us sometimes returning
+    // a dummy layout, which kind of needs to be a `Layout`.
     fn layout_of_variant(
         &mut self,
         it: VariantId,
@@ -1720,7 +1729,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                 };
                 let mut discriminant = self.const_eval_discriminant(enum_variant_id)?;
                 let rustc_enum_variant_idx = RustcEnumVariantIdx(enum_variant_id.index(self.db));
-                let variant_layout = variants[rustc_enum_variant_idx].clone();
+                let variant_layout = Layout::for_variant(&layout, rustc_enum_variant_idx);
                 let have_tag = match tag_encoding {
                     TagEncoding::Direct => true,
                     TagEncoding::Niche { untagged_variant, niche_variants: _, niche_start } => {
@@ -1961,8 +1970,12 @@ impl<'a, 'db> Evaluator<'a, 'db> {
     ) -> Result<'db, Interval> {
         match konst.kind() {
             ConstKind::Value(value) => self.allocate_valtree_in_heap(value.ty, value.value),
-            ConstKind::Unevaluated(UnevaluatedConst { def: const_id, args: subst }) => {
-                let mut id = const_id.0;
+            ConstKind::Unevaluated(UnevaluatedConst {
+                kind: UnevaluatedConstKind::Anon { def_id },
+                args: subst,
+                ..
+            }) => {
+                let mut id = def_id.0;
                 let mut subst = subst;
                 if let GeneralConstId::ConstId(c) = id {
                     let (c, s) = lookup_impl_const(&self.infcx, self.param_env.param_env, c, subst);
@@ -2359,8 +2372,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                             let data = v.fields(this.db);
                             let field_types = this.db.field_types(v.into());
                             for (f, _) in data.fields().iter() {
-                                let offset =
-                                    l.fields.offset(u32::from(f.into_raw()) as usize).bytes_usize();
+                                let offset = l.field_offsets[RustcFieldIdx(f)].bytes_usize();
                                 let ty = field_types[f]
                                     .ty()
                                     .instantiate(this.interner(), subst)
@@ -2490,7 +2502,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         e,
                     ) {
                         for (i, (_, field)) in self.db.field_types(ev.into()).iter().enumerate() {
-                            let offset = layout.fields.offset(i).bytes_usize();
+                            let offset = layout.field_offsets[RustcFieldIdx::new(i)].bytes_usize();
                             let ty = field.ty().instantiate(self.interner(), args).skip_norm_wip();
                             self.patch_addresses(
                                 patch_map,
