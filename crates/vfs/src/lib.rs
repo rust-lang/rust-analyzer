@@ -232,13 +232,13 @@ impl Vfs {
             (FileState::Deleted, None) => return false,
             (FileState::Deleted, Some(v)) => {
                 let (v, line_endings) = normalize_line_endings(v);
-                let hash = hash_once::<FxHasher>(&*v);
+                let hash = hash_once::<FxHasher>((&*v, line_endings));
                 Change::Create(v, hash, line_endings)
             }
             (FileState::Exists(_), None) => Change::Delete,
             (FileState::Exists(hash), Some(v)) => {
                 let (v, line_endings) = normalize_line_endings(v);
-                let new_hash = hash_once::<FxHasher>(&*v);
+                let new_hash = hash_once::<FxHasher>((&*v, line_endings));
                 if new_hash == hash {
                     return false;
                 }
@@ -267,16 +267,18 @@ impl Vfs {
                     (change, Delete) => *change = Delete,
                     // merge `Create` with `Create` or `Modify`
                     (
-                        Create(prev, old_hash, _),
-                        Create(new, new_hash, _) | Modify(new, new_hash, _),
+                        Create(prev, old_hash, old_endings),
+                        Create(new, new_hash, new_endings) | Modify(new, new_hash, new_endings),
                     ) => {
                         *prev = new;
                         *old_hash = new_hash;
+                        *old_endings = new_endings;
                     }
                     // collapse identical `Modify`es
-                    (Modify(prev, old_hash, _), Modify(new, new_hash, _)) => {
+                    (Modify(prev, old_hash, old_endings), Modify(new, new_hash, new_endings)) => {
                         *prev = new;
                         *old_hash = new_hash;
+                        *old_endings = new_endings;
                     }
                     // equivalent to `Modify`
                     (change @ Delete, Create(new, new_hash, line_endings)) => {
@@ -343,5 +345,62 @@ impl Vfs {
 impl fmt::Debug for Vfs {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vfs").field("n_files", &self.data.len()).finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn coalesced_changes_keep_latest_line_endings() {
+        for modify in [false, true] {
+            for previous in [b"unix\n".as_slice(), &[0xff]] {
+                let mut vfs = Vfs::default();
+                let path = VfsPath::new_virtual_path("/test.rs".into());
+                if modify {
+                    vfs.set_file_contents(path.clone(), Some(b"initial\n".to_vec()));
+                    vfs.take_changes();
+                }
+                vfs.set_file_contents(path.clone(), Some(previous.to_vec()));
+                vfs.set_file_contents(path.clone(), Some(b"dos\r\n".to_vec()));
+
+                let changes = vfs.take_changes();
+                assert_eq!(changes.len(), 1);
+                let file = changes.values().next().unwrap();
+                assert_eq!(file.is_modified(), modify);
+                let (Change::Create(text, _, endings) | Change::Modify(text, _, endings)) =
+                    &file.change
+                else {
+                    panic!("expected file contents");
+                };
+                assert_eq!(text, b"dos\n");
+                assert_eq!(*endings, Some(LineEndings::Dos));
+                assert!(!vfs.set_file_contents(path, Some(b"dos\r\n".to_vec())));
+            }
+        }
+    }
+
+    #[test]
+    fn line_ending_only_changes_are_reported() {
+        let mut vfs = Vfs::default();
+        let path = VfsPath::new_virtual_path("/test.rs".into());
+        vfs.set_file_contents(path.clone(), Some(b"text\n".to_vec()));
+        vfs.take_changes();
+
+        for (contents, expected) in
+            [(b"text\r\n".as_slice(), LineEndings::Dos), (b"text\n".as_slice(), LineEndings::Unix)]
+        {
+            assert!(vfs.set_file_contents(path.clone(), Some(contents.to_vec())));
+            let changes = vfs.take_changes();
+            assert_eq!(changes.len(), 1);
+            let Change::Modify(text, _, endings) = &changes.values().next().unwrap().change else {
+                panic!("expected modification");
+            };
+            assert_eq!(text, b"text\n");
+            assert_eq!(*endings, Some(expected));
+            assert!(!vfs.set_file_contents(path.clone(), Some(contents.to_vec())));
+            assert!(vfs.take_changes().is_empty());
+        }
     }
 }
